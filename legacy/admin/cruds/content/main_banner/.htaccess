@@ -1,0 +1,1 @@
+DirectoryIndex <?= $_SERVER['REQUEST_URI'] . '/edit.php' ?>?id=3

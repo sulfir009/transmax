@@ -1,0 +1,1111 @@
+.banner_first {
+    width: 100%;
+    margin-top: 120px;
+}
+
+.banner_first img {
+    width: 100%;
+    height: auto;
+    /* сохраняет пропорции изображения */
+    display: block;
+}
+
+.banner_first .mob_banner {
+    display: none;
+}
+
+.mob_right_blocks_line {
+    display: none;
+}
+
+.mob_left_blocks_line {
+    display: none;
+}
+
+.mob_pin_bus_block {
+    display: none;
+}
+
+.mob_pin_bus_block_m {
+    display: none;
+}
+
+.mob_table_line_r {
+    display: none;
+}
+
+.mob_table_line_l {
+    display: none;
+}
+
+.mob_pin_bus_table {
+    display: none;
+}
+
+.mob_pin_bus_table_m {
+    display: none;
+}
+
+.right_contact_line_m {
+    display: none;
+}
+
+.mob_pin_bus_contact_m {
+    display: none;
+}
+
+.mob_straight_l_top {
+    display: none;
+}
+
+.mob_straight_l_bottom {
+    display: none;
+}
+
+.mob_right_l {
+    display: none;
+}
+
+.mob_left_l {
+    display: none;
+}
+
+.first_section {
+    position: relative;
+    display: flex;
+    justify-content: center;
+}
+
+.diagram-section {
+    padding-top: 144px;
+    padding-bottom: 144px;
+    justify-content: center;
+    text-align: center;
+    max-width: 1080px;
+    width: 100%;
+}
+
+.container_diag {
+    display: flex;
+    justify-content: center;
+    position: relative;
+}
+
+.diagram-title {
+    max-width: 875px;
+    justify-content: center;
+    text-align: center;
+    margin: auto;
+}
+
+.diagram-title h3 {
+    font-family: Montserrat;
+    font-weight: 600;
+    font-size: 48px;
+    color: #6E7172;
+}
+
+.column_diag {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+}
+
+.button_diag {
+    width: 343px;
+    height: 244px;
+    background-size: cover;
+    background-repeat: no-repeat;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    font-family: Inter;
+    font-weight: 500;
+    font-size: 32px;
+    line-height: 100%;
+    letter-spacing: 0%;
+    text-align: center;
+    color: #878D8F;
+    padding-bottom: 35px;
+}
+
+.button_diag_col {
+    width: 343px;
+    height: 244px;
+    background-size: cover;
+    background-repeat: no-repeat;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    font-family: Inter;
+    font-weight: 500;
+    font-size: 32px;
+    line-height: 100%;
+    letter-spacing: 0%;
+    text-align: center;
+    color: #878D8F;
+}
+
+.button_diag::after {
+    position: absolute;
+    content: "";
+    display: block;
+    width: 35px;
+    height: 35px;
+    background-image: url('/images/legacy/dot-btn.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    bottom: 45px;
+    left: 155px;
+}
+
+.button_diag_col::after {
+    position: absolute;
+    content: "";
+    display: block;
+    width: 35px;
+    height: 35px;
+    background-image: url('/images/legacy/dot-btn.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    top: 25px;
+    left: 155px;
+}
+
+.left-button {
+    background-image: url('/images/legacy/Vector.svg');
+    margin-right: 15px;
+    margin-top: 90px;
+}
+
+.right-button {
+    background-image: url('/images/legacy/Vector.svg');
+    margin-left: 15px;
+    margin-top: 90px;
+}
+
+.top-button {
+    background-image: url('/images/legacy/Vector.svg');
+}
+
+.middle-button {
+    background-image: url('/images/legacy/Vector_mirror.svg');
+}
+
+.bottom-button {
+    background-image: url('/images/legacy/Vector_mirror.svg');
+}
+
+.left_diagram_line {
+    position: absolute;
+    top: 260px;
+    left: 185px;
+}
+
+.right_diagram_line {
+    position: absolute;
+    top: 260px;
+    right: 185px;
+}
+
+.straight_diagram_line_top {
+    position: absolute;
+    top: 210px;
+
+}
+
+.straight_diagram_line_bottom {
+    position: absolute;
+    bottom: 240px;
+
+}
+
+.left_line_diag_sec {
+    position: absolute;
+    left: 0;
+    rotate: -6.09 deg;
+    padding-top: 215px;
+    z-index: -3;
+}
+
+.right_line_diag_sec {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    rotate: -6.09 deg;
+    z-index: -3;
+}
+
+.pin_bus_right {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    padding-right: 90px;
+    padding-bottom: 90px;
+    z-index: -3;
+}
+
+.pin_bus_left {
+    position: absolute;
+    left: 0;
+    padding-left: 30px;
+    padding-top: 90px;
+    z-index: -3;
+}
+
+.schedule {
+    position: relative;
+}
+
+.custom-select-schedule-container {
+    position: absolute;
+    right: 0;
+    top: 10px;
+}
+
+.custom-schedule-select-wrapper {
+    position: relative;
+    max-width: 300px;
+    width: 100%;
+    font-family: 'Montserrat', sans-serif;
+}
+
+.custom-schedule-styled-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    width: 100%;
+    padding: 16px;
+    padding-right: 60px;
+    font-family: Montserrat;
+    font-weight: 600;
+    font-size: 18px;
+    line-height: 140%;
+    letter-spacing: 5%;
+    vertical-align: middle;
+    color: #4A4B4C;
+    border: 3px solid #35BAF0;
+    border-radius: 20px;
+    background-color: #fff;
+    background-image: none;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.custom-schedule-select-wrapper::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 16px;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    background-image: url('/images/legacy/settings.png');
+    background-repeat: no-repeat;
+    background-size: contain;
+    pointer-events: none;
+}
+
+.form-group select {
+    max-width: 574px;
+    width: 100%;
+    min-width: 323px;
+    height: 72px;
+    padding: 16px 20px 16px 88px;
+    border-radius: 12px;
+    border: 2px solid var(--Blue, #A3E8F9);
+    background: var(--White, #FFFFFF);
+    box-shadow: 0px 0px 10px 0px #A3D8F999 inset;
+    font-family: Montserrat;
+    font-size: 20px;
+    font-weight: 600;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    /* убираем стрелочку по умолчанию */
+}
+
+.form-group select {
+    background-image: url('data:image/svg+xml;utf8,<svg fill="gray" height="18" viewBox="0 0 24 24" width="18" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 18px;
+    padding-right: 30px;
+}
+
+
+
+.calendar_btn {
+    padding: 15px 56px !important;
+    background-color: #63D5F8;
+    border-radius: 100px;
+    font-family: Montserrat;
+    font-weight: 600;
+    font-size: 18px;
+    color: white;
+}
+
+.calendar_btn_cancel {
+    padding: 15px 70px !important;
+    background-color: #E63F47;
+    border-radius: 100px;
+    font-family: Montserrat;
+    font-weight: 600;
+    font-size: 18px;
+    color: white;
+}
+
+/* Модальное окно */
+.modal {
+    display: none;
+    /* Скрыто по умолчанию */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 140px;
+}
+
+
+.modal-content {
+    background: white;
+    padding: 60px 20px 40px 20px;
+    border-radius: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 600px;
+    /* Ширина модального окна */
+}
+
+/* Надпись над календарем */
+.calendar-header {
+    font-weight: bold;
+    color: #6E7172;
+    margin-bottom: 100px;
+    text-align: center;
+    font-family: Montserrat;
+    font-weight: 600;
+    font-size: 24px;
+    line-height: 167%;
+}
+
+/* Календарь */
+.calendar {
+    width: 100%;
+    display: inline-block;
+    font-size: 16px;
+    font-weight: 500;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: none;
+    /* Убираем тень */
+}
+
+/* Стили для календаря Flatpickr ТОЛЬКО в модальном окне */
+.modal-content .flatpickr-calendar {
+    border-radius: 8px;
+    background-color: transparent;
+    box-shadow: none;
+    transform: scale(1.5);
+    font-weight: bold;
+}
+
+.modal-content .flatpickr-day {
+    background-color: transparent;
+    border-radius: 50%;
+    transition: background-color 0.3s ease;
+    font-weight: bold
+}
+
+.modal-content .flatpickr-day:hover {
+    background-color: #007BFF;
+    color: white;
+}
+
+.modal-content .flatpickr-day.selected {
+    background-color: #007BFF;
+    color: white;
+}
+
+.modal-content .flatpickr-weekday {
+    font-weight: bold;
+    color: #555;
+}
+
+.modal-content .flatpickr-month {
+    background-color: #007BFF;
+    color: white;
+    font-weight: bold;
+    border-radius: 5px;
+}
+
+/* Убираем стандартные стрелки (текст) только в модальном окне */
+.modal-content .flatpickr-prev-month,
+.modal-content .flatpickr-next-month {
+    font-size: 0;
+    width: 32px;
+    height: 32px;
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+
+/* Стрелка "Назад" */
+.modal-content .flatpickr-prev-month {
+    background-image: url('/images/legacy/left_arrow.svg');
+}
+
+/* Стрелка "Вперёд" */
+.modal-content .flatpickr-next-month {
+    background-image: url('/images/legacy/right_arrow.svg');
+}
+
+.modal-content .flatpickr-months {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 27px;
+}
+
+.modal-content .flatpickr-months .flatpickr-month {
+    background-color: #007BFF;
+    color: white;
+    border-radius: 5px;
+}
+
+/* Убираем фон у календаря в модальном окне */
+.modal-content .flatpickr-calendar {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+/* Прозрачный фон у контейнера с днями в модальном окне */
+.modal-content .flatpickr-innerContainer,
+.modal-content .flatpickr-days,
+.modal-content .flatpickr-weekdays {
+    background: transparent !important;
+}
+
+/* Убираем фон у панели с месяцами в модальном окне */
+.modal-content .flatpickr-months {
+    background: transparent !important;
+}
+
+/* Убираем фон у ячеек дней в модальном окне */
+.modal-content .flatpickr-day {
+    background: transparent !important;
+    border-radius: 50%;
+    transition: background-color 0.3s ease;
+}
+
+/* Подсветка при наведении в модальном окне */
+.modal-content .flatpickr-day:hover {
+    background-color: rgba(0, 123, 255, 0.2) !important;
+    color: black !important;
+}
+
+/* Подсветка выбранного дня в модальном окне */
+.modal-content .flatpickr-day.selected {
+    background-color: #007BFF !important;
+    color: white !important;
+}
+
+.modal-content .flatpickr-current-month {
+    pointer-events: none;
+    /* Убирает возможность взаимодействия */
+}
+
+.section_blocks {
+    position: relative;
+}
+
+.right_blocks_line {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+}
+
+.section_blocks h1 {
+    font-family: Montserrat;
+    font-size: 48px;
+    font-weight: 600;
+    line-height: 59.33px;
+    text-align: center;
+    text-underline-position: from-font;
+    -webkit-text-decoration-skip-ink: none;
+    text-decoration-skip-ink: none;
+    color: #6E7172;
+}
+
+.block {
+    max-width: 652px;
+    position: relative;
+    background-color: white;
+    border-radius: 25px;
+    box-shadow: 0px 4px 50px 0px #0000001A;
+    padding: 30px;
+    margin-right: 45px;
+    height: 100%;
+    position: relative;
+}
+
+.block2 {
+    max-width: 652px;
+    position: relative;
+    background-color: white;
+    border-radius: 25px;
+    box-shadow: 0px 4px 50px 0px #0000001A;
+    padding: 30px;
+    margin-left: 45px;
+    height: 100%;
+    position: relative;
+
+}
+
+.text_above {
+    font-family: Montserrat;
+    font-size: 35px;
+    font-weight: 600;
+    line-height: 49.44px;
+    text-align: center;
+    color: #6E7172;
+    margin-left: 50px;
+    margin-top: 2rem;
+}
+
+.text_above_block {
+    margin-top: 125px;
+    max-width: 652px;
+    position: relative;
+    display: flex;
+    margin-bottom: 30px;
+}
+
+.block ul {
+    margin-top: 45px;
+    margin-bottom: 100px;
+}
+
+.block2 ul {
+    margin-top: 45px;
+    margin-bottom: 100px;
+}
+
+.block ul li {
+    font-family: Montserrat;
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 29.66px;
+    text-align: left;
+    text-underline-position: from-font;
+    -webkit-text-decoration-skip-ink: none;
+    text-decoration-skip-ink: none;
+    margin-bottom: 28px;
+}
+
+.block ul li::marker {
+    color: #A3E8F9;
+    /* Задаем цвет маркера */
+    font-size: 35px;
+    vertical-align: middle;
+    /* Размер маркера */
+}
+
+.block2 ul li::marker {
+    color: #A3E8F9;
+    /* Задаем цвет маркера */
+    font-size: 35px;
+    vertical-align: middle;
+    /* Размер маркера */
+}
+
+.block2 ul li {
+    font-family: Montserrat;
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 29.66px;
+    text-align: left;
+    text-underline-position: from-font;
+    -webkit-text-decoration-skip-ink: none;
+    text-decoration-skip-ink: none;
+    margin-bottom: 28px;
+}
+
+.block_line1 {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 121px;
+}
+
+.book-btn {
+    margin-right: 0px;
+}
+
+
+.block_line2 {
+    display: flex;
+    justify-content: center;
+}
+
+.btn_line {
+    display: flex;
+    justify-content: space-between;
+    position: absolute;
+    bottom: 0;
+    padding: 20px;
+    width: 90%;
+}
+
+.width {
+    width: 100%;
+}
+
+.block_big {
+    max-width: 1394px;
+    margin: auto;
+}
+
+.header_blue {
+    background: #40A6FF;
+    padding: 40px 0;
+}
+
+.index_header_table {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    z-index: 99;
+}
+
+.block_table_btn {
+    color: transparent;
+    padding: 15px 35px;
+    background: #FF6604;
+    border-radius: 25px;
+    margin-top: 48px;
+    color: white;
+}
+
+.bus_image_table {
+    position: relative;
+}
+
+.overlay-image-up {
+    position: absolute;
+    /* Абсолютное позиционирование */
+    top: 0;
+    /* Располагаем в левом верхнем углу */
+    left: 0;
+    /* Размер наложенной картинки */
+    height: auto;
+    color: white;
+    background-color: #35BAF0;
+    padding: 12px 29px 12px 29px;
+    border-radius: 15px 0px 15px 0px;
+    opacity: 0px;
+}
+
+.overlay-image-down {
+    position: absolute;
+    /* Абсолютное позиционирование */
+    bottom: 0;
+    /* Располагаем в левом верхнем углу */
+    right: 0;
+    /* Размер наложенной картинки */
+    height: auto;
+    color: white;
+    background-color: #02E556;
+    padding: 5px 17px;
+    margin-bottom: 0 !important;
+    font-family: Montserrat;
+    font-size: 24px;
+    border-radius: 5px 0px 5px 0px;
+    font-weight: 600;
+    min-width: 100px;
+}
+
+.section_table {
+    position: relative;
+    padding-top: 150px !important;
+}
+
+.pin_bus_table {
+    position: absolute;
+    left: 0;
+    top: 0;
+    padding-left: 100px;
+    padding-top: 25px;
+}
+
+.section_table_line {
+    position: absolute;
+    left: 0;
+    z-index: -999;
+    top: 0;
+    padding-top: 126px;
+    transform: rotate(-6deg);
+}
+
+.section_table_pin {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+}
+
+.section_table h1 {
+    font-family: Montserrat;
+    font-size: 48px;
+    font-weight: 600;
+    line-height: 59.33px;
+    text-align: center;
+    text-underline-position: from-font;
+    -webkit-text-decoration-skip-ink: none;
+    text-decoration-skip-ink: none;
+    color: #6E7172;
+    margin-bottom: 62px;
+}
+
+.table_container {
+    width: 100%;
+    margin: auto;
+    padding: 56px 70px;
+    background: white;
+    box-shadow: 0px 0px 30px 0px #A3D8F999 inset;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.custom-table {
+    border-collapse: separate;
+    /* Позволяет задавать расстояние между ячейками */
+    border-spacing: 10px;
+    width: 100%;
+    max-width: 1200px;
+    margin: auto;
+    border-radius: 10px;
+    min-width: 442px;
+}
+
+.custom-table th:first-child,
+.custom-table td:first-child {
+    display: table-cell;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    /* Ширина слайдера */
+    height: 10px;
+    /* Высота слайдера (для горизонтальной прокрутки) */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #007bff;
+    /* Цвет слайдера */
+    border-radius: 5px;
+    /* Скругление углов слайдера */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background-color: #f1f1f1;
+    /* Цвет фона полосы прокрутки */
+    border-radius: 5px;
+    /* Скругление углов фона полосы прокрутки */
+}
+
+.custom-table thead th {
+    background-color: #35BAF0;
+    color: white;
+    font-weight: bold;
+    padding: 16px;
+    border-radius: 5px;
+    font-family: Montserrat;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 16.07px;
+    text-align: center;
+    text-underline-position: from-font;
+    -webkit-text-decoration-skip-ink: none;
+    text-decoration-skip-ink: none;
+
+}
+
+.custom-table thead th:first-child {
+    visibility: hidden;
+}
+
+.custom-table tbody td {
+    padding: 15px;
+    text-align: center;
+    color: #63D5F8;
+    background-color: transparent;
+    /* Белый фон для ячеек */
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+    font-family: Montserrat;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 16.07px;
+    text-align: center;
+    text-underline-position: from-font;
+    -webkit-text-decoration-skip-ink: none;
+    text-decoration-skip-ink: none;
+
+    /* Эффект карточек */
+}
+
+.custom-table tbody td.left-column {
+    background-color: #35BAF0;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+    font-family: Montserrat;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 16.07px;
+    text-align: center;
+    text-underline-position: from-font;
+    -webkit-text-decoration-skip-ink: none;
+    text-decoration-skip-ink: none;
+
+    /* Эффект карточек */
+}
+
+.custom-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.custom-table tbody tr:hover {
+    background-color: #f9f9f9;
+}
+
+.addition_back {
+    background: url('/images/legacy/Travel_1.png') no-repeat center center;
+    background-size: cover;
+    display: flex;
+    justify-content: center;
+    padding-top: 82px;
+    padding-bottom: 78px;
+    position: relative;
+}
+
+.addition_section h1 {
+    margin-bottom: 85px;
+    margin-top: 274px;
+    text-align: center;
+    font-family: Montserrat;
+    font-size: 48px;
+    font-weight: 600;
+    line-height: 59.33px;
+    text-align: center;
+    text-underline-position: from-font;
+    -webkit-text-decoration-skip-ink: none;
+    text-decoration-skip-ink: none;
+    color: #6E7172;
+}
+
+.container_addition {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    max-width: 1251px;
+}
+
+.container_addition .addition_block:first-child {
+    margin-right: 24px;
+}
+
+.container_addition .addition_block:nth-child(2) {
+    margin-left: 24px;
+    margin-right: 24px;
+}
+
+.container_addition .addition_block:last-child {
+    margin-left: 24px;
+}
+
+.contact {
+    position: relative;
+    padding-top: 150px;
+}
+
+.right_contact_line {
+    position: absolute;
+    right: 0;
+    top: 0;
+    z-index: -999;
+}
+
+.addition_block {
+    max-width: 385px;
+    height: auto;
+    background: #FFFFFF4D;
+    -webkit-backdrop-filter: blur(40px);
+    backdrop-filter: blur(40px);
+    border-radius: 20px;
+    align-items: center;
+    padding: 25px 24px 69px 24px;
+}
+
+.addition_block h2 {
+    font-family: Montserrat;
+    font-size: 34px;
+    font-weight: 700;
+    line-height: 42.02px;
+    text-align: center;
+    text-underline-position: from-font;
+    -webkit-text-decoration-skip-ink: none;
+    text-decoration-skip-ink: none;
+    color: #F8F8F8;
+    margin-bottom: 24px;
+    margin-top: 19px;
+}
+
+.addition_block p {
+    font-family: Montserrat;
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 34.56px;
+    text-align: left;
+    text-underline-position: from-font;
+    -webkit-text-decoration-skip-ink: none;
+    text-decoration-skip-ink: none;
+    color: #F8F8F8;
+}
+
+.contact h2 {
+    font-family: Montserrat;
+    font-size: 48px;
+    font-weight: 600;
+    line-height: 59.33px;
+    text-align: center;
+    text-underline-position: from-font;
+    -webkit-text-decoration-skip-ink: none;
+    text-decoration-skip-ink: none;
+    color: #6E7172;
+    margin-bottom: 100px;
+}
+
+.form-container {
+    max-width: 1180px;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.form-group {
+    margin-bottom: 26px;
+    position: relative;
+}
+
+.icons_input {
+    position: absolute;
+    padding-top: 12px;
+    padding-left: 20px;
+}
+
+.icon_input_phone {
+    position: absolute;
+    padding-left: 20px;
+}
+
+.contact_container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 200px;
+}
+
+.form-group textarea {
+    resize: none;
+    width: 100%;
+    min-width: 323px;
+    height: 464px;
+    border-radius: 20px;
+    padding-left: 22px;
+    padding-top: 22px;
+    border: 2px solid var(--Blue, #A3E8F9);
+    background: var(--White, #FFFFFF);
+    box-shadow: 0px 0px 20px 0px #A3D8F999 inset;
+    font-family: Montserrat;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.form-group input {
+    max-width: 574px;
+    width: 100%;
+    min-width: 323px;
+    height: 72px;
+    padding: 16px 20px 16px 88px;
+    border-radius: 12px;
+    border: 2px solid var(--Blue, #A3E8F9);
+    background: var(--White, #FFFFFF);
+    box-shadow: 0px 0px 10px 0px #A3D8F999 inset;
+    font-family: Montserrat;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.callback-group {
+    position: relative;
+}
+
+.button_callback_block {
+    width: 49%;
+}
+
+.button_formcallback {
+    background-color: #4cafef;
+    color: white;
+    cursor: pointer;
+    width: 100%;
+    padding: 18px 0 18px 0;
+    border-radius: 50px;
+}
+
+.form-group button:hover {
+    background-color: #3ba5e0;
+}
+
+.contact_block {
+    max-width: 574px;
+    margin-right: 36px;
+}
+
+.textarea_block {
+    width: 570px;
+}
+
+.bus_foot img {
+    max-width: 800px;
+}
+
+/* Стили для выделения полей с ошибками валидации */
+.error-border {
+    border: 2px solid #E63F47 !important;
+    box-shadow: 0px 0px 10px 0px rgba(230, 63, 71, 0.3) inset !important;
+}
+
+.error-border:focus {
+    outline: none;
+    border: 2px solid #E63F47 !important;
+    box-shadow: 0px 0px 15px 0px rgba(230, 63, 71, 0.4) inset !important;
+}

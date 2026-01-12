@@ -1,0 +1,11 @@
+проект new в директории work в heder esources/views/layout/components/header/header.blade.php
+ при нажатии кнопку  просто перезагружается страница.
+ В должно если пользователь залогинен то перейти на страницу кабинета пользователя, а если еще не залогинен то на авторизацию/регистрацию.
+ Изучи легаси функцианал Если не залогинен переходит на resources/views/legacy/public/pages/login.php
+ и логика resources/views/legacy/public/pages/login_code.php
+ Когда переходит регистрироваться resources/views/legacy/public/pages/register.php
+ сбросить пароль resources/views/legacy/public/pages/resetPass.php
+ Если залогинен resources/views/legacy/public/pages/private/contacts.php
+ resources/views/legacy/public/pages/private/future.php resources/views/legacy/public/pages/private/history.php
+
+Восстанови всю логику и работоспобноть

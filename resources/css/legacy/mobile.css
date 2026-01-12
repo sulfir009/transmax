@@ -1,0 +1,1354 @@
+@media (max-width: 1599px) {
+    .catalog_filter {
+        width: 300px;
+    }
+
+    .catalog_elements {
+        width: calc(100% - 330px);
+    }
+}
+
+@media (max-width: 1400px) {
+    .sort_select {
+        gap: 25px;
+        max-width: 200px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    .payment_form_fields {
+        max-width: 100%;
+    }
+
+    .payment_form_right {
+        align-items: flex-start;
+        margin-top: 35px;
+    }
+
+    .private_payments_clarification_block {
+        max-width: 100%;
+    }
+
+    .private_payments_clarification_block img {
+        margin: 0 auto;
+    }
+
+    .edit_private_payment_btn {
+        margin-top: 55px;
+    }
+
+    .index_map {
+        margin-top: 60px;
+    }
+
+    .index_map img {
+        margin: 0 auto;
+    }
+
+    .catalog_filter {
+        position: fixed;
+        right: -100%;
+        top: 0;
+        width: calc(100% - 40px);
+        max-width: 1065px;
+        height: 100%;
+        z-index: 10;
+        background: var(--white, rgba(255, 255, 255, 0.90));
+        -webkit-backdrop-filter: blur(11.5px);
+        backdrop-filter: blur(11.5px);
+        transition: all 0.3s ease;
+        padding: 60px 120px;
+        max-height: 100vh;
+        overflow-y: auto;
+    }
+
+    .catalog_filter.active {
+        right: 0;
+        transition: all 0.3s ease;
+    }
+
+    .catalog_elements {
+        width: 100%;
+    }
+
+    .booking_blocks {
+        flex-direction: column-reverse;
+    }
+
+    .ticket_order_block {
+        margin-top: 40px;
+    }
+
+}
+
+@media (max-width: 1200px) {
+
+    .faq_info_blocks,
+    .contacts_info_blocks {
+        flex-direction: column-reverse;
+    }
+
+    .faq_img img,
+    .contact_img img {
+        width: 100%;
+        margin: 0 auto;
+    }
+
+    .faq_txt_block,
+    .contact_txt_info,
+    .contact_form_block {
+        max-width: 100%;
+    }
+
+    .contact_form_wrapper {
+        margin-top: 120px;
+    }
+}
+
+@media (max-width: 992px) {
+
+    .private_contacts_block {
+        padding: 50px 25px 55px 25px;
+    }
+
+    .private_data_block {
+        padding: 68px 25px 78px 25px;
+    }
+
+    .login_inputs_wrapper {
+        max-width: 100%;
+    }
+
+    .login_logo img {
+        margin: 0 auto;
+    }
+
+    .customer_contact_data_bottom {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+
+    .ticket_order_block,
+    .customer_contact_data,
+    .customer_promocode,
+    .for_payment,
+    .paymethods_block,
+    .payment_data {
+        padding: 65px 30px;
+    }
+
+    .route_details_info {
+        padding-top: 30px;
+    }
+
+    .route_block {
+        padding: 37px 57px 30px 29px;
+    }
+
+    .mobile_route_block_title img.rotate {
+        transform: rotate(180deg);
+    }
+
+    .mobile_route_block_title img,
+    .mobile_route_block_title img.rotate {
+        transition: all 0.3s ease;
+    }
+
+    .route {
+        /*display: none;*/
+    }
+
+    .mobile_route_block_title {
+        justify-content: space-between;
+    }
+
+    .ticket_card {
+        padding: 20px 27px;
+    }
+
+    .page_content_wrapper {
+        padding: 60px 0;
+    }
+
+    .ticket_ride_total_time_info {
+        gap: 10px;
+    }
+
+    .ticket_ride_info {
+        max-width: 220px;
+    }
+
+    .ticket_ride_arrival {
+        margin-left: auto;
+    }
+
+    .advantage_description {
+        max-width: 315px;
+    }
+
+    .langs_block {
+        margin-left: 30px;
+    }
+
+    .welcome_block_wrapper {
+        flex-direction: column-reverse;
+    }
+
+    .index_numbers {
+        min-width: unset;
+    }
+
+    .advantages_slider_block {
+        margin-top: 90px;
+    }
+
+    .welcome_block,
+    .routes_block,
+    .index_numbers_block,
+    .why_we_block,
+    .reviews_block {
+        margin-top: 120px;
+    }
+
+    .index_options_block {
+        margin-top: 60px;
+    }
+
+    .reviews_slider_nav {
+        justify-content: flex-start;
+    }
+
+    .reviews_block {
+        padding-bottom: 120px;
+    }
+
+    .footer_bottom_list {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+
+    .fbl_offer {
+        margin-right: 0;
+        margin-left: 60px;
+    }
+
+    .copyrights span {
+        /*margin-left: 60px;*/
+    }
+
+    .payment_form_fields .gap-30 {
+        margin: -15px -10px;
+    }
+
+    .payment_form_fields .gap-30>[class^="col-"] {
+        padding: 15px 10px;
+    }
+
+    .payment_data_form {
+        margin-top: 15px;
+    }
+
+    .payment_data {
+        margin-bottom: 60px;
+    }
+
+    .about_us {
+        margin-top: 0;
+    }
+
+    .about_us_txt_wrapper {
+        padding: 120px 0;
+        gap: 60px;
+    }
+
+    .about_us_img img {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .company_docs_wrapper {
+        margin-top: 120px;
+    }
+
+    .bus_info {
+        margin-left: 0;
+        padding: 0;
+        max-width: 100%;
+    }
+
+    .bus {
+        margin-bottom: 120px;
+    }
+
+    .shedule_table {
+        margin-top: 30px;
+        padding-right: 50px;
+    }
+
+    .shedule_table_container {
+        padding-right: 0;
+    }
+
+    .shedule_table_pagination_wrapper {
+        padding-right: 50px;
+    }
+
+    .mCSB_scrollTools.mCS-maxtrans_theme {
+        width: calc(100% - 50px);
+    }
+
+    .main_filter {
+        padding: 90px 0;
+    }
+
+    .index_number {
+        padding: 23px 20px;
+    }
+
+    .index_number_wrapper {
+        min-width: unset;
+    }
+
+    .why_we_slide_description {
+        max-width: 420px;
+    }
+
+    .purchase_step {
+        margin-left: 20px;
+    }
+
+    .faq_wrapper {
+        margin-top: 120px;
+    }
+
+    .login_form_wrapper {
+        padding: 0 50px;
+    }
+
+    .route_details_totals {
+        flex-direction: row-reverse;
+    }
+}
+
+@media (max-width: 768px) {
+
+    .link {
+        opacity: 100% !important;
+    }
+
+    .callback_popUp {
+        width: 90%;
+        padding: 30px 20px;
+    }
+
+    .callback_form {
+        gap: 15px;
+    }
+
+    .callback-form-grid {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .callback-left,
+    .cb_text_area {
+        width: 100%;
+    }
+
+    .callback-send-btn {
+        width: 100%;
+    }
+
+    .callback-title {
+        font-size: 20px;
+        text-align: center;
+    }
+
+    .cb_input_from,
+    .cb_input_to,
+    .cb_text_area,
+    .cb_input_tel {
+        font-size: 18px;
+        padding: 15px;
+    }
+
+    .call_select {
+        width: 40%;
+        font-size: 18px;
+        padding-top: 15px;
+        padding-left: 15px;
+        padding-bottom: 15px;
+        padding-right: 1px;
+    }
+
+    .callback_group {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .callback_group .form-select,
+    .callback_group input {
+        width: 100%;
+    }
+
+
+    .popup-regular {
+        transform: scale(0.75);
+    }
+
+    .regular_tours_wrapper {
+        width: unset;
+    }
+
+    .langs_block {
+        margin-left: 1px !important;
+    }
+
+    .logo {
+        width: 50%;
+    }
+
+    .last-link-block {
+        gap: 0px !important;
+    }
+
+    .support_phones {
+        position: relative;
+        top: 10px;
+    }
+
+    .schedule_route_row {
+        justify-content: flex-start;
+        align-items: flex-start;
+        gap: 60px;
+    }
+
+    .schedule_route_stop {
+        display: flex;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 5px;
+        padding-top: 5px;
+        flex-direction: column;
+    }
+
+    .schedule_route_city {
+        font-weight: 400;
+        display: flex;
+        align-items: flex-start;
+        gap: 5px;
+    }
+
+    .private_ticket .ticket_info_header {
+        margin-bottom: 20px;
+    }
+
+    .company_docs_slider_container {
+        padding-right: 0;
+    }
+
+    .company_docs_slider_title {
+        margin-bottom: 15px;
+    }
+
+    .menu_links {
+        display: none;
+    }
+
+    .menu_links.mobile {
+        display: flex;
+    }
+
+    .menu_links.mobile .link {
+        color: white;
+    }
+
+    .h1_title {
+        font-size: 44px;
+    }
+
+    .mobile_menu {
+        padding-top: 113px;
+        padding-bottom: 113px;
+    }
+
+    .ticket_ride_info_block {
+        margin-top: 0;
+    }
+
+    .ticket_info,
+    .private_ticket .ticket_info {
+        padding: 0
+    }
+
+    .catalog_filter {
+        max-width: 675px;
+    }
+
+    .payment_form_fields,
+    .payment_form_image {
+        max-width: 100%;
+    }
+
+    .payment_form_right {
+        align-items: flex-start;
+        margin-top: 15px;
+        justify-content: space-between;
+        gap: 55px;
+    }
+
+    .company_docs_slider .slick-list {
+        padding: 0 25% 0 0;
+    }
+
+    .slider_container {
+        padding-right: 0;
+    }
+
+    .edit_private_payment_btn {
+        margin-top: 0;
+    }
+
+    .private_payment_data_block {
+        padding: 43px 25px 68px 25px;
+    }
+
+    .current_bonuses_title {
+        margin-bottom: 30px;
+    }
+
+    .current_bonuses_txt {
+        margin-bottom: 60px;
+    }
+
+    .current_bonuses_path_wrapper {
+        margin-bottom: 120px;
+    }
+
+    .route_price_details_table {
+        overflow: scroll;
+    }
+
+    .blue_popup {
+        background: rgba(18, 127, 222, 0.95);
+    }
+}
+
+@media (max-width: 729px) {
+    .number_blocks_wrapper {
+        flex-direction: column;
+        grid-template-columns: 1fr;
+    }
+
+    .header_races button {
+        background-color: #40A6FF;
+        padding: 8px 20px;
+        border-radius: 60px;
+    }
+}
+
+@media (max-width: 699px) {
+    .mobile_ticket_totals {
+        padding-top: 30px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 27px;
+    }
+}
+
+@media (max-width: 576px) {
+    .header_races button {
+        padding: 6px 13px;
+        border-radius: 60px;
+    }
+
+    .last-link-block {
+        gap: 20px !important;
+    }
+
+    .logo {
+        width: 35%;
+    }
+
+    .burger img {
+        width: 70%;
+    }
+
+    .burger {
+        margin-left: 1px !important;
+    }
+
+    .tabs_links_container {
+        padding-left: 0;
+    }
+
+    .index_option {
+        text-align: center;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .shedule_link {
+        font-size: 14px;
+    }
+
+    .routes_lists_wrapper {
+        row-gap: 40px;
+        -moz-column-gap: 24px;
+        column-gap: 24px;
+    }
+
+    .route_list_block {
+        width: calc(50% - 12px);
+    }
+
+    .routes_block {
+        margin-top: 60px;
+    }
+
+    .advantages_slider_block {
+        margin-top: 60px;
+    }
+
+    .welcome_img img {
+        min-height: 210px;
+    }
+
+    .welcome_block {
+        margin-top: 45px;
+    }
+
+    .advantages_card {
+        padding: 40px 20px;
+    }
+
+    .advantage_card_btn {
+        font-size: 14px;
+        padding: 15px 5px;
+    }
+
+    .advantages_slider_wrapper {
+        margin-bottom: -40px;
+    }
+
+    .advantage_img {
+        position: initial;
+    }
+
+    .advantage_description {
+        max-width: 100%;
+        position: relative;
+        bottom: 60px;
+        border-radius: 10px;
+    }
+
+    .advantages_slider_nav {
+        bottom: 100px;
+        right: unset;
+        left: 40px;
+    }
+
+    .h1_title {
+        font-size: 19px;
+    }
+
+    .return_ticket_btn {
+        margin-top: 20px;
+    }
+
+    .mobile_ticket_totals {
+        gap: 12px;
+    }
+
+    .ticket_buy_btn,
+    .return_ticket_btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .mobile_sort {
+        padding-bottom: 30px;
+    }
+
+    .company_docs_slider_container {
+        padding: 0 20px;
+    }
+
+    .paymethod_rows {
+        margin-top: 40px;
+    }
+
+    .paymethods_block {
+        padding: 40px 10px 40px 20px;
+    }
+
+    .h2_title {
+        font-size: 18px;
+    }
+
+    .h3_title {
+        font-size: 14px;
+    }
+
+    .container,
+    .login_container {
+        padding: 0 20px;
+    }
+
+    .ticket_info_header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .ride_description_wrapper {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        margin-left: 0;
+    }
+
+    .ticket_card {
+        padding: 18px 16px;
+    }
+
+    .ticket_ride_arrival {
+        margin-left: 0;
+        margin-bottom: 30px;
+    }
+
+    .ticket_ride_info {
+        max-width: 100%;
+    }
+
+    .ticket_ride_status {
+        margin-top: 15px;
+    }
+
+    .ride_total_time {
+        padding-top: 0;
+    }
+
+    .catalog_filter {
+        padding: 7px 20px;
+        width: 100%;
+    }
+
+    .filter_chars_block {
+        max-width: 100%;
+    }
+
+    .shedule_table {
+        padding-right: 20px;
+    }
+
+    .shedule_table_container {
+        padding-left: 20px;
+    }
+
+    .shedule_table_pagination_wrapper {
+        padding-right: 20px;
+    }
+
+    .mCSB_scrollTools.mCS-maxtrans_theme {
+        width: calc(100% - 20px);
+    }
+
+    .shedule_pagination {
+        justify-content: space-between;
+    }
+
+    .faq_booking_link {
+        margin: 0 auto;
+        display: block;
+        max-width: 100%;
+    }
+
+    .contact_form_wrapper {
+        margin-top: 60px;
+    }
+
+    .contact_txt_info {
+        padding: 0;
+    }
+
+    .advantage_title {
+        margin-bottom: 15px;
+    }
+
+    .advantage_card_title {
+        margin-bottom: 30px;
+    }
+
+    .advantage_card_title,
+    .advantage_title {
+        font-size: 24px;
+        line-height: 1.3;
+    }
+
+    .index_option_title {
+        margin-bottom: 5px;
+    }
+
+    .index_option {
+        padding: 48px 20px;
+    }
+
+    .index_number_wrapper {
+        margin-bottom: 30px;
+    }
+
+    .index_number {
+        padding: 23px 18px;
+        font-size: 38px;
+    }
+
+    .index_numbers_block_title {
+        font-size: 18px;
+        margin-bottom: 30px;
+    }
+
+    .number_block_title {
+        font-size: 14px;
+        margin-bottom: 15px;
+    }
+
+    .number_block {
+        width: 100%;
+    }
+
+    .index_numbers_block {
+        margin-top: 60px;
+    }
+
+    .buy_ticket_link {
+        width: 100%;
+    }
+
+    .index_map {
+        margin-top: 0;
+    }
+
+    .why_we_block {
+        margin-top: 60px;
+    }
+
+    .why_we_card {
+        padding: 60px 20px;
+    }
+
+    .autopark_link {
+        padding: 15px 5px;
+    }
+
+    .why_we_slide_image {
+        position: initial;
+    }
+
+    .why_we_slide_image img {
+        min-height: 420px;
+    }
+
+    .why_we_slide_description {
+        position: relative;
+        bottom: 60px;
+        border-radius: 10px;
+        max-width: 100%;
+        padding: 30px 20px 100px 20px;
+    }
+
+    .why_we_slider_wrapper {
+        margin-bottom: -60px;
+    }
+
+    .why_we_slider_nav {
+        bottom: 100px;
+        right: unset;
+        left: 40px;
+    }
+
+    .reviews_block {
+        margin-top: 60px;
+        padding-bottom: 60px;
+    }
+
+    .slider_container {
+        padding: 0 20px;
+    }
+
+    .review_slide_content {
+        padding: 30px 18px;
+    }
+
+    .review_slider_reviewer_name {
+        font-size: 14px;
+    }
+
+    .c_input {
+        height: 55px;
+    }
+
+    .required_error {
+        border: 2px solid #ff0000 !important;
+    }
+
+    .doc_select {
+        height: 55px;
+        line-height: 55px;
+    }
+
+    .phone_input_wrapper {
+        height: 55px;
+        padding-left: 10px;
+    }
+
+    .ticket_seat {
+        padding: 18px;
+    }
+
+    .ticket_order_block,
+    .customer_contact_data,
+    .customer_promocode,
+    .for_payment,
+    .paymethods_block,
+    .payment_data {
+        padding: 40px 13px 40px 18px;
+    }
+
+    .route_block {
+        padding: 18px 15px;
+    }
+
+    .header {
+        padding: 37px 0;
+    }
+
+    .burger,
+    .langs_block {
+        margin-left: 20px;
+    }
+
+    .have_promocode_btn {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .customer_phone_input {
+        font-size: 14px;
+    }
+
+    .customer_promocode_block_title {
+        gap: 10px;
+        flex-direction: column;
+    }
+
+    .customer_promocode_clarification {
+        margin-left: 0;
+    }
+
+    .customer_promocode_header {
+        align-items: flex-start;
+        margin-bottom: 30px;
+    }
+
+    .for_payment_accept .c_checkbox_wrapper {
+        align-items: flex-start;
+    }
+
+    .payment_btn {
+        font-size: 16px;
+        padding: 15px 40px;
+    }
+
+    .purchase_step {
+        margin-right: 50px;
+        display: none;
+    }
+
+    .payment_form_right {
+        margin-top: 0;
+        gap: 30px;
+    }
+
+    .payment_data {
+        margin-bottom: 30px;
+    }
+
+    .private_link {
+        padding: 15px 10px;
+    }
+
+    .about_us_txt_wrapper {
+        padding: 60px 0 0 0;
+        gap: 15px;
+    }
+
+    .about_us_txt_title {
+        margin-bottom: 15px;
+    }
+
+    .company_docs_wrapper {
+        margin-top: 60px;
+    }
+
+    .company_docs_slider {
+        margin-top: 30px;
+    }
+
+    .company_docs_slider .slick-list {
+        padding: 0;
+    }
+
+    .booking_link {
+        display: block;
+        margin-top: 30px;
+    }
+
+    .total_seats {
+        font-size: 32px;
+    }
+
+    .order_bus_link,
+    .more_buses_btn,
+    .contacts_booking_link,
+    .send_contact_btn {
+        display: block;
+        width: 100%;
+        padding: 16px 20px;
+        font-size: 16px;
+        max-width: 100%;
+    }
+
+    .bus {
+        margin-bottom: 30px;
+    }
+
+    .shedule_pagination {
+        margin-top: 45px;
+        border-top: 1px solid #40A6FF;
+    }
+
+    .faq_wrapper {
+        margin-top: 60px;
+    }
+
+    .contact_map {
+        margin-top: 30px;
+    }
+
+    .contacts_map {
+        padding: 45px 15px;
+    }
+
+    .login_form_wrapper {
+        padding: 0;
+    }
+
+    .send_login_code_btn {
+        padding: 15px;
+    }
+
+    .private_links_wrapper {
+        box-shadow: none;
+    }
+
+    .private_link_icon {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .private_link_icon svg path {
+        stroke: #40A6FF;
+    }
+
+    .private_tab {
+        width: 55px;
+        height: 55px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        margin-right: 0;
+        padding: 0;
+    }
+
+    .private_tab.active {
+        background: #40A6FF;
+    }
+
+    .private_tab.active .private_link_icon svg path {
+        stroke: #FFFFFF;
+    }
+
+    .private_tab.active .fill_stroke path {
+        fill: #FFFFFF;
+    }
+
+    .private_contacts_block {
+        padding: 25px 13px;
+    }
+
+    .contact_act_btn {
+        padding: 16px;
+    }
+
+    .private_data_inputs {
+        margin-top: 15px;
+    }
+
+    .private_data_block {
+        padding: 35px 13px;
+    }
+
+    .private_data_inputs .gap-y-30 {
+        margin-top: -8px;
+        margin-bottom: -9px;
+    }
+
+    .private_data_inputs .gap-y-30>[class^="col-"] {
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+
+    .save_changes_btn {
+        padding: 16px;
+        font-size: 16px;
+        width: 100%;
+    }
+
+    .card_valid_date {
+        padding: 0;
+    }
+
+    .edit_private_payment_btn {
+        max-width: 100%;
+        padding: 8px;
+    }
+
+    .private_payment_data_block {
+        padding: 38px 18px;
+    }
+
+    .private_payments_clarification_block {
+        padding: 40px 15px;
+    }
+
+    .bonus_checkpoint {
+        width: 30px;
+        height: 30px;
+        padding: 4px;
+    }
+
+    .progress.active:after {
+        width: 16px;
+        height: 6px;
+        background-size: cover;
+        right: 0;
+    }
+
+    .current_bonuses_path {
+        padding: 0;
+    }
+
+    .progress,
+    .bonuses_progressbar {
+        top: -3px;
+    }
+
+    .bonus_checkpoint_title {
+        margin: 36px auto 0 auto;
+    }
+
+    .current_bonuses_path_wrapper {
+        margin-bottom: 30px;
+    }
+
+    .bonus {
+        min-height: 350px;
+    }
+
+    .filter_block {
+        padding-left: 18px !important;
+        padding-right: 18px !important;
+    }
+
+    .mobile_menu_link {
+        font-size: 14px;
+        font-weight: 400;
+        text-transform: none;
+    }
+
+    .mobile_menu_links ul a {
+        padding: 3px 0;
+        margin: 10px 0;
+    }
+
+    .mobile_menu_links {
+        margin-top: 40px;
+        margin-bottom: 27px;
+    }
+
+    .menu_links.mobile {
+        margin-top: 40px;
+        display: flex;
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .menu_links.mobile .link {
+        text-transform: none;
+    }
+
+    .mobile_menu {
+        padding: 25px 50px;
+        width: 100%;
+    }
+
+    .mobile_menu_social_links img {
+        max-width: 30px;
+    }
+
+    .mobile_menu_social_header {
+        font-size: 16px;
+        margin-bottom: 20px;
+    }
+
+    .catalog_filter_title {
+        font-size: 24px;
+        margin-bottom: 30px;
+    }
+
+    .close_filter {
+        margin-bottom: 30px;
+    }
+
+    .header:not(.index_header) .langs_select {
+        color: #40A6FF;
+    }
+
+    .header:not(.index_header) .burger img,
+    .header:not(.index_header) .langs_select.dark:after {
+        filter: brightness(0) invert(56%) sepia(15%) saturate(6672%) hue-rotate(188deg) brightness(105%) contrast(101%);
+    }
+
+    .order_bus_row_value {
+        bottom: 7px;
+    }
+
+    .order_bus_row {
+        padding: 4px 18px;
+    }
+
+    .order_bus_row_title {
+        padding-bottom: 27px;
+    }
+
+    .order_bus_btn {
+        padding: 16px;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .order_bus_popup_content_wrapper {
+        padding: 30px 20px;
+    }
+
+    .order_bus_popup,
+    .route_details_popup {
+        width: 100%;
+    }
+
+    .route_details_point {
+        padding-left: 35px;
+        align-items: flex-start;
+    }
+
+    .route_details_buy_btn {
+        padding: 16px;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .route_details_totals {
+        margin-top: 30px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 30px;
+    }
+
+    .route_details_block_title {
+        margin-bottom: 15px;
+    }
+
+    .route_details_popup_content_wrapper {
+        padding: 30px 20px;
+    }
+
+    .route_details_popup_content {
+        padding: 30px 0;
+    }
+
+    .return_ticket_route_info_header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .return_ticket_reason {
+        margin-top: 30px;
+        height: 55px;
+    }
+
+    .return_ticket_return_btn {
+        padding: 16px;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .return_ticket_totals {
+        margin-top: 30px;
+        flex-direction: column;
+        gap: 30px;
+        align-items: flex-start;
+    }
+
+    .return_ticket_popup_content_wrapper,
+    .return_thx_content_wrapper {
+        padding: 30px 20px;
+    }
+
+    .return_ticket_popup {
+        width: 100%;
+    }
+
+    .return_ticket_popup_content {
+        margin-top: 30px;
+    }
+
+    .footer_bottom_links {
+        display: flex;
+        flex-direction: column;
+        row-gap: 10px;
+    }
+
+    .fbl_offer {
+        margin-right: 0;
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 576px) {
+    .header_races button {
+        padding: 4px 8px;
+        font-size: 8px;
+        margin-bottom: 5px;
+        margin-right: 16px;
+        text-decoration: none;
+    }
+}

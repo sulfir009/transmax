@@ -1,0 +1,34 @@
+{
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "npm run development",
+        "development": "npx mix",
+        "watch": "npx mix watch",
+        "prod": "npm run production",
+        "production": "npx mix --production",
+        "vite-dev": "vite",
+        "vite-build": "vite build"
+    },
+    "devDependencies": {
+        "autoprefixer": "^10.4.20",
+        "axios": "^1.7.4",
+        "concurrently": "^9.0.1",
+        "laravel-vite-plugin": "^1.2.0",
+        "postcss": "^8.4.47",
+        "postcss-import": "^16.1.0",
+        "resolve-url-loader": "^5.0.0",
+        "sass": "^1.83.4",
+        "sass-loader": "^12.6.0",
+        "tailwindcss": "^3.4.13",
+        "vite": "^6.0.11"
+    },
+    "dependencies": {
+        "jquery": "^3.7.1",
+        "jquery-mousewheel": "^3.1.13",
+        "jquery.maskedinput": "^1.4.1",
+        "laravel-mix": "^6.0.49",
+        "query": "^0.2.0",
+        "select2": "^4.1.0-rc.0"
+    }
+}

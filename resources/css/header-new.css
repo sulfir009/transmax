@@ -1,0 +1,339 @@
+.header {
+    background: none;
+    padding: 50px 0;
+    box-shadow: 0px 6px 50px 0px #0000000D;
+}
+
+.header-white {
+    background-color: #FFF;
+    padding: 30px 0;
+    box-shadow: 0px 6px 50px 0px #0000000D;
+}
+
+.header-white .link{
+    color: black;
+}
+
+.header .langs_select {
+    color: var(--main-text, #434343);
+}
+
+.index_header {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    z-index: 2;
+}
+
+.header-link-block {
+    display: flex;
+    justify-content: space-between;
+}
+
+.central-links-header {
+    gap: 45px;
+}
+
+.last-link-block {
+    gap: 75px;
+}
+
+.support-links {
+    gap: 30px;
+}
+
+
+.popup-overlay-regular {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.4);
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.popup-regular {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    text-align: center;
+    min-width: 485px;
+    max-width: 600px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+}
+
+.countries-regular {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 15px;
+}
+
+.country-regular {
+    border: 2px solid #00c2f3;
+    border-radius: 20px;
+    padding: 8px 16px;
+    background: white;
+    color: #00c2f3;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.country-regular.active-regular {
+    background: linear-gradient(to right, #00c2f3, #00a9e0);
+    color: white;
+    border: none;
+}
+
+.close-regular {
+    margin-top: 20px;
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.fade {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+}
+
+.fade.show {
+    opacity: 1;
+    pointer-events: all;
+}
+
+
+.logo,
+.footer_logo {
+    max-width: 250px;
+}
+
+.link {
+    font-style: normal;
+    transition: color .3s ease;
+    text-transform: uppercase;
+    font-family: Montserrat;
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 140%;
+    letter-spacing: 5%;
+    vertical-align: middle;
+    color: white;
+    opacity: 50%;
+
+}
+
+.language-select-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 70px;
+    /* можно менять */
+}
+
+.language-select-header-dark {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-color: transparent;
+    border: none;
+    padding: 12px 33px 11px 32px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: Montserrat, sans-serif;
+    cursor: pointer;
+    position: relative;
+    /* твоя стрелочка */
+    background-repeat: no-repeat;
+    background-position: right 27px center;
+    background-size: 14px;
+    min-width: 100px;
+    color: black;
+    background-image: url('/images/legacy/common/arrow_down_2.svg');
+}
+
+.language-select-header-light option {
+    background-color: #40A6FF;
+    color: white;
+    font-weight: 600;
+}
+
+.language-select-header-dark option {
+    background-color: #40A6FF;
+    color: white;
+}
+
+.language-select-header-light {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-color: transparent;
+    border: none;
+    padding: 12px 33px 11px 32px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: Montserrat, sans-serif;
+    cursor: pointer;
+    position: relative;
+    /* твоя стрелочка */
+    background-repeat: no-repeat;
+    background-position: right 27px center;
+    background-size: 14px;
+    min-width: 100px;
+    color: white;
+    background-image: url('/images/legacy/common/arrow_down.svg');
+}
+
+.link-underline-auto {
+    text-decoration: underline;
+    text-decoration-color: #FFF;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 8px;
+}
+
+.phone-dropdown-header {
+    position: relative;
+    display: inline-block;
+}
+
+.phone-icon-header {
+    width: 45px;
+    height: 45px;
+    cursor: pointer;
+}
+
+.phone-menu-header {
+    display: none;
+    position: absolute;
+    top: 60px;
+    left: 0;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 8px 0;
+    min-width: 200px;
+    z-index: 1000;
+}
+
+.phone-item-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    font-family: Montserrat, sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.phone-item-header img {
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+}
+
+.phone-item:hover {
+    background-color: #f3f3f3;
+}
+
+.link:hover {
+    color: var(--accent, #40A6FF);
+    transition: color .3s ease;
+}
+
+.link.active {
+    color: var(--accent, #40A6FF);
+}
+
+.header_content {
+    justify-content: space-between;
+}
+
+.dropdown_link svg path {
+    transition: all 0.3s ease;
+}
+
+.dropdown_link:hover svg path {
+    stroke: var(--accent, #40A6FF);
+    transition: all 0.3s ease;
+}
+
+.menu_links {
+    display: flex;
+    gap: 30px;
+}
+
+.menu_links.mobile {
+    margin-top: 80px;
+}
+
+.menu_links.mobile .dropdown_link {
+    margin-right: 30px;
+}
+
+.langs_block {
+    margin-left: 60px;
+}
+
+.burger {
+    margin-left: 30px;
+}
+
+.nice-select {
+    background: transparent;
+    border: none;
+    padding: 10px 5px 0px 10px;
+    font-family: Montserrat;
+    font-weight: 500;
+    font-size: 18px;
+    line-height: 140%;
+    letter-spacing: 5%;
+    vertical-align: middle;
+}
+
+
+
+.nice-select:after {
+    content: "";
+    display: block;
+    width: 15px;
+    height: 7px;
+    position: absolute;
+    right: -15px;
+    top: 60%;
+    transform: translateY(-50%) rotate(0deg);
+    /* стрелка строго вниз */
+    border: none;
+    pointer-events: none;
+    color: currentColor;
+}
+
+.nice-select.open .list {
+    background: #40A6FF;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.nice-select.open:after {
+    transform: translateY(-50%) rotate(180deg);
+    /* стрелка вверх */
+}
+
+.nice-select .list .option {
+    color: white;
+    padding: 10px;
+    background: transparent;
+    text-align: center;
+}
+
+.nice-select .list .option:hover {
+    background: rgba(18, 127, 222, 0.7);
+}

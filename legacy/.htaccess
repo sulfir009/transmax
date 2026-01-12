@@ -1,0 +1,6 @@
+RewriteEngine on
+RewriteCond %{REQUEST_URI} \.(css|jpg|gif|png|zip|rar|doc|xls|js|tif|jpeg|tiff|docx|xlsx|ico|ttf|svg|woff)$|test\.php$
+RewriteRule ^(.*)$ $1 [L,QSA]
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule .*? index.php
