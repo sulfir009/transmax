@@ -1,62 +1,86 @@
-{{-- Контактная информация --}}
+{{-- Контактная информация (V2 под дизайн как на фото) --}}
 <div class="customer_contact_data shadow_block">
-    <div class="block_title h2_title">
-        @lang('dictionary.MSG_MSG_BOOKING_KONTAKTNA_INFORMACIYA')
-    </div>
-    <div class="par">
-        @lang('dictionary.MSG_MSG_BOOKING_VKAZUJTE_KOREKTNI_E-MAIL')
+    <div class="block_title">
+        Контактная информация
     </div>
 
-    <div class="customer_data">
-        <div class="flex-row gap-y-26 gap-x-30">
-            <div class="col-lg-6 col-xs-12">
-                <div class="row">
-                    <input type="text"
-                           class="c_input par"
-                           placeholder="@lang('dictionary.MSG_MSG_BOOKING_E-MAIL')"
-                           id="email"
-                           value="{{ $clientInfo->email ?? '' }}"
-                           pattern="[^\u0400-\u04FF]*"
-                           maxlength="255"
-                           oninput="this.value = this.value.replace(/[^\x00-\x7F]/g, ''); validateEmail(this)">
-                    <span id="email-error" style="display: none; color: red;">
-                        @lang('dictionary.MSG_MSG_REGISTER_EMAIL_UKAZAN_NEVERNO')
-                    </span>
-                </div>
-            </div>
-            <div class="col-lg-6 col-xs-12">
-                <div class="phone_input_wrapper flex_ac">
-                    <select class="phone_country_code flex_ac" onchange="changeInputMask(this)">
-                        @foreach ($phoneCodes as $phoneCode)
-                            <option value="{{ $phoneCode->id }}"
-                                    data-mask="{{ $phoneCode->phone_mask }}"F
-                                    data-placeholder="{{ $phoneCode->phone_example }}"
-                                    @if (($clientInfo->phone_code ?? 0) == $phoneCode->id) selected @endif>
-                                {{ $phoneCode->phone_country }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <input type="text"
-                           class="customer_phone_input inter req_input"
-                           placeholder="{{ $firstPhoneExample }}"
-                           id="phone"
-                           value="{{ $clientInfo->phone ?? '' }}">
-                </div>
-            </div>
+    <div class="par">
+        Введите корректные e-mail и номер телефона, чтобы получить билет.
+    </div>
+
+    <div class="b2_grid" style="margin-top:10px;">
+        <div>
+            <input type="text"
+                   class="c_input"
+                   placeholder="E-mail"
+                   id="email"
+                   value="{{ $clientInfo->email ?? '' }}"
+                   pattern="[^\u0400-\u04FF]*"
+                   maxlength="255"
+                   oninput="this.value = this.value.replace(/[^\x00-\x7F]/g, ''); validateEmail(this)">
+
+            <span id="email-error" style="display:none; color:red; font-size:12px;">
+                @lang('dictionary.MSG_MSG_REGISTER_EMAIL_UKAZAN_NEVERNO')
+            </span>
+        </div>
+
+        <div class="phone_input_wrapper flex_ac">
+            <select class="phone_country_code flex_ac" onchange="changeInputMask(this)">
+                @foreach ($phoneCodes as $phoneCode)
+                    <option value="{{ $phoneCode->id }}"
+                            data-mask="{{ $phoneCode->phone_mask }}"
+                            data-placeholder="{{ $phoneCode->phone_example }}"
+                            @if (($clientInfo->phone_code ?? 0) == $phoneCode->id) selected @endif>
+                        {{ $phoneCode->phone_country }}
+                    </option>
+                @endforeach
+            </select>
+
+            <input type="text"
+                   class="customer_phone_input req_input"
+                   placeholder="{{ $firstPhoneExample }}"
+                   id="phone"
+                   value="{{ $clientInfo->phone ?? '' }}">
         </div>
     </div>
 
-    <div class="customer_contact_data_bottom flex_ac">
-        <label class="c_checkbox_wrapper flex_ac">
-            <input type="checkbox" class="c_checkbox_checker" hidden>
-            <span class="c_checkbox"></span>
-            <span class="c_checkbox_title par">
-                @lang('dictionary.MSG_MSG_BOOKING_NADSILAJTE_MENI_ZNIZHKI_TA_IDE_BYUDZHETNIH_PODOROZHEJ')
-            </span>
-        </label>
-        <button class="have_promocode_btn par flex_ac" onclick="togglePromocodeBlock()">
-            @lang('dictionary.MSG_MSG_BOOKING_U_MENE__PROMOKOD')
-            <img src="{{ asset('images/legacy/common/blue_arrow_down.svg') }}" alt="arrow down">
-        </button>
+{{-- Легенда как на фото --}}
+<div class="b2_legend">
+    <div class="b2_legend_item b2_legend_item--ticket">
+        <span class="b2_legend_dot b2_legend_dot--blue"></span>
+        Отправим билет<span class="b2_req">*</span>
     </div>
+
+    <div class="b2_legend_item b2_legend_item--changes">
+        <span class="b2_legend_dot b2_legend_dot--orange"></span>
+        Сообщим об изменениях<span class="b2_req">*</span>
+    </div>
+</div>
+<style>
+    
+    .booking_v2 .b2_legend{
+  margin-top: 10px;
+  display:flex;
+  flex-direction: column;     /* как на фото */
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color:#6E7172;
+}
+.booking_v2 .b2_legend_item{
+  display:flex;
+  align-items:center;
+  gap: 6px;
+}
+.booking_v2 .b2_legend_dot{
+  width:10px;
+  height:10px;
+  border-radius: 999px;
+  display:inline-block;
+}
+.booking_v2 .b2_legend_dot--blue{ background:#35BAF0; }
+.booking_v2 .b2_legend_dot--orange{ background:#F2994A; }
+
+</style>
+
 </div>
