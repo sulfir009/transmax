@@ -158,7 +158,7 @@ if ($cleanPost['request'] === "register") {
     if ($getemail) {
         exit(__('dictionary.MSG_MSG_REGISTER_ETOT_E-MAIL_UZHE_ZANYAT'));
     }
-    if (isset($_SESSION['order']['save_data']) && session()->put('order.save_data') == 1){
+    if (!empty($_SESSION['order']['save_data']) && (int)$_SESSION['order']['save_data'] === 1) {
         $arFields = array('name', 'email','second_name','phone','patronymic','birth_date','phone_code');
         $arData = array("'" . $cleanPost['name'] . "'",
             "'" . $cleanPost['email'] . "'",
@@ -1188,33 +1188,89 @@ if ($cleanPost['request'] === 'filter') {
 
 }
 
-if ($cleanPost['request'] === 'remember_private_data'){
+if ($cleanPost['request'] === 'remember_private_data') {
+
+    // Основные данные покупателя
     $_SESSION['order']['family_name'] = $cleanPost['family_name'];
-    $_SESSION['order']['name'] = $cleanPost['name'];
-    $_SESSION['order']['patronymic'] = $cleanPost['patronymic'];
-    $_SESSION['order']['birth_date'] = $cleanPost['birthDate'];
-    /*$_SESSION['order']['doc_type'] = $cleanPost['doc_type'];*/
-    $_SESSION['order']['email'] = $cleanPost['email'];
-    $_SESSION['order']['phone'] = $cleanPost['phone'];
-    $_SESSION['order']['save_data'] = (int)$cleanPost['save_data'];
-    $_SESSION['order']['phone_code'] = (int)$cleanPost['phone_code'];
+    $_SESSION['order']['name']        = $cleanPost['name'];
+    $_SESSION['order']['patronymic']  = $cleanPost['patronymic'];
+    $_SESSION['order']['birth_date']  = $cleanPost['birthDate'];
+    $_SESSION['order']['email']       = $cleanPost['email'];
+    $_SESSION['order']['phone']       = $cleanPost['phone'];
+    $_SESSION['order']['save_data']   = (int)$cleanPost['save_data'];
+    $_SESSION['order']['phone_code']  = (int)$cleanPost['phone_code'];
 
+    /**
+     * КЛЮЧЕВОЕ:
+     * Всегда пересобираем passengers_data с нуля.
+     * Если пассажиров удалили — в сессии их тоже больше не будет.
+     */
+    $oldPassengersCount = isset($_SESSION['order']['passengers']) ? (int)$_SESSION['order']['passengers'] : 1;
 
-    //Сохраняем пассажиров
-    if (!empty($cleanPost['passengers']) && is_array($cleanPost['passengers'])) {
-        $pass = [];
-        foreach ($cleanPost['passengers'] as $passenger) {
-            $pass[] = [
-                'family_name' => $passenger['family_name'],
-                'name' => $passenger['name'],
-                'patronymic' => $passenger['patronymic'],
-                'birth_date' => $passenger['birth_date']
-            ];
-        }
-        $_SESSION['order']['passengers_data'] = $pass;
+    // Берём "сырой" $_POST, потому что filter_input_array часто ломает вложенные массивы
+    $rawPassengers = $_POST['passengers'] ?? [];
+
+    // Если вдруг прилетело JSON-строкой — поддержим и это
+    if (is_string($rawPassengers)) {
+        $decoded = json_decode($rawPassengers, true);
+        $rawPassengers = is_array($decoded) ? $decoded : [];
     }
-    echo  'ok';
+
+    // Гарантируем массив
+    if (!is_array($rawPassengers)) {
+        $rawPassengers = [];
+    }
+
+    // Всегда сбрасываем список пассажиров в сессии
+    $_SESSION['order']['passengers_data'] = [];
+
+    $pass = [];
+    foreach ($rawPassengers as $p) {
+        if (!is_array($p)) continue;
+
+        $family = trim((string)($p['family_name'] ?? ''));
+        $name   = trim((string)($p['name'] ?? ''));
+        $patr   = trim((string)($p['patronymic'] ?? ''));
+        $birth  = trim((string)($p['birth_date'] ?? ''));
+
+        // Если строка пустая (пассажира удалили/не заполнили) — не сохраняем
+        if ($family === '' && $name === '' && $patr === '' && $birth === '') {
+            continue;
+        }
+
+        $pass[] = [
+            'family_name' => htmlspecialchars($family, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            'name'        => htmlspecialchars($name,   ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            'patronymic'  => htmlspecialchars($patr,   ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            'birth_date'  => htmlspecialchars($birth,  ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+        ];
+    }
+
+    $_SESSION['order']['passengers_data'] = $pass;
+
+    // Обновляем общее количество пассажиров (покупатель + доп.пассажиры)
+    $newPassengersCount = 1 + count($pass);
+
+    // Если пользователь УМЕНЬШИЛ количество пассажиров после резерва — вернём места в tours_sales
+    if ($newPassengersCount < $oldPassengersCount) {
+        $delta = $oldPassengersCount - $newPassengersCount;
+
+        $tourId = isset($_SESSION['order']['tour_id']) ? (int)$_SESSION['order']['tour_id'] : 0;
+        $date   = $_SESSION['order']['date'] ?? null;
+
+        if ($tourId > 0 && $date) {
+            // Возвращаем свободные билеты (потому что check_OrderTicket уже вычитал старое число)
+            $Db->query("UPDATE `" . DB_PREFIX . "_tours_sales`
+                        SET free_tickets = free_tickets + " . (int)$delta . "
+                        WHERE tour_id = '" . (int)$tourId . "' AND tour_date = '" . $date . "'");
+        }
+    }
+
+    $_SESSION['order']['passengers'] = $newPassengersCount;
+
+    echo 'ok';
 }
+
 
 if ($cleanPost['request'] === 'order_route'){
     $tourId = (int)$_SESSION['order']['tour_id'];
@@ -1320,7 +1376,12 @@ if ($cleanPost['request'] === 'order_route'){
 
             $Db->query("INSERT INTO `" . DB_PREFIX . "_orders_passangers` (" . implode(',', $fieldName) . ") VALUES (" . implode(',', $fieldValue) . ") ");
 
-            foreach ($_SESSION['order']['passengers_data'] as $passenger) {
+$passengersData = $_SESSION['order']['passengers_data'] ?? [];
+if (!is_array($passengersData)) {
+    $passengersData = [];
+}
+
+foreach ($passengersData as $passenger) {
                 $fieldName = $fieldValue = array();
                 $fieldName[] = 'name';
                 $fieldValue[] = '"' . $passenger['name'] . '"';

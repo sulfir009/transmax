@@ -1,3 +1,5 @@
+<!-- FOOTER_TEST_123 -->
+
 <div class="container">
     <div class="d_none">
         <? $out([]) ?>
@@ -67,6 +69,12 @@
                                 @lang('pages_kontakti')
                             </a>
                         </li>
+                        <li>
+    <a href="{{ route('mobile.app') }}">
+        Мобильное приложение
+    </a>
+</li>
+
                     </ul>
                 </div>
             </div>

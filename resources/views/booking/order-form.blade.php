@@ -54,7 +54,8 @@
             <div class="b2_passenger_wrap js_passenger_block is_hidden" data-passenger-index="{{ $i }}" style="display:none;">
                 <div class="b2_passenger_title">
                     Контактные данные пассажира №{{ $i + 1 }}
-                    <span class="b2_remove_dot" title="Пассажир добавлен"></span>
+                    <span class="b2_remove_dot js_remove_passenger" title="Удалить пассажира"></span>
+
                 </div>
 
                 <div class="b2_grid">

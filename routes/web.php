@@ -42,6 +42,9 @@ Route::get('/oferta', [\App\Http\Controllers\TextPageController::class, 'offer']
 Route::get('/pravila-perevozok', [\App\Http\Controllers\TextPageController::class, 'transportRules'])->name('transport.rules');
 Route::get('/usloviya-vozvrata', [\App\Http\Controllers\TextPageController::class, 'returnConditions'])->name('return.conditions');
 Route::get('/instrukciya-po-udaleniyu-dannyh', [\App\Http\Controllers\TextPageController::class, 'dataDeletionInstructions'])->name('data.deletion.instructions');
+Route::get('/mobilnoe-prilozhenie', [\App\Http\Controllers\TextPageController::class, 'mobileApp'])
+    ->name('mobile.app');
+
 
 // FAQ routes
 Route::get('/voprosi-i-otveti', [\App\Http\Controllers\FaqController::class, 'index'])->name('faq');

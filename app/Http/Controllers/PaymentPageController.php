@@ -9,7 +9,6 @@ use App\Service\LiqPayService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 
@@ -27,18 +26,15 @@ class PaymentPageController extends Controller
         OrderRepository $orderRepository = null,
         LiqPayService $liqpayService = null
     ) {
-        // Определяем константу DB_PREFIX если она не определена
         if (!defined('DB_PREFIX')) {
             define('DB_PREFIX', 'mt');
         }
-        
-        // Получаем глобальные объекты (временно, пока не рефакторим полностью)
+
         global $Router, $Db, $User;
         $this->router = $Router;
         $this->db = $Db;
         $this->user = $User;
-        
-        // Инициализируем репозитории если они не переданы
+
         $this->busRepository = $busRepository ?: new BusRepository();
         $this->orderRepository = $orderRepository ?: new OrderRepository();
         $this->liqpayService = $liqpayService ?: new LiqPayService();
@@ -49,68 +45,57 @@ class PaymentPageController extends Controller
      */
     public function index(Request $request)
     {
-        // Инициализация сессии если нужно
         if (session_status() === PHP_SESSION_NONE) {
             session_start();
         }
 
-        // Проверяем, что билет выбран
-        // Временно закомментировано для тестирования
-        // if (!isset($_SESSION['order']['tour_id'])) {
-        //     return redirect()->route('main');
-        // }
-        
-        // Тестовые данные
-        if (!isset($_SESSION['order'])) {
-            $_SESSION['order'] = [
-                'tour_id' => 1,
-                'from' => 1,
-                'to' => 2,
-                'date' => date('Y-m-d'),
-                'passengers' => 2
-            ];
+        // ✅ НИКАКИХ "тестовых данных" на проде.
+        // Если заказа нет — возвращаем на главный шаг.
+        if (!isset($_SESSION['order']['tour_id'])) {
+            return redirect()->route('main');
         }
 
-        // Установка заголовков для предотвращения кеширования
+        // Заголовки против кеша
         header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
         header("Cache-Control: no-cache, must-revalidate");
         header("Pragma: no-cache");
         header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
 
         $lang = $this->router->lang ?? 'ru';
-        
-        // Получаем информацию о билете
+
+        // ✅ СИНХРОНИЗАЦИЯ passengers на входе в оплату
+        // Если на шаге 2 ты удалил пассажира, но order.passengers "залип" — мы выравниваем.
+        $this->syncPassengersFromPassengerData();
+
+        // Инфа о билете — всегда из БД по данным из сессии (не из клиента)
         $ticketInfo = $this->getTicketInfo(
-            $_SESSION['order']['tour_id'],
-            $_SESSION['order']['from'],
-            $_SESSION['order']['to']
+            (int)($_SESSION['order']['tour_id'] ?? 0),
+            (int)($_SESSION['order']['from'] ?? 0),
+            (int)($_SESSION['order']['to'] ?? 0)
         );
-        
-        // Получаем месяц для отображения
-        $monthData = $this->getMonthName($_SESSION['order']['date'], $lang);
-        
-        // Форматируем дату и время оплаты
+
+        $monthData = $this->getMonthName($_SESSION['order']['date'] ?? date('Y-m-d'), $lang);
+
         $paymentDateTime = $this->formatPaymentDateTime(
-            $_SESSION['order']['date'],
+            $_SESSION['order']['date'] ?? date('Y-m-d'),
             $ticketInfo['departure_time'] ?? '',
             $monthData
         );
-        
-        // Рассчитываем общую стоимость
-        $passengers = $_SESSION['order']['passengers'] ?? 1;
-        $totalPrice = $passengers * ($ticketInfo['price'] ?? 0);
-        
-        // Получаем опции автобуса
+
+        $passengers = (int)($_SESSION['order']['passengers'] ?? 1);
+        $passengers = max(1, min(10, $passengers));
+
+        $pricePer = (float)($ticketInfo['price'] ?? 0);
+        $totalPrice = (int)round($passengers * $pricePer);
+
         $busOptions = $this->busRepository->getBusOptions($ticketInfo['bus_id'] ?? null);
-        
-        // Преобразуем в массивы если нужно
+
         if (!empty($busOptions) && is_object($busOptions[0] ?? null)) {
-            $busOptions = array_map(function($item) {
-                return (array) $item;
+            $busOptions = array_map(function ($item) {
+                return (array)$item;
             }, $busOptions);
         }
-        
-        // Данные для представления
+
         $viewData = [
             'ticketInfo' => $ticketInfo,
             'monthData' => $monthData,
@@ -124,7 +109,7 @@ class PaymentPageController extends Controller
             'lang' => $lang,
             'dictionary' => $GLOBALS['dictionary'] ?? []
         ];
-        
+
         return view('payment.index', $viewData);
     }
 
@@ -142,13 +127,13 @@ class PaymentPageController extends Controller
         switch ($requestType) {
             case 'order_route':
                 return $this->orderRoute($request);
-                
+
             case 'delete_order_tour_id':
                 return $this->deleteOrderTourId();
-                
+
             case 'order_mail':
                 return $this->sendOrderEmail($request);
-                
+
             default:
                 return response()->json(['error' => 'Unknown request type'], 400);
         }
@@ -160,25 +145,36 @@ class PaymentPageController extends Controller
     protected function orderRoute(Request $request): JsonResponse
     {
         try {
+            if (!isset($_SESSION['order']['tour_id'])) {
+                return response()->json(['data' => 'error', 'error' => 'no_order_in_session'], 400);
+            }
+
+            // ✅ На всякий случай синхронизируем passengers ещё раз
+            $this->syncPassengersFromPassengerData();
+
             $paymethod = $request->input('paymethod');
-            $ticketInfo = $request->input('ticket_info');
-            $order = $request->input('order');
-            
-            // Получаем данные пассажира из сессии
+
+            // ✅ ticketInfo / order — НЕ берём из клиента, берём из сессии и БД
+            $order = $_SESSION['order'];
+
+            $ticketInfo = $this->getTicketInfo(
+                (int)$order['tour_id'],
+                (int)$order['from'],
+                (int)$order['to']
+            );
+
             $passengerData = $_SESSION['passenger_data'] ?? [];
-            
-            // Создаем запись заказа в базе данных
+
             $orderId = $this->createOrder($order, $ticketInfo, $passengerData, $paymethod);
-            
+
             if (!$orderId) {
                 return response()->json(['data' => 'error'], 500);
             }
-            
-            // Сохраняем ID заказа в сессию
+
             $_SESSION['last_order_id'] = $orderId;
-            
+
             return response()->json(['data' => 'ok']);
-            
+
         } catch (\Exception $e) {
             Log::error('Order creation error: ' . $e->getMessage());
             return response()->json(['data' => 'error'], 500);
@@ -186,41 +182,55 @@ class PaymentPageController extends Controller
     }
 
     /**
-     * Создание платежа через LiqPay (для legacy совместимости)
+     * Создание платежа через LiqPay (legacy)
      */
     public function createLegacyPayment(Request $request): JsonResponse
     {
         try {
-            $ticketInfo = $request->input('ticket_info');
-            $order = $request->input('order');
-            $totalPrice = $request->input('total_price');
-            
-            // Генерируем уникальный order_id
-            $orderId = 'TICKET_' . time() . '_' . rand(1000, 9999);
-            
-            // Формируем описание платежа
+            if (!isset($_SESSION['order']['tour_id'])) {
+                return response()->json(['success' => false, 'error' => 'no_order_in_session'], 400);
+            }
+
+            // ✅ Не доверяем total_price из клиента — считаем заново
+            $this->syncPassengersFromPassengerData();
+
+            $order = $_SESSION['order'];
+
+            $ticketInfo = $this->getTicketInfo(
+                (int)$order['tour_id'],
+                (int)$order['from'],
+                (int)$order['to']
+            );
+
+            $passengers = (int)($order['passengers'] ?? 1);
+            $passengers = max(1, min(10, $passengers));
+
+            $amount = (float)($ticketInfo['price'] ?? 0) * $passengers;
+            $amount = (int)round($amount);
+
+            $liqpayOrderId = 'TICKET_' . time() . '_' . rand(1000, 9999);
+
             $description = sprintf(
                 "Оплата билета: %s - %s, %s",
                 $ticketInfo['departure_city'] ?? '',
                 $ticketInfo['arrival_city'] ?? '',
                 $order['date'] ?? ''
             );
-            
-            // Создаем данные для LiqPay
+
             $paymentData = $this->liqpayService->createPaymentData([
-                'order_id' => $orderId,
-                'amount' => $totalPrice,
+                'order_id' => $liqpayOrderId,
+                'amount' => $amount,
                 'description' => $description,
                 'product_description' => $description,
             ]);
-            
+
             return response()->json([
                 'success' => true,
                 'payment_url' => 'https://www.liqpay.ua/api/3/checkout',
                 'data' => $paymentData['data'],
                 'signature' => $paymentData['signature']
             ]);
-            
+
         } catch (\Exception $e) {
             Log::error('Legacy payment creation error: ' . $e->getMessage());
             return response()->json([
@@ -245,32 +255,42 @@ class PaymentPageController extends Controller
     protected function sendOrderEmail(Request $request): JsonResponse
     {
         try {
-            $ticketInfo = $request->input('ticket_info');
-            $order = $request->input('order');
-            
-            // Получаем данные пассажира из сессии
+            if (!isset($_SESSION['order']['tour_id'])) {
+                return response()->json('no_order', 400);
+            }
+
+            $this->syncPassengersFromPassengerData();
+
+            $order = $_SESSION['order'];
+
+            $ticketInfo = $this->getTicketInfo(
+                (int)$order['tour_id'],
+                (int)$order['from'],
+                (int)$order['to']
+            );
+
             $passengerData = $_SESSION['passenger_data'] ?? [];
-            
             if (empty($passengerData['email'])) {
                 return response()->json('no_email', 400);
             }
-            
-            // Подготавливаем данные для письма
+
+            $passengers = (int)($order['passengers'] ?? 1);
+            $passengers = max(1, min(10, $passengers));
+
             $emailData = [
                 'ticketInfo' => $ticketInfo,
                 'order' => $order,
                 'passengerData' => $passengerData,
-                'totalPrice' => $order['passengers'] * $ticketInfo['price']
+                'totalPrice' => (int)round($passengers * (float)($ticketInfo['price'] ?? 0)),
             ];
-            
-            // Отправляем письмо
-            Mail::send('emails.order_confirmation', $emailData, function($message) use ($passengerData) {
+
+            Mail::send('emails.order_confirmation', $emailData, function ($message) use ($passengerData) {
                 $message->to($passengerData['email'])
-                       ->subject('Подтверждение заказа билета');
+                    ->subject('Подтверждение заказа билета');
             });
-            
+
             return response()->json('ok');
-            
+
         } catch (\Exception $e) {
             Log::error('Email sending error: ' . $e->getMessage());
             return response()->json('error', 500);
@@ -284,16 +304,21 @@ class PaymentPageController extends Controller
     {
         try {
             $prefix = DB_PREFIX;
-            
-            // Подготавливаем данные для вставки
+
+            $passengers = (int)($order['passengers'] ?? 1);
+            $passengers = max(1, min(10, $passengers));
+
+            $price = (float)($ticketInfo['price'] ?? 0);
+            $total = (int)round($passengers * $price);
+
             $orderData = [
-                'tour_id' => (int)$order['tour_id'],
-                'from_stop' => (int)$order['from'],
-                'to_stop' => (int)$order['to'],
-                'tour_date' => $order['date'],
-                'passengers_count' => (int)$order['passengers'],
-                'price' => $ticketInfo['price'],
-                'total_price' => $order['passengers'] * $ticketInfo['price'],
+                'tour_id' => (int)($order['tour_id'] ?? 0),
+                'from_stop' => (int)($order['from'] ?? 0),
+                'to_stop' => (int)($order['to'] ?? 0),
+                'tour_date' => $order['date'] ?? date('Y-m-d'),
+                'passengers_count' => $passengers,
+                'price' => $price,
+                'total_price' => $total,
                 'payment_method' => $paymethod,
                 'status' => $paymethod === 'cash' ? 'pending' : 'waiting_payment',
                 'client_name' => $passengerData['name'] ?? '',
@@ -305,29 +330,24 @@ class PaymentPageController extends Controller
                 'passengers_data' => json_encode($passengerData['passengers'] ?? []),
                 'created_at' => date('Y-m-d H:i:s')
             ];
-            
-            // Вставляем запись в БД
+
             if ($this->db) {
                 return $this->db->insert("{$prefix}_orders", $orderData);
-            } else {
-                // Laravel DB fallback
-                return DB::table("{$prefix}_orders")->insertGetId($orderData);
             }
-            
+
+            return DB::table("{$prefix}_orders")->insertGetId($orderData);
+
         } catch (\Exception $e) {
             Log::error('Order creation DB error: ' . $e->getMessage());
             return null;
         }
     }
 
-    /**
-     * Получение информации о билете
-     */
     protected function getTicketInfo($tourId, $fromStop, $toStop): array
     {
         $lang = $this->router->lang ?? 'ru';
         $prefix = DB_PREFIX;
-        
+
         $sql = "SELECT
             from_stop.departure_time AS departure_time,
             from_city.title_{$lang} AS departure_station,
@@ -353,57 +373,85 @@ class PaymentPageController extends Controller
         WHERE from_stop.tour_id = ?
         AND from_stop.stop_id = ?
         AND to_stop.stop_id = ?";
-        
+
         if ($this->db) {
             $result = $this->db->getOne($sql, [(int)$tourId, (int)$fromStop, (int)$toStop]);
-        } else {
-            // Laravel DB fallback
-            $result = DB::selectOne($sql, [(int)$tourId, (int)$fromStop, (int)$toStop]);
-            $result = $result ? (array) $result : null;
+            return $result ?? [];
         }
-        
-        return $result ?? [];
+
+        $result = DB::selectOne($sql, [(int)$tourId, (int)$fromStop, (int)$toStop]);
+        return $result ? (array)$result : [];
     }
 
-    /**
-     * Получение названия месяца
-     */
     protected function getMonthName($date, $lang = 'ru'): array
     {
         $prefix = DB_PREFIX;
         $month = (int)explode('-', $date)[1];
-        
+
         if ($this->db) {
             return $this->db->getOne(
                 "SELECT title_{$lang} AS title FROM `{$prefix}_months` WHERE id = ?",
                 [$month]
             ) ?? [];
-        } else {
-            $result = DB::selectOne(
-                "SELECT title_{$lang} as title FROM `{$prefix}_months` WHERE id = ?",
-                [$month]
-            );
-            return $result ? (array) $result : [];
         }
+
+        $result = DB::selectOne(
+            "SELECT title_{$lang} as title FROM `{$prefix}_months` WHERE id = ?",
+            [$month]
+        );
+        return $result ? (array)$result : [];
     }
 
-    /**
-     * Форматирование даты и времени оплаты
-     */
     protected function formatPaymentDateTime($date, $departureTime, $monthData): string
     {
-        $day = (int)explode('-', $date)[2];
+        $parts = explode('-', $date);
+        $day = isset($parts[2]) ? (int)$parts[2] : (int)date('d');
         $monthName = $monthData['title'] ?? '';
-        $time = date('H:i', strtotime($departureTime));
-        
+        $time = $departureTime ? date('H:i', strtotime($departureTime)) : '00:00';
+
         return "{$day} {$monthName} {$time}";
     }
-    
-    /**
-     * Страница благодарности после оплаты
-     */
+
     public function thankYou(Request $request)
     {
         return view('payment.thank-you');
+    }
+
+    /**
+     * Выравниваем order.passengers по passenger_data.passengers, если оно есть.
+     * Это лечит "залипание" 2 после удаления пассажира на шаге 2.
+     */
+    protected function syncPassengersFromPassengerData(): void
+    {
+        if (!isset($_SESSION['order'])) {
+            return;
+        }
+
+        $extra = 0;
+
+        if (isset($_SESSION['passenger_data']['passengers']) && is_array($_SESSION['passenger_data']['passengers'])) {
+            // считаем только реально заполненные строки, а не пустые болванки
+            foreach ($_SESSION['passenger_data']['passengers'] as $row) {
+                if (!is_array($row)) continue;
+
+                $hasAny = false;
+                foreach ($row as $v) {
+                    if (is_array($v)) continue;
+                    if (trim((string)$v) !== '') { $hasAny = true; break; }
+                }
+                if ($hasAny) $extra++;
+            }
+        }
+
+        $computed = 1 + $extra;
+        $computed = max(1, min(10, $computed));
+
+        $current = (int)($_SESSION['order']['passengers'] ?? 1);
+        $current = max(1, min(10, $current));
+
+        // Если computed=1, а в order залипло 2 — выравниваем
+        if ($computed !== $current) {
+            $_SESSION['order']['passengers'] = $computed;
+        }
     }
 }

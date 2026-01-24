@@ -606,12 +606,36 @@ class TicketController extends Controller
         $this->ticketRepository->setLanguage($lang);
         $this->cityRepository->setLanguage($lang);
 
+$lang = $this->router->lang ?? 'ru';
+
+$this->cityRepository->setLanguage($lang);
+
+// filter из сессии (как в index)
+$filterDeparture = $_SESSION['filter']['departure'] ?? 0;
+$filterArrival   = $_SESSION['filter']['arrival'] ?? 0;
+$filterDate      = $_SESSION['filter']['date'] ?? date('Y-m-d');
+$adults          = $_SESSION['filter']['adults'] ?? 1;
+$kids            = $_SESSION['filter']['kids'] ?? 0;
+
+// города + словарь
+$cities = $this->cityRepository->getCitiesForFilter($lang);
+$translationRepository = new \App\Repository\Site\TranslationRepository();
+$dictionary = $translationRepository->getDictionary($lang);
+
         // Здесь добавьте логику для страницы данных пассажиров
         // Пока возвращаем заглушку
-        return view('ticket.data', [
-            'selectedTicket' => $selectedTicket,
-            'lang' => $lang
-        ]);
+return view('ticket.data', compact(
+    'selectedTicket',
+    'lang',
+    'cities',
+    'dictionary',
+    'filterDeparture',
+    'filterArrival',
+    'filterDate',
+    'adults',
+    'kids'
+));
+
     }
 
     /**

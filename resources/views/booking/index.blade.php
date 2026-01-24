@@ -8,6 +8,11 @@
     <link rel="stylesheet" href="{{ mix('css/responsive.css') }}">
 
     <style>
+    /* Чтобы можно было реально скрывать строку "Добавить пассажира" */
+.booking_v2 .b2_add_row.is_hidden{
+    display:none !important;
+}
+
     @media (max-width: 1400px) {
     .ticket_order_block {
         margin-top: 0px;
@@ -1021,132 +1026,154 @@
             });
         };
 
-        function goPayment(){
-            let allFieldsFilled = true;
-            let family_name = $.trim($('#family_name').val());
-            let name = $.trim($('#name').val());
-            let patronymic = $.trim($('#patronymic').val());
-            let birth_date = $('#birthdate').val();
-            let email = $.trim($('#email').val());
-            let phone = $.trim($('#phone').val());
-            let saveMyData = 0;
-            let phone_code = $('.phone_country_code').val();
+function goPaymentV2(){
+    let allFieldsFilled = true;
 
-            let passengers = [];
-            let totalPassengers = document.querySelectorAll('[data-passengers-family-name]').length;
+    let family_name = $.trim($('#family_name').val());
+    let name = $.trim($('#name').val());
+    let patronymic = $.trim($('#patronymic').val());
+    let birth_date = $('#birthdate').val();
+    let email = $.trim($('#email').val());
+    let phone = $.trim($('#phone').val());
+    let saveMyData = 0;
+    let phone_code = $('.phone_country_code').val();
 
-            for (let i = 1; i < totalPassengers; i++) {
-                let family_name = $.trim($('input[name="passengers[' + i + '][family_name]"]').val());
-                let name = $.trim($('input[name="passengers[' + i + '][name]"]').val());
-                let patronymic = $.trim($('input[name="passengers[' + i + '][patronymic]"]').val());
-                let birth_date = $('input[name="passengers[' + i + '][birthdate]"]').val();
+    // ===== 1) собираем ТОЛЬКО видимых (не удалённых) доп. пассажиров =====
+    let passengers = [];
 
-                passengers.push({
-                    family_name: family_name,
-                    name: name,
-                    patronymic: patronymic,
-                    birth_date: birth_date,
-                });
-            }
+    document.querySelectorAll('.js_passenger_block:not(.is_hidden)').forEach(function(block){
+        let i = parseInt(block.getAttribute('data-passenger-index'), 10);
 
-            if ($('#save_my_data').is(':checked')){
-                saveMyData = 1;
-            }
+        let pf = $.trim($(block).find('input[name="passengers[' + i + '][family_name]"]').val());
+        let pn = $.trim($(block).find('input[name="passengers[' + i + '][name]"]').val());
+        let pp = $.trim($(block).find('input[name="passengers[' + i + '][patronymic]"]').val());
+        let pb = $.trim($(block).find('input[name="passengers[' + i + '][birthdate]"]').val());
 
-            $('.req_input').each(function () {
-                if ($.trim($(this).val()) === '') {
-                    $(this).addClass('required_error');
-                } else {
-                    $(this).removeClass('required_error');
-                }
-            });
+        passengers.push({
+            family_name: pf,
+            name: pn,
+            patronymic: pp,
+            birth_date: pb,
+        });
+    });
 
-            $('.req_input').each(function () {
-                if ($.trim($(this).val()) === '') {
-                    out('@lang("dictionary.MSG_MSG_BOOKING_ZAPOLNITE_VSE_OBYAZATELINYE_POLYA")', '@lang("dictionary.MSG_MSG_BOOKING_OBYAZATELINYE_POLYA_OTMECHENY_")');
-                    allFieldsFilled = false;
-                    return false;
-                }
-            });
+    // пассажир №1 + доп пассажиры
+    let passengers_count = 1 + passengers.length;
+    
+    console.log('[goPaymentV2] passengers_count =', passengers_count);
+console.log('[goPaymentV2] visible passenger blocks =',
+  document.querySelectorAll('.js_passenger_block:not(.is_hidden)').length
+);
 
-            if (!allFieldsFilled) {
-                return false;
-            }
+// чтобы потом можно было посмотреть уже после перехода/редиректа:
+window.__dbgPassengers = {
+  passengers_count: passengers_count,
+  dom_visible_blocks: document.querySelectorAll('.js_passenger_block:not(.is_hidden)').length,
+  time: new Date().toISOString()
+};
 
-            if (!isEmail(email)){
-                out('@lang("dictionary.MSG_MSG_BOOKING_EMAIL_UKAZAN_NEVERNO")');
-                return false;
-            }
 
-            if (!$('#terms_accept').is(':checked')){
-                out('@lang("dictionary.MSG_MSG_BOOKING_DLYA_OFORMLENIYA_ZAKAZA_VY_DOLZHNY_PRINYATI_USLOVIYA")');
-                return false;
-            }
+    // чтобы исключить “старый count” из других мест
+    bookingData.passengers = passengers_count;
 
-            if (!$('#personal_data_process').is(':checked')){
-                out('@lang("dictionary.MSG_MSG_BOOKING_DLYA_OFORMLENIYA_ZAKAZA_VY_DOLZHNY_DATI_SOGLASIE_NA_OBRABOTKU_LICHNYH_DANNYH")');
-                return false;
-            }
+    // ===== ДЕБАГ (оставь пока не убедишься) =====
+    console.log('[goPaymentV2] passengers_count =', passengers_count, 'visibleBlocks =', passengers.length);
 
-            initLoader();
-            console.log('start');
+    if ($('#save_my_data').is(':checked')){
+        saveMyData = 1;
+    }
 
-            $.ajax({
-                type: 'post',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                },
-                url: '/ajax/ru',
-                data: {
-                    'request': 'check_OrderTicket'
-                },
-                success: function(response) {
-                    removeLoader();
-                    console.log('response ', response);
-
-                    if ($.trim(response) === 'ok') {
-                        initLoader();
-                        console.log('initLoader');
-
-                        $.ajax({
-                            type: 'post',
-                            headers: {
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                            },
-                            url: '/ajax/ru',
-                            data: {
-                                'request': 'remember_private_data',
-                                'family_name': family_name,
-                                'name': name,
-                                'patronymic': patronymic,
-                                'birthDate': birth_date,
-                                'email': email,
-                                'phone': phone,
-                                'save_data': saveMyData,
-                                'phone_code': phone_code,
-                                'passengers': passengers
-                            },
-                            success: function (response) {
-                                removeLoader();
-                                console.log('removeLoader');
-                                console.log('response ', response);
-
-                                if ($.trim(response.data) === 'ok') {
-                                    location.href = '<?php echo  rtrim(url($Router->writelink(86)), '/') ?>';
-                                } else {
-                                    out('Ошибка');
-                                }
-                            }
-                        });
-                    } else if ($.trim(response) === 'soldout') {
-                        out('@lang("dictionary.MSG_MSG_TICKETS_NET_SVOBODNYH_MEST")');
-                    } else if ($.trim(response) === 'late') {
-                        console.log(response);
-                        out('@lang("dictionary.MSG_MSG_TICKETS_ETOT_BILET_BOLISHE_KUPITI_NELIZYA_TK_ETOT_REJS_UZHE_UEHAL")');
-                    }
-                }
-            });
+    // ===== 2) валидируем только видимые и не disabled =====
+    $('.req_input:visible:not(:disabled)').each(function () {
+        if ($.trim($(this).val()) === '') {
+            $(this).addClass('required_error');
+        } else {
+            $(this).removeClass('required_error');
         }
+    });
+
+    $('.req_input:visible:not(:disabled)').each(function () {
+        if ($.trim($(this).val()) === '') {
+            out('@lang("dictionary.MSG_MSG_BOOKING_ZAPOLNITE_VSE_OBYAZATELINYE_POLYA")', '@lang("dictionary.MSG_MSG_BOOKING_OBYAZATELINYE_POLYA_OTMECHENY_")');
+            allFieldsFilled = false;
+            return false;
+        }
+    });
+
+    if (!allFieldsFilled) return false;
+
+    if (!isEmail(email)){
+        out('@lang("dictionary.MSG_MSG_BOOKING_EMAIL_UKAZAN_NEVERNO")');
+        return false;
+    }
+
+    if (!$('#terms_accept').is(':checked')){
+        out('@lang("dictionary.MSG_MSG_BOOKING_DLYA_OFORMLENIYA_ZAKAZA_VY_DOLZHNY_PRINYATI_USLOVIYA")');
+        return false;
+    }
+
+    if (!$('#personal_data_process').is(':checked')){
+        out('@lang("dictionary.MSG_MSG_BOOKING_DLYA_OFORMLENIYA_ZAKAZA_VY_DOLZHNY_DATI_SOGLASIE_NA_OBRABOTKU_LICHNYH_DANNYH")');
+        return false;
+    }
+
+    initLoader();
+
+    // ===== 3) check_OrderTicket — отправляем РЕАЛЬНЫЙ passengers_count =====
+    $.ajax({
+        type: 'post',
+        headers: {'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content},
+        url: bookingData.ajaxUrl,
+        data: {
+            request: 'check_OrderTicket',
+            passengers_count: passengers_count
+        },
+        success: function(response) {
+            removeLoader();
+
+            if ($.trim(response) === 'ok') {
+                initLoader();
+
+                // ===== 4) remember_private_data — тоже отправляем РЕАЛЬНЫЙ passengers_count =====
+                $.ajax({
+                    type: 'post',
+                    headers: {'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content},
+                    url: bookingData.ajaxUrl,
+                    data: {
+                        request: 'remember_private_data',
+                        family_name: family_name,
+                        name: name,
+                        patronymic: patronymic,
+                        birthDate: birth_date,
+                        email: email,
+                        phone: phone,
+                        save_data: saveMyData,
+                        phone_code: phone_code,
+
+                        passengers: passengers,
+                        passengers_count: passengers_count
+                    },
+                    success: function (response) {
+                        removeLoader();
+
+                        if ($.trim(response.data) === 'ok') {
+                            location.href = '<?php echo rtrim(url($Router->writelink(86)), '/') ?>';
+                        } else {
+                            out('Ошибка');
+                        }
+                    }
+                });
+
+            } else if ($.trim(response) === 'soldout') {
+                out('@lang("dictionary.MSG_MSG_TICKETS_NET_SVOBODNYH_MEST")');
+            } else if ($.trim(response) === 'late') {
+                out('@lang("dictionary.MSG_MSG_TICKETS_ETOT_BILET_BOLISHE_KUPITI_NELIZYA_TK_ETOT_REJS_UZHE_UEHAL")');
+            }
+        }
+    });
+}
+
+
 
         $('.phone_country_code').niceSelect();
         $('.customer_phone_input').mask("<?php echo $firstPhoneMask?>");
@@ -1200,49 +1227,172 @@
             }
         });
     </script>
-    <script>
+
+
+<script>
 (function () {
 
-    function syncAddRowVisibility() {
-        var row = document.getElementById('b2_add_row');
-        if (!row) { return; }
+    function q(sel, root){ return (root || document).querySelector(sel); }
+    function qa(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
-        var hiddenBlock = document.querySelector('.js_passenger_block.is_hidden');
-        if (hiddenBlock) {
-            row.style.display = '';
+    function getWrap(){
+        return document.getElementById('b2_passengers_wrap');
+    }
+
+    function getBlocks(){
+        var wrap = getWrap();
+        if (!wrap) return [];
+        return qa('.js_passenger_block', wrap);
+    }
+
+    function getHiddenBlocks(){
+        return getBlocks().filter(function(b){ return b.classList.contains('is_hidden'); });
+    }
+
+    function getVisibleBlocks(){
+        return getBlocks().filter(function(b){ return !b.classList.contains('is_hidden'); });
+    }
+
+    function setBlockVisible(block, isVisible){
+        if (!block) return;
+
+        var inputs = qa('input, select, textarea', block);
+
+        if (isVisible) {
+            block.classList.remove('is_hidden');
+            inputs.forEach(function(el){
+                el.disabled = false;
+                el.classList.remove('required_error');
+            });
         } else {
-            row.style.display = 'none';
+            block.classList.add('is_hidden');
+            inputs.forEach(function(el){
+                // чистим значения, чтобы они не улетали в JS-сбор
+                if (el.type === 'checkbox' || el.type === 'radio') {
+                    el.checked = false;
+                } else {
+                    el.value = '';
+                }
+                el.disabled = true;
+                el.classList.remove('required_error');
+            });
         }
     }
 
-    function showNextPassenger() {
-        var hiddenBlock = document.querySelector('.js_passenger_block.is_hidden');
-        if (!hiddenBlock) {
+    function syncAddRowVisibility(){
+        var row = document.getElementById('b2_add_row');
+        if (!row) return;
+
+        // "Добавить пассажира" показываем только если есть скрытые (то есть есть кого вернуть)
+        var hasHidden = getHiddenBlocks().length > 0;
+        row.classList.toggle('is_hidden', !hasHidden);
+    }
+
+    // Берём цену за 1 пассажира из route-info
+    function getPricePerPassenger(){
+        var meta = document.getElementById('js_price_meta');
+        if (meta) {
+            var raw = meta.getAttribute('data-price-per-passenger');
+            if (raw) {
+                var v = parseFloat(String(raw).replace(',', '.'));
+                if (!isNaN(v) && v > 0) return v;
+            }
+        }
+
+        // fallback: пробуем вытащить из строки "Цена"
+        var priceEl = q('.route_block .b2_price_row .val');
+        if (priceEl) {
+            var txt = priceEl.textContent || '';
+            txt = txt.replace(/[^0-9.,]/g, '').replace(',', '.');
+            var p = parseFloat(txt);
+            if (!isNaN(p) && p > 0) return p;
+        }
+
+        return 0;
+    }
+
+    function formatMoney(n){
+        // показываем без копеек если целое
+        var rounded = Math.round(n * 100) / 100;
+        if (Math.abs(rounded - Math.round(rounded)) < 0.00001) {
+            return String(Math.round(rounded));
+        }
+        return rounded.toFixed(2);
+    }
+
+    // Главное: обновляем UI справа (пассажиры + сумма)
+    function updatePassengersUi(){
+        var passengersCount = 1 + getVisibleBlocks().length;
+
+        var countEl = document.getElementById('js_passengers_count');
+        if (countEl) countEl.textContent = String(passengersCount);
+
+        var pricePer = getPricePerPassenger();
+        if (pricePer > 0) {
+            var total = pricePer * passengersCount;
+
+            var totalEl = document.getElementById('js_total_price');
+            if (totalEl) totalEl.textContent = formatMoney(total);
+        }
+    }
+
+    function showNextPassenger(){
+        var hidden = getHiddenBlocks();
+        if (!hidden.length) {
             syncAddRowVisibility();
+            updatePassengersUi();
             return;
         }
 
-        hiddenBlock.classList.remove('is_hidden');
-        hiddenBlock.style.display = '';
-
+        setBlockVisible(hidden[0], true);
         syncAddRowVisibility();
+        updatePassengersUi();
     }
 
-    document.addEventListener('click', function (e) {
-        var btn1 = e.target.closest('#b2_add_passenger_btn');
-        var btn2 = e.target.closest('#b2_add_passenger_text');
+    function removePassenger(block){
+        setBlockVisible(block, false);
+        syncAddRowVisibility();
+        updatePassengersUi();
+    }
 
-        if (btn1 || btn2) {
+    // Делегирование кликов (и в CAPTURE, чтобы перебить возможные другие обработчики)
+    document.addEventListener('click', function (e) {
+
+        var add = e.target.closest('#b2_add_passenger_btn, #b2_add_passenger_text');
+        if (add) {
             e.preventDefault();
+            e.stopPropagation();
             showNextPassenger();
+            return;
         }
-    });
+
+        var removeBtn = e.target.closest('.js_remove_passenger');
+        if (removeBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            var block = removeBtn.closest('.js_passenger_block');
+            if (block) removePassenger(block);
+
+            return;
+        }
+
+    }, true);
 
     document.addEventListener('DOMContentLoaded', function () {
+
+        // если какие-то блоки помечены is_hidden — гарантированно выключаем им поля
+        getBlocks().forEach(function(block){
+            var isHidden = block.classList.contains('is_hidden');
+            setBlockVisible(block, !isHidden);
+        });
+
         syncAddRowVisibility();
+        updatePassengersUi();
     });
 
 })();
 </script>
+
 
 @endsection

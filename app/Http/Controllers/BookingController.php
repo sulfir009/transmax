@@ -132,73 +132,184 @@ class BookingController extends Controller
     /**
      * Проверка доступности билета
      */
-    protected function checkOrderTicket(Request $request): JsonResponse
-    {
-        try {
-            // Проверяем, не прошёл ли рейс
-            if (isset($_SESSION['order']['date'])) {
-                $currentTime = time();
-                $departureTime = strtotime($_SESSION['order']['date']);
+  protected function checkOrderTicket(Request $request): JsonResponse
+{
+    try {
+        // -----------------------------
+        // 1) СИНХРОНИЗАЦИЯ КОЛ-ВА ПАССАЖИРОВ В СЕССИИ
+        // Поддержка разных имен параметра, чтобы не ломать фронт:
+        // passengers_count / passengers
+        // -----------------------------
+        $pcRaw = $request->input('passengers_count', $request->input('passengers', null));
 
-                if ($departureTime < $currentTime) {
-                    return response()->json('late');
+        if ($pcRaw !== null) {
+            $pc = (int) $pcRaw;
+            $pc = max(1, min(10, $pc));
+
+            $oldPc = (int) ($_SESSION['order']['passengers'] ?? 1);
+            $oldPc = max(1, min(10, $oldPc));
+
+            $_SESSION['order']['passengers'] = $pc;
+
+            // Если пассажиров стало меньше — чистим хвост доп.пассажиров в сессии
+            if ($pc < $oldPc) {
+                $keepExtra = max(0, $pc - 1);
+
+                // 1) passenger_data.passengers (заполняется remember_private_data)
+                if (isset($_SESSION['passenger_data']['passengers']) && is_array($_SESSION['passenger_data']['passengers'])) {
+                    $_SESSION['passenger_data']['passengers'] = array_slice($_SESSION['passenger_data']['passengers'], 0, $keepExtra);
+                    if ($keepExtra === 0) {
+                        $_SESSION['passenger_data']['passengers'] = [];
+                    }
+                }
+
+                // 2) order.passengers_extra (если где-то у тебя такое используется)
+                if (isset($_SESSION['order']['passengers_extra']) && is_array($_SESSION['order']['passengers_extra'])) {
+                    $_SESSION['order']['passengers_extra'] = array_slice($_SESSION['order']['passengers_extra'], 0, $keepExtra);
+                    if ($keepExtra === 0) {
+                        $_SESSION['order']['passengers_extra'] = [];
+                    }
                 }
             }
-
-            // Здесь должна быть проверка доступности мест
-            // Пока возвращаем ok
-            return response()->json('ok');
-
-        } catch (\Exception $e) {
-            return response()->json('error', 500);
         }
+
+        // -----------------------------
+        // 2) ТВОЯ ПРОВЕРКА ДАТЫ (как было)
+        // -----------------------------
+        if (isset($_SESSION['order']['date'])) {
+            $currentTime = time();
+            $departureTime = strtotime($_SESSION['order']['date']);
+
+            if ($departureTime < $currentTime) {
+                return response()->json('late');
+            }
+        }
+
+        return response()->json('ok');
+
+    } catch (\Exception $e) {
+        return response()->json('error', 500);
     }
+}
+
 
     /**
      * Сохранение данных пассажиров
      */
-    protected function rememberPrivateData(Request $request): JsonResponse
-    {
-        try {
-            // Валидация данных
-            $validated = $request->validate([
-                'family_name' => 'required|string|max:255',
-                'name' => 'required|string|max:255',
-                'patronymic' => 'nullable|string|max:255',
-                'birthDate' => 'nullable|date',
-                'email' => 'required|email|max:255',
-                'phone' => 'required|string|max:50',
-                'phone_code' => 'required|integer',
-                'save_data' => 'nullable|boolean',
-                'passengers' => 'nullable|array'
-            ]);
+ /**
+ * Сохранение данных пассажиров
+ */
+protected function rememberPrivateData(Request $request): JsonResponse
+{
+    try {
+        $validated = $request->validate([
+            'family_name' => 'required|string|max:255',
+            'name' => 'required|string|max:255',
+            'patronymic' => 'nullable|string|max:255',
+            'birthDate' => 'nullable|date',
+            'email' => 'required|email|max:255',
+            'phone' => 'required|string|max:50',
+            'phone_code' => 'required|integer',
+            'save_data' => 'nullable|boolean',
 
-            // Сохраняем данные в сессию
-            $_SESSION['passenger_data'] = [
-                'family_name' => $validated['family_name'],
-                'name' => $validated['name'],
-                'patronymic' => $validated['patronymic'] ?? '',
-                'birth_date' => $validated['birthDate'] ?? null,
-                'email' => $validated['email'],
-                'phone' => $validated['phone'],
-                'phone_code' => $validated['phone_code'],
-                'passengers' => $validated['passengers'] ?? []
-            ];
+            // массив доп.пассажиров
+            'passengers' => 'nullable|array',
 
-            // Если пользователь авторизован и хочет сохранить данные
-            if ($this->user && $this->user->id && $request->input('save_data')) {
-                $this->clientRepository->updateClientData(
-                    $this->user->id,
-                    $_SESSION['passenger_data']
-                );
+            // ДОБАВЛЯЕМ (не обязательно, но очень полезно)
+            // если фронт может отправить число пассажиров явно
+            'passengers_count' => 'nullable|integer|min:1|max:10',
+        ]);
+
+        // -----------------------------
+        // 1) Сохраняем пассажирские данные (как было)
+        // -----------------------------
+        $_SESSION['passenger_data'] = [
+            'family_name' => $validated['family_name'],
+            'name' => $validated['name'],
+            'patronymic' => $validated['patronymic'] ?? '',
+            'birth_date' => $validated['birthDate'] ?? null,
+            'email' => $validated['email'],
+            'phone' => $validated['phone'],
+            'phone_code' => $validated['phone_code'],
+            'passengers' => $validated['passengers'] ?? []
+        ];
+
+        // -----------------------------
+        // 2) НОРМАЛИЗАЦИЯ КОЛ-ВА ПАССАЖИРОВ В order
+        // Логика:
+        // - если пришёл passengers_count => это “истина”
+        // - иначе считаем по фактически заполненным доп.пассажирам
+        // -----------------------------
+        $countFilledRows = function ($arr) {
+            if (!is_array($arr)) return 0;
+            $cnt = 0;
+
+            foreach ($arr as $row) {
+                if (!is_array($row)) continue;
+
+                $hasAny = false;
+                foreach ($row as $v) {
+                    if (is_array($v)) continue;
+                    $s = trim((string)$v);
+                    if ($s !== '') { $hasAny = true; break; }
+                }
+
+                if ($hasAny) $cnt++;
             }
 
-            return response()->json(['data' => 'ok']);
+            return $cnt;
+        };
 
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+        // extra пассажиры по факту заполнения
+        $extraFilled = $countFilledRows($_SESSION['passenger_data']['passengers'] ?? []);
+
+        // кандидат на итог
+        if (isset($validated['passengers_count']) && $validated['passengers_count'] !== null) {
+            $pc = (int) $validated['passengers_count'];
+        } else {
+            $pc = 1 + $extraFilled;
         }
+
+        $pc = max(1, min(10, $pc));
+
+        // важно: если pc = 1, то доп.пассажиров быть не должно
+        $keepExtra = max(0, $pc - 1);
+
+        if ($keepExtra === 0) {
+            $_SESSION['passenger_data']['passengers'] = [];
+            if (isset($_SESSION['order']['passengers_extra'])) {
+                $_SESSION['order']['passengers_extra'] = [];
+            }
+        } else {
+            // обрезаем на всякий случай
+            if (isset($_SESSION['passenger_data']['passengers']) && is_array($_SESSION['passenger_data']['passengers'])) {
+                $_SESSION['passenger_data']['passengers'] = array_slice($_SESSION['passenger_data']['passengers'], 0, $keepExtra);
+            }
+            if (isset($_SESSION['order']['passengers_extra']) && is_array($_SESSION['order']['passengers_extra'])) {
+                $_SESSION['order']['passengers_extra'] = array_slice($_SESSION['order']['passengers_extra'], 0, $keepExtra);
+            }
+        }
+
+        // записываем в order — вот это и решает твою проблему на оплате
+        $_SESSION['order']['passengers'] = $pc;
+
+        // -----------------------------
+        // 3) Если пользователь авторизован и хочет сохранить
+        // -----------------------------
+        if ($this->user && $this->user->id && $request->input('save_data')) {
+            $this->clientRepository->updateClientData(
+                $this->user->id,
+                $_SESSION['passenger_data']
+            );
+        }
+
+        return response()->json(['data' => 'ok']);
+
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
     }
+}
+
 
     /**
      * Получение информации о билете

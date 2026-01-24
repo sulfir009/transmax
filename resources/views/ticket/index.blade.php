@@ -2,6 +2,7 @@
 
 @section('page-styles')
     {{-- Flatpickr стили подключаются глобально в footer_scripts.blade.php, здесь не нужны --}}
+    <link rel="stylesheet" href="{{ asset('css/ticket_filter_hero.css') }}?v=1">
     <link rel="stylesheet" href="{{ mix('css/legacy/libs/jquery_ui_slider/jquery-ui.min.css') }}">
     <link rel="stylesheet" href="{{ mix('css/legacy/style_table.css') }}">
     <link rel="stylesheet" href="{{ mix('css/responsive.css') }}">
@@ -22,21 +23,18 @@
          data-route-next="{{ rtrim(url($Router->writelink(85)), '/') }}"
          data-csrf-token="{{ csrf_token() }}"
          data-msg-ticket-expired="{{ __('dictionary.MSG_MSG_TICKETS_ETOT_BILET_BOLISHE_KUPITI_NELIZYA_TK_ETOT_REJS_UZHE_UEHAL') }}">
-        <div class="main_filter_wrapper">
-            <div class="container">
-                @include('layout.components.filter.filter', [
-                    'cities' => $cities ?? [],
-                    'filterDeparture' => $filterDeparture ?? 0,
-                    'filterArrival' => $filterArrival ?? 0,
-                    'filterDate' => $filterDate ?? date('Y-m-d'),
-                    'filterAdults' => $adults ?? 1,
-                    'filterKids' => $kids ?? 0,
-                    'dictionary' => $dictionary ?? [],
-                    'lang' => $lang ?? 'uk',
-                    'formAction' => route('tickets.index')
-                ])
-            </div>
-        </div>
+        @include('ticket.partials.main_filter_wrapper', [
+    'cities' => $cities ?? [],
+    'filterDeparture' => $filterDeparture ?? 0,
+    'filterArrival' => $filterArrival ?? 0,
+    'filterDate' => $filterDate ?? date('Y-m-d'),
+    'adults' => $adults ?? 1,
+    'kids' => $kids ?? 0,
+    'dictionary' => $dictionary ?? [],
+    'lang' => $lang ?? 'uk',
+    'formAction' => route('tickets.index'),
+])
+
 
         <div class="purchase_steps_wrapper">
             <div class="tabs_links_container">
@@ -186,10 +184,12 @@
                                                                         </div>
                                                                     </div>
                                                                     <div class="ticket_ride_total_time_data">
+                                                                        {{--
                                                                         <div class="ticket_ride_total_time par">
                                                                             {{ (int)explode(':', $ticket['ride_time'])[0] }} @lang('dictionary.MSG_MSG_TICKETS_GOD')
                                                                             {{ (int)explode(':', $ticket['ride_time'])[1] }} @lang('dictionary.MSG_MSG_TICKETS_HV_V_DOROZI')
                                                                         </div>
+                                                                        --}}
                                                                         @if ($ticket['international'])
                                                                             <div class="ticket_ride_status par">
                                                                                 @lang('dictionary.MSG_MSG_TICKETS_MIZHNARODNIJ')
@@ -250,10 +250,12 @@
                                                     <div class="mobile_ticket_ride_total_time_wrapper flex_ac">
                                                         <div class="ticket_ride_total_time_info flex_ac">
                                                             <img src="{{ asset('images/legacy/common/info.svg') }}" alt="info">
+                                                            {{--
                                                             <div class="ticket_ride_total_time par">
                                                                 {{ (int)explode(':', $ticket['ride_time'])[0] }} @lang('dictionary.MSG_MSG_TICKETS_GOD')
                                                                 {{ (int)explode(':', $ticket['ride_time'])[1] }} @lang('dictionary.MSG_MSG_TICKETS_HV_V_DOROZI')
                                                             </div>
+                                                            --}}
                                                         </div>
                                                         @if ($ticket['international'])
                                                             <div class="ticket_ride_status par">

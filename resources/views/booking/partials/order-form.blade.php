@@ -50,41 +50,52 @@
         </div>
 
         {{-- Остальные пассажиры (сразу в DOM, но скрыты) --}}
-        @for ($i = 1; $i < $passengersCount; $i++)
-            <div class="b2_passenger_wrap js_passenger_block is_hidden" data-passenger-index="{{ $i }}" style="display:none;">
-                <div class="b2_passenger_title">
-                    Контактные данные пассажира №{{ $i + 1 }}
-                    <span class="b2_remove_dot" title="Пассажир добавлен"></span>
-                </div>
+        {{-- Остальные пассажиры (в DOM, ИЗНАЧАЛЬНО ОТКРЫТЫ по количеству с шага 1) --}}
+@for ($i = 1; $i < $passengersCount; $i++)
+    <div class="b2_passenger_wrap js_passenger_block {{ ((int)$i === 1) ? '' : 'is_hidden' }}"
+     data-passenger-index="{{ $i }}"
+     style="{{ ((int)$i === 1) ? '' : 'display:none;' }}">
 
-                <div class="b2_grid">
-                    <div class="row">
-                        <input
-                            type="text"
-                            class="c_input par req_input"
-                            data-passengers-family-name
-                            placeholder="@lang('dictionary.MSG_MSG_BOOKING_PRIZVISCHE')"
-                            name="passengers[{{ $i }}][family_name]"
-                            value=""
-                        >
-                    </div>
+        <div class="b2_passenger_title">
+            Контактные данные пассажира №{{ $i + 1 }}
 
-                    <div class="row">
-                        <input
-                            type="text"
-                            class="c_input par req_input"
-                            data-passengers-family-name
-                            placeholder="@lang('dictionary.MSG_MSG_BOOKING_IMYA_')"
-                            name="passengers[{{ $i }}][name]"
-                            value=""
-                        >
-                    </div>
+            {{-- Удаление пассажира --}}
+            <button
+                type="button"
+                class="b2_remove_dot js_remove_passenger"
+                data-passenger-index="{{ $i }}"
+                title="Удалить пассажира"
+                aria-label="Удалить пассажира №{{ $i + 1 }}"
+            ></button>
+        </div>
 
-                    <input type="hidden" name="passengers[{{ $i }}][patronymic]" value="">
-                    <input type="hidden" name="passengers[{{ $i }}][birthdate]" value="">
-                </div>
+        <div class="b2_grid">
+            <div class="row">
+                <input
+                    type="text"
+                    class="c_input par req_input"
+                    placeholder="@lang('dictionary.MSG_MSG_BOOKING_PRIZVISCHE')"
+                    name="passengers[{{ $i }}][family_name]"
+                    value=""
+                >
             </div>
-        @endfor
+
+            <div class="row">
+                <input
+                    type="text"
+                    class="c_input par req_input"
+                    placeholder="@lang('dictionary.MSG_MSG_BOOKING_IMYA_')"
+                    name="passengers[{{ $i }}][name]"
+                    value=""
+                >
+            </div>
+
+            <input type="hidden" name="passengers[{{ $i }}][patronymic]" value="">
+            <input type="hidden" name="passengers[{{ $i }}][birthdate]" value="">
+        </div>
+    </div>
+@endfor
+
 
         {{-- Строка “Добавить пассажира” — РЕНДЕРИМ ВСЕГДА.
             Если пассажиров реально нет, JS сам спрячeт. --}}

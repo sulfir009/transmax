@@ -134,10 +134,10 @@ class TicketService
                 return false;
             }
 
-            // Заказ найден
+// Заказ найден
             Log::channel('payment')->info('=== ORDER FOUND ===', [
                 'order_id' => $orderInfo->id,
-                'uniqId' => $orderInfo->uniqId,
+                'uniqId' => $orderInfo->uniqId ?? $orderInfo->uniqid ?? $orderId, 
                 'tour_id' => $orderInfo->tour_id,
                 'tour_date' => $orderInfo->tour_date ?? 'N/A',
                 'from_stop' => $orderInfo->from_stop ?? 'N/A',
