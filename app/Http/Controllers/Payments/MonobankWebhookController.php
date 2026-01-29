@@ -8,8 +8,10 @@ use App\Models\Payment;
 use App\Service\TicketService as LegacyTicketService;
 use App\Services\Payments\MonobankAcquiringService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class MonobankWebhookController extends Controller
 {
@@ -30,6 +32,13 @@ class MonobankWebhookController extends Controller
     public function handle(Request $request, MonobankAcquiringService $mono)
     {
         $raw = (string)$request->getContent();
+        $correlationId = (string) ($request->header('X-Correlation-Id') ?: Str::uuid());
+        $maskedBody = mb_substr($raw, 0, 1200);
+        Log::info('[Monobank] webhook received', [
+            'correlation_id' => $correlationId,
+            'headers' => $request->headers->all(),
+            'body' => $maskedBody,
+        ]);
 
         // Моно может прислать подпись в X-Sign (часто) или X-Signature (иногда)
         $xSign = (string)($request->header('X-Sign') ?: $request->header('X-Signature'));
@@ -42,6 +51,7 @@ class MonobankWebhookController extends Controller
         // 1) Проверка подписи
         if ($xSign === '' || !$mono->verifyWebhook($raw, $xSign)) {
             Log::warning('[Monobank] webhook bad signature', [
+                'correlation_id' => $correlationId,
                 'ip' => $request->ip(),
                 'has_x_sign' => $xSign !== '',
                 'len' => strlen($raw),
@@ -54,6 +64,7 @@ class MonobankWebhookController extends Controller
         $data = json_decode($raw, true);
         if (!is_array($data)) {
             Log::warning('[Monobank] webhook bad json', [
+                'correlation_id' => $correlationId,
                 'ip' => $request->ip(),
                 'raw_preview' => mb_substr($raw, 0, 300),
             ]);
@@ -73,6 +84,7 @@ class MonobankWebhookController extends Controller
         // Для финализации билета (после коммита)
         $needFinalize = false;
         $legacyOrderIdForFinalize = null;
+        $orderDbIdForFinalize = null;
 
         try {
             DB::transaction(function () use (
@@ -80,7 +92,8 @@ class MonobankWebhookController extends Controller
                 $status,
                 $data,
                 &$needFinalize,
-                &$legacyOrderIdForFinalize
+                &$legacyOrderIdForFinalize,
+                &$orderDbIdForFinalize
             ) {
                 /** @var Order|null $order */
                 $order = Order::where('mono_invoice_id', $invoiceId)->lockForUpdate()->first();
@@ -96,6 +109,7 @@ class MonobankWebhookController extends Controller
                 if (!$order) {
                     // Заказ не нашли — всё равно зафиксируем webhook в payments по payment_id, чтобы не потерять событие
                     Log::warning('[Monobank] webhook: order not found', [
+                        'correlation_id' => $correlationId,
                         'invoiceId' => $invoiceId,
                         'status' => $status,
                     ]);
@@ -121,6 +135,21 @@ class MonobankWebhookController extends Controller
                 // В модели у тебя аксессор getUniqidAttribute, поэтому обычно $order->uniqid уже ок.
                 $legacyOrderId = (string)($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
 
+                Log::info('[Monobank] webhook matched order', [
+                    'correlation_id' => $correlationId,
+                    'invoiceId' => $invoiceId,
+                    'order_db_id' => $order->id,
+                    'legacy_order_id' => $legacyOrderId,
+                    'mono_status' => $status,
+                ]);
+
+                Cache::put($this->webhookCacheKey($order->id), [
+                    'invoiceId' => $invoiceId,
+                    'status' => $status,
+                    'received_at' => now()->toIso8601String(),
+                    'correlation_id' => $correlationId,
+                ], now()->addDay());
+
                 // Запомним, был ли уже оплачен (идемпотентность)
                 $alreadyPaid = ((int)($order->payment_status ?? 0) === 2);
 
@@ -137,6 +166,7 @@ class MonobankWebhookController extends Controller
                         $order->paid_at = $order->paid_at ?: now();
                         $needFinalize = true;
                         $legacyOrderIdForFinalize = $legacyOrderId;
+                        $orderDbIdForFinalize = $order->id;
                     }
                 } elseif (in_array($status, ['failure', 'failed', 'expired', 'reversed', 'cancelled', 'canceled', 'declined'], true)) {
                     // ВАЖНО: если уже paid — не перезатирай в failed
@@ -190,6 +220,7 @@ class MonobankWebhookController extends Controller
             });
         } catch (\Throwable $e) {
             Log::error('[Monobank] webhook handle failed', [
+                'correlation_id' => $correlationId,
                 'invoiceId' => $invoiceId,
                 'status' => $status,
                 'error' => $e->getMessage(),
@@ -201,29 +232,57 @@ class MonobankWebhookController extends Controller
         }
 
         // 3) ВНЕ транзакции запускаем финализацию билета/почты (это может быть тяжёлая операция)
-        if ($needFinalize && $legacyOrderIdForFinalize) {
+        if ($needFinalize && $legacyOrderIdForFinalize && $orderDbIdForFinalize) {
             try {
                 /** @var LegacyTicketService $ticketService */
                 $ticketService = app(LegacyTicketService::class);
 
                 // Если у тебя сигнатура другая — скажешь, я подстрою.
                 // Важно: передаём legacy uniqId (ORDER_...) и сырые данные webhook.
+                Cache::put($this->finalizeAttemptCacheKey($orderDbIdForFinalize), [
+                    'started_at' => now()->toIso8601String(),
+                    'source' => 'monobank_webhook',
+                    'correlation_id' => $correlationId,
+                ], now()->addDay());
                 $ticketService->processSuccessfulPayment((string)$legacyOrderIdForFinalize, $data);
 
                 Log::info('[Monobank] ticket finalized via TicketService', [
+                    'correlation_id' => $correlationId,
                     'legacy_order_id' => $legacyOrderIdForFinalize,
                     'invoiceId' => $invoiceId,
                 ]);
             } catch (\Throwable $e) {
                 // Оплата прошла, но билет не сгенерился — это критично, но webhook уже приняли.
                 Log::error('[Monobank] ticket finalize failed', [
+                    'correlation_id' => $correlationId,
                     'legacy_order_id' => $legacyOrderIdForFinalize,
                     'invoiceId' => $invoiceId,
                     'error' => $e->getMessage(),
                 ]);
+                Cache::put($this->finalizeErrorCacheKey($orderDbIdForFinalize), [
+                    'error' => $e->getMessage(),
+                    'failed_at' => now()->toIso8601String(),
+                    'source' => 'monobank_webhook',
+                    'correlation_id' => $correlationId,
+                ], now()->addDay());
             }
         }
 
         return response('ok', 200);
+    }
+
+    private function webhookCacheKey(int $orderId): string
+    {
+        return 'payment_debug:last_webhook:' . $orderId;
+    }
+
+    private function finalizeErrorCacheKey(int $orderId): string
+    {
+        return 'payment_debug:last_finalize_error:' . $orderId;
+    }
+
+    private function finalizeAttemptCacheKey(int $orderId): string
+    {
+        return 'payment_debug:last_finalize_attempt:' . $orderId;
     }
 }
