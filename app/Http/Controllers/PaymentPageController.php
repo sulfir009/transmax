@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Repository\BusRepository;
 use App\Repository\Order\OrderRepository;
+use App\Models\Order;
 use App\Service\LiqPayService;
+use App\Service\TicketService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class PaymentPageController extends Controller
 {
@@ -134,6 +137,9 @@ class PaymentPageController extends Controller
             case 'order_mail':
                 return $this->sendOrderEmail($request);
 
+            case 'order_events':
+                return $this->orderEvents($request);
+
             default:
                 return response()->json(['error' => 'Unknown request type'], 400);
         }
@@ -179,6 +185,135 @@ class PaymentPageController extends Controller
             Log::error('Order creation error: ' . $e->getMessage());
             return response()->json(['data' => 'error'], 500);
         }
+    }
+
+    protected function orderEvents(Request $request): JsonResponse
+    {
+        $orderId = $request->input('order_id');
+        $uniqid = $request->input('uniqid');
+
+        Log::info('[order_events] incoming', [
+            'order_id' => $orderId,
+            'uniqid' => $uniqid,
+            'payload' => $request->all(),
+        ]);
+
+        $order = null;
+        if ($orderId) {
+            $order = Order::find($orderId);
+        }
+
+        if (!$order && $uniqid) {
+            $order = Order::where('uniqId', (string) $uniqid)
+                ->orWhere('uniqid', (string) $uniqid)
+                ->first();
+        }
+
+        if (!$order) {
+            Log::warning('[order_events] order not found', [
+                'order_id' => $orderId,
+                'uniqid' => $uniqid,
+            ]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'order_not_found',
+            ], 404);
+        }
+
+        $legacyOrderId = (string) ($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
+
+        if ((int) $order->payment_status === 2) {
+            $alreadyFinalized = $this->isOrderFinalized($order->getTable(), $order->id);
+
+            if (!$alreadyFinalized) {
+                try {
+                    /** @var TicketService $ticketService */
+                    $ticketService = app(TicketService::class);
+                    $ticketService->processSuccessfulPayment($legacyOrderId, [
+                        'source' => 'order_events',
+                        'order_id' => $orderId,
+                        'uniqid' => $uniqid,
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::error('[order_events] finalization failed', [
+                        'order_id' => $orderId,
+                        'uniqid' => $uniqid,
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'finalization_failed',
+                    ], 500);
+                }
+            }
+
+            Log::info('[order_events] processed', [
+                'order_id' => $orderId,
+                'uniqid' => $uniqid,
+                'finalized' => !$alreadyFinalized,
+            ]);
+
+            return response()->json([
+                'status' => 'ok',
+                'payment_status' => 2,
+                'finalized' => !$alreadyFinalized,
+            ]);
+        }
+
+        Log::info('[order_events] pending', [
+            'order_id' => $orderId,
+            'uniqid' => $uniqid,
+            'payment_status' => $order->payment_status,
+        ]);
+
+        return response()->json([
+            'status' => 'pending',
+            'payment_status' => (int) $order->payment_status,
+        ]);
+    }
+
+    private function isOrderFinalized(string $table, int $orderId): bool
+    {
+        $orderRow = DB::table($table)->where('id', $orderId)->first();
+        if (!$orderRow) {
+            return false;
+        }
+
+        $onlineIndicators = [
+            'payment_type',
+            'pay_type',
+            'payment_method',
+            'pay_method',
+            'payment_provider',
+            'provider',
+            'payment_form',
+            'type_pay',
+            'payment_way',
+            'payment_kind',
+        ];
+
+        foreach ($onlineIndicators as $column) {
+            if (!Schema::hasColumn($table, $column)) {
+                continue;
+            }
+
+            $value = $orderRow->{$column} ?? null;
+            if (is_numeric($value) && (int) $value === 2) {
+                return true;
+            }
+
+            if (is_string($value) && in_array(strtolower($value), ['online', 'monobank', 'liqpay'], true)) {
+                return true;
+            }
+        }
+
+        if (Schema::hasColumn($table, 'paid_online')) {
+            return (int) ($orderRow->paid_online ?? 0) === 1;
+        }
+
+        return false;
     }
 
     /**
