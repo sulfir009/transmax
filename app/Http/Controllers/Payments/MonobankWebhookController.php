@@ -30,6 +30,10 @@ class MonobankWebhookController extends Controller
     public function handle(Request $request, MonobankAcquiringService $mono)
     {
         $raw = (string)$request->getContent();
+        Log::info('[Monobank] webhook received', [
+            'headers' => $request->headers->all(),
+            'body' => $raw,
+        ]);
 
         // Моно может прислать подпись в X-Sign (часто) или X-Signature (иногда)
         $xSign = (string)($request->header('X-Sign') ?: $request->header('X-Signature'));
