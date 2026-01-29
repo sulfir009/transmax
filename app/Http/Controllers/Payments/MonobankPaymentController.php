@@ -66,18 +66,27 @@ class MonobankPaymentController extends Controller
         $successUrl   = route('payment.monobank.success', ['order' => $order->id]);
         $failUrl      = route('payment.monobank.fail', ['order' => $order->id]);
         $redirectUrl  = route('payment.monobank.return', ['order' => $order->id]);
-        $webHookUrl   = route('payment.monobank.webhook');
+        $webHookUrl   = (string) (config('services.monobank.webhook_url') ?: route('payment.monobank.webhook'));
 
         // 5) reference — кладём legacyOrderId (так проще дебажить + связка с mt_orders)
         $reference = $legacyOrderId;
 
         // 6) Создаём invoice в Mono
+        $requestCorrelationId = PaymentFinalizer::buildCorrelationId($order->id, $legacyOrderId, null);
+        Log::info('[Monobank] invoice create request', [
+            'correlation_id' => $requestCorrelationId,
+            'order_db_id' => $order->id,
+            'legacy_order_id' => $legacyOrderId,
+            'webhook_url' => $webHookUrl,
+        ]);
+
         $invoice = $mono->createInvoice([
             'amount' => $amountKop, // ✅ копейки
             'ccy'    => 980,        // UAH
             'merchantPaymInfo' => [
                 'reference'   => $reference,
                 'destination' => "Оплата квитка, замовлення #{$order->id}",
+                'webHookUrl'  => $webHookUrl,
             ],
             'redirectUrl' => $redirectUrl,
             'successUrl'  => $successUrl,
@@ -138,6 +147,7 @@ class MonobankPaymentController extends Controller
             'order_db_id' => $order->id,
             'legacy_order_id' => $legacyOrderId,
             'invoiceId' => $invoiceId,
+            'webhook_url' => $webHookUrl,
         ]);
 
         // 8) Редирект на оплату

@@ -22,7 +22,7 @@ Route::get('/payment/monobank/fail/{order}', [MonobankPaymentController::class, 
     ->name('payment.monobank.fail');
 
 // webhook — без CSRF
-Route::post('/payment/monobank/webhook', [MonobankWebhookController::class, 'handle'])
+Route::match(['GET', 'POST'], '/payment/monobank/webhook', [MonobankWebhookController::class, 'handle'])
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->name('payment.monobank.webhook');
 

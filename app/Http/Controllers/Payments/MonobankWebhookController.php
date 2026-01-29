@@ -28,12 +28,21 @@ class MonobankWebhookController extends Controller
      */
     public function handle(Request $request, MonobankAcquiringService $mono, MonobankWebhookHandler $handler)
     {
+        if ($request->isMethod('get')) {
+            Log::info('[Monobank] webhook GET probe', [
+                'remote_ip' => $request->ip(),
+                'time' => now()->toIso8601String(),
+            ]);
+            return response('OK', 200);
+        }
+
         $raw = (string)$request->getContent();
         $correlationId = (string) ($request->header('X-Correlation-Id') ?: Str::uuid());
         $maskedBody = mb_substr($raw, 0, 1200);
         Log::info('[Monobank] webhook received', [
             'correlation_id' => $correlationId,
-            'headers' => $request->headers->all(),
+            'remote_ip' => $request->ip(),
+            'x_sign' => $request->header('X-Sign') ?: $request->header('X-Signature'),
             'body' => $maskedBody,
         ]);
 
@@ -53,8 +62,7 @@ class MonobankWebhookController extends Controller
                 'has_x_sign' => $xSign !== '',
                 'len' => strlen($raw),
             ]);
-            // здесь лучше 400, чтобы ты видел проблему сразу (но моно может ретраить)
-            return response('bad signature', 400);
+            return response('ok', 200);
         }
 
         // 2) Парсим JSON
@@ -65,14 +73,17 @@ class MonobankWebhookController extends Controller
                 'ip' => $request->ip(),
                 'raw_preview' => mb_substr($raw, 0, 300),
             ]);
-            return response('bad json', 400);
+            return response('ok', 200);
         }
 
         $invoiceId = $data['invoiceId'] ?? null;
+        $statusRaw = $data['status'] ?? null;
         $correlationId = PaymentFinalizer::buildCorrelationId(null, null, (string) $invoiceId);
 
         Log::info('[Monobank] webhook parsed payload', [
             'correlation_id' => $correlationId,
+            'invoiceId' => $invoiceId,
+            'status' => $statusRaw,
             'payload' => $data,
         ]);
 
