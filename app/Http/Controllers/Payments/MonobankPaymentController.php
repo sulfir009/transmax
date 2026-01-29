@@ -16,26 +16,27 @@ class MonobankPaymentController extends Controller
      * Старт оплаты Monobank: создаём invoice и редиректим на страницу оплаты.
      *
      * ВАЖНО:
-     * - TourStopPrice.price хранится В КОПЕЙКАХ (int).
-     * - В mono отправляем amount в копейках.
-     * - payments.order_id — legacy идентификатор (uniqid или ORDER_{id}) чтобы не было дублей.
+     * - Считаем, что TourStopPrice.price хранится В КОПЕЙКАХ (int).
+     *   Поэтому в mono отправляем amount = priceKop * passengers (уже копейки).
+     * - Для payments.order_id используем legacy uniqId (как у LiqPay: ORDER_xxx),
+     *   чтобы TicketService потом работал и чтобы не было дублей из-за unique.
      */
     public function start(Order $order, MonobankAcquiringService $mono)
     {
-        // 1) Цена
+        // 1) Получаем цену (из таблицы цен)
         $priceRow = TourStopPrice::query()
             ->where('tour_id', $order->tour_id)
             ->where('from_stop', $order->from_stop)
             ->where('to_stop', $order->to_stop)
             ->first();
 
-        // 2) Цена в копейках
-        $priceKop = (int)($priceRow?->price ?? 0);
+        // 2) Цена в копейках (int)
+        $priceKop = (int)($priceRow->price ?? 0);
 
-        // 3) Пассажиры (legacy поле passagers)
+        // Кол-во пассажиров (в старой схеме passagers)
         $passengers = max(1, (int)($order->passagers ?? 1));
 
-        // 4) Сумма в копейках
+        // Итог для mono в копейках
         $amountKop = $priceKop * $passengers;
 
         if ($amountKop < 1) {
@@ -44,7 +45,7 @@ class MonobankPaymentController extends Controller
                 'tour_id' => $order->tour_id,
                 'from_stop' => $order->from_stop,
                 'to_stop' => $order->to_stop,
-                'price_raw' => $priceRow?->price,
+                'price_raw' => $priceRow->price ?? null,
                 'price_kop' => $priceKop,
                 'passengers' => $passengers,
                 'amount_kop' => $amountKop,
@@ -52,36 +53,27 @@ class MonobankPaymentController extends Controller
             abort(400, 'Invalid amount');
         }
 
-        // Для payments.amount (обычно UAH)
+        // Для записи в payments (у тебя amount кастится в float, обычно хранят UAH)
         $amountUah = $amountKop / 100;
 
-        // 5) legacy order id для таблицы payments (у тебя unique по order_id)
+        // 3) Legacy uniqId (как в LiqPay)
+        // ВАЖНО: TicketService и вся legacy-логика завязана на mt_orders.uniqId (строка ORDER_xxx)
         $legacyOrderId = (string)($order->uniqid ?: ('ORDER_' . $order->id));
 
-        // 6) URLs
-        $thankYouBase = 'https://maxtransltd.com/dyakuyu-za-bronyuvannya-biletu';
+        // 4) URLs (GET)
+        // success/return/fail не должны быть точкой финализации! финализация только webhook.
+        $successUrl   = route('payment.monobank.success', ['order' => $order->id]);
+        $failUrl      = route('payment.monobank.fail', ['order' => $order->id]);
+        $redirectUrl  = route('payment.monobank.return', ['order' => $order->id]);
+        $webHookUrl   = route('payment.monobank.webhook');
 
-        $uniqid = (string)($order->uniqid ?: ('order_' . $order->id));
-
-        $redirectUrl = $thankYouBase . '?' . http_build_query([
-            'order_id' => (int)$order->id,
-            'uniqid'   => $uniqid,
-        ], '', '&', PHP_QUERY_RFC3986);
-
-        // success/fail тоже ведём на thank-you, чтобы в URL всегда были order_id/uniqid
-        $successUrl = $redirectUrl . '&payment_hint=success_url';
-        $failUrl    = $redirectUrl . '&payment_hint=fail_url';
-
-        $webHookUrl = route('payment.monobank.webhook');
-
-        // reference кладём legacyOrderId (удобно связывать webhook с заказом)
+        // 5) reference — кладём legacyOrderId (так проще дебажить + связка с mt_orders)
         $reference = $legacyOrderId;
 
-        // 7) Создаём invoice
+        // 6) Создаём invoice в Mono
         $invoice = $mono->createInvoice([
-            'amount' => $amountKop,
-            'ccy'    => 980,
-            'reference' => $reference,
+            'amount' => $amountKop, // ✅ копейки
+            'ccy'    => 980,        // UAH
             'merchantPaymInfo' => [
                 'reference'   => $reference,
                 'destination' => "Оплата квитка, замовлення #{$order->id}",
@@ -104,7 +96,7 @@ class MonobankPaymentController extends Controller
             abort(502, 'Monobank invoice create failed');
         }
 
-        // 8) Сохраняем invoice + payment (без дублей)
+        // 7) Сохраняем связь invoice->order и создаём/обновляем payment без дублей
         DB::transaction(function () use (
             $order,
             $legacyOrderId,
@@ -113,11 +105,13 @@ class MonobankPaymentController extends Controller
             $amountKop,
             $amountUah
         ) {
+            // Связь с mono invoice
             $order->mono_invoice_id = $invoiceId;
             $order->mono_page_url   = $pageUrl;
             $order->mono_status     = 'created';
             $order->save();
 
+            // ✅ FIX: вместо create -> updateOrCreate по order_id (у тебя unique)
             Payment::updateOrCreate(
                 ['order_id' => $legacyOrderId],
                 [
@@ -137,47 +131,37 @@ class MonobankPaymentController extends Controller
             );
         });
 
-        // 9) Редирект на страницу оплаты mono
+        // 8) Редирект на оплату
         return redirect()->away($pageUrl);
     }
 
     /**
      * return/success/fail — ТОЛЬКО редиректы.
-     * Финализация (билет/почта) — только webhook.
+     * Финализация билета/почты делается исключительно в webhook.
+     *
+     * ВАЖНО: у тебя route('booking.thank-you') падает из-за mt_booking,
+     * поэтому ведём на реальный URL страницы.
      */
-    protected function thankYouRedirect(Order $order, string $hint)
-    {
-        $uniqid = (string)($order->uniqid ?: ('order_' . $order->id));
-
-        $params = [
-            'order_id' => (int)$order->id,
-            'uniqid'   => $uniqid,
-            'payment_provider' => 'monobank',
-            'payment_hint' => $hint,
-        ];
-
-        $url = 'https://maxtransltd.com/dyakuyu-za-bronyuvannya-biletu?' . http_build_query(
-            $params,
-            '',
-            '&',
-            PHP_QUERY_RFC3986
-        );
-
-        return redirect()->away($url);
-    }
-
     public function return(Order $order)
     {
-        return $this->thankYouRedirect($order, 'return_url');
+        return redirect('/dyakuyu-za-bronyuvannya-biletu')
+            ->with('payment_provider', 'monobank')
+            ->with('order_id', $order->id);
     }
 
     public function success(Order $order)
     {
-        return $this->thankYouRedirect($order, 'success_url');
+        return redirect('/dyakuyu-za-bronyuvannya-biletu')
+            ->with('payment_provider', 'monobank')
+            ->with('order_id', $order->id)
+            ->with('payment_hint', 'success_url');
     }
 
     public function fail(Order $order)
     {
-        return $this->thankYouRedirect($order, 'fail_url');
+        return redirect('/dyakuyu-za-bronyuvannya-biletu')
+            ->with('payment_provider', 'monobank')
+            ->with('order_id', $order->id)
+            ->with('payment_hint', 'fail_url');
     }
 }

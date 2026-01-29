@@ -13,74 +13,64 @@ use Illuminate\Support\Facades\Log;
 
 class MonobankWebhookController extends Controller
 {
+    /**
+     * Monobank webhook endpoint.
+     *
+     * Что делаем:
+     * 1) Проверяем подпись (X-Sign / X-Signature).
+     * 2) Находим заказ по mono_invoice_id (fallback: по reference/uniqId если пришло).
+     * 3) Обновляем order->mono_status и order->payment_status (2=paid, 3=failed) идемпотентно.
+     * 4) Обновляем/создаём Payment без нарушения unique по payments.order_id_unique (order_id = legacy uniqId).
+     * 5) При статусе success — один раз запускаем legacy TicketService (вне транзакции).
+     *
+     * ВАЖНО:
+     * - Финализацию (билет/почта) запускаем ТОЛЬКО из webhook.
+     * - successUrl/returnUrl — это просто редиректы и не гарантируют оплату.
+     */
     public function handle(Request $request, MonobankAcquiringService $mono)
     {
-        $raw   = (string)$request->getContent();
+        $raw = (string)$request->getContent();
+
+        // Моно может прислать подпись в X-Sign (часто) или X-Signature (иногда)
         $xSign = (string)($request->header('X-Sign') ?: $request->header('X-Signature'));
 
-        // ✅ Лог входа: поможет понять, приходит ли webhook вообще
-        Log::channel('payment')->info('[Monobank] webhook IN', [
-            'ip' => $request->ip(),
-            'len' => strlen($raw),
-            'has_x_sign' => $xSign !== '',
-            'headers_preview' => [
-                'X-Sign' => $request->header('X-Sign'),
-                'X-Signature' => $request->header('X-Signature'),
-                'Content-Type' => $request->header('Content-Type'),
-                'User-Agent' => $request->userAgent(),
-            ],
-            'raw_preview' => mb_substr($raw, 0, 500),
-        ]);
-
         if ($raw === '') {
+            // пустой вебхук — ничего не делаем
             return response('ok', 200);
         }
 
         // 1) Проверка подписи
         if ($xSign === '' || !$mono->verifyWebhook($raw, $xSign)) {
-            Log::channel('payment')->warning('[Monobank] webhook BAD SIGNATURE', [
+            Log::warning('[Monobank] webhook bad signature', [
                 'ip' => $request->ip(),
                 'has_x_sign' => $xSign !== '',
                 'len' => strlen($raw),
-                'raw_preview' => mb_substr($raw, 0, 500),
             ]);
-
-            // Да, моно будет ретраить, но это правильно: подпись должна быть валидна
+            // здесь лучше 400, чтобы ты видел проблему сразу (но моно может ретраить)
             return response('bad signature', 400);
         }
 
-        // 2) JSON
+        // 2) Парсим JSON
         $data = json_decode($raw, true);
         if (!is_array($data)) {
-            Log::channel('payment')->warning('[Monobank] webhook BAD JSON', [
+            Log::warning('[Monobank] webhook bad json', [
                 'ip' => $request->ip(),
-                'raw_preview' => mb_substr($raw, 0, 800),
+                'raw_preview' => mb_substr($raw, 0, 300),
             ]);
             return response('bad json', 400);
         }
 
         $invoiceId = $data['invoiceId'] ?? null;
         $statusRaw = $data['status'] ?? null;
-        $status    = strtolower((string)$statusRaw);
-
-        // reference может быть в разных местах
-        $reference =
-            $data['reference']
-            ?? ($data['merchantPaymInfo']['reference'] ?? null)
-            ?? ($data['merchantPaymInfo']['referenceId'] ?? null)
-            ?? null;
-
-        Log::channel('payment')->info('[Monobank] webhook parsed', [
-            'invoiceId' => $invoiceId,
-            'status' => $status,
-            'reference' => $reference,
-        ]);
 
         if (!$invoiceId) {
+            // если нет invoiceId — нечего привязать
             return response('ok', 200);
         }
 
-        // ✅ Флаги для запуска TicketService
+        $status = strtolower((string)$statusRaw);
+
+        // Для финализации билета (после коммита)
         $needFinalize = false;
         $legacyOrderIdForFinalize = null;
 
@@ -89,35 +79,32 @@ class MonobankWebhookController extends Controller
                 $invoiceId,
                 $status,
                 $data,
-                $reference,
                 &$needFinalize,
                 &$legacyOrderIdForFinalize
             ) {
                 /** @var Order|null $order */
-                $order = Order::where('mono_invoice_id', (string)$invoiceId)->lockForUpdate()->first();
+                $order = Order::where('mono_invoice_id', $invoiceId)->lockForUpdate()->first();
 
-                // Fallback 1: по reference (если ты его отправляешь при создании invoice)
-                if (!$order && $reference) {
-                    // у тебя встречается uniqid (lowercase) и uniqId (camel) — пробуем оба варианта
-                    $order = Order::where('uniqid', (string)$reference)->lockForUpdate()->first();
-                    if (!$order) {
-                        $order = Order::where('uniqId', (string)$reference)->lockForUpdate()->first();
+                // Fallback: иногда удобно искать по reference (если ты будешь его отправлять/оно придет в вебхук)
+                if (!$order) {
+                    $ref = $data['reference'] ?? ($data['merchantPaymInfo']['reference'] ?? null);
+                    if ($ref) {
+                        $order = Order::where('uniqId', (string)$ref)->lockForUpdate()->first();
                     }
                 }
 
                 if (!$order) {
-                    Log::channel('payment')->warning('[Monobank] webhook: ORDER NOT FOUND', [
+                    // Заказ не нашли — всё равно зафиксируем webhook в payments по payment_id, чтобы не потерять событие
+                    Log::warning('[Monobank] webhook: order not found', [
                         'invoiceId' => $invoiceId,
                         'status' => $status,
-                        'reference' => $reference,
                     ]);
 
-                    // Чтобы не терять событие — фиксируем в payments по payment_id
                     Payment::updateOrCreate(
                         ['payment_id' => (string)$invoiceId],
                         [
                             'user_id' => null,
-                            'order_id' => 'UNKNOWN_' . (string)$invoiceId,
+                            'order_id' => 'UNKNOWN_' . (string)$invoiceId, // чтобы не конфликтовать с unique order_id
                             'status' => $status ?: 'unknown',
                             'amount' => null,
                             'currency' => 'UAH',
@@ -130,19 +117,29 @@ class MonobankWebhookController extends Controller
                     return;
                 }
 
-                // ✅ legacyOrderId: это то, что TicketService должен понимать
+                // legacy uniqId (ключ mt_orders) — это то, что LiqPay пишет как order_id и что TicketService понимает
+                // В модели у тебя аксессор getUniqidAttribute, поэтому обычно $order->uniqid уже ок.
                 $legacyOrderId = (string)($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
 
-                // ✅ Всегда пишем mono_status
-                $order->mono_status = $status ?: 'unknown';
-
-                // ✅ Переход в paid / failed
+                // Запомним, был ли уже оплачен (идемпотентность)
                 $alreadyPaid = ((int)($order->payment_status ?? 0) === 2);
 
+                // 1) Всегда сохраняем статус моно (для истории)
+                $order->mono_status = $status ?: 'unknown';
+
+                // 2) Маппинг статусов в твой payment_status (как в legacy)
+                // 2 = оплачено, 3 = ошибка/неоплачено
                 if (in_array($status, ['success', 'paid'], true)) {
-                    $order->payment_status = 2;
-                    $order->paid_at = $order->paid_at ?: now();
+                    // переход в paid делаем один раз
+                    if (!$alreadyPaid) {
+                        $order->payment_status = 2;
+                        // paid_at в fillable не указан, но если колонка есть — можно писать, MySQL это примет
+                        $order->paid_at = $order->paid_at ?: now();
+                        $needFinalize = true;
+                        $legacyOrderIdForFinalize = $legacyOrderId;
+                    }
                 } elseif (in_array($status, ['failure', 'failed', 'expired', 'reversed', 'cancelled', 'canceled', 'declined'], true)) {
+                    // ВАЖНО: если уже paid — не перезатирай в failed
                     if (!$alreadyPaid) {
                         $order->payment_status = 3;
                     }
@@ -150,17 +147,21 @@ class MonobankWebhookController extends Controller
 
                 $order->save();
 
-                // ✅ Payment: ищем по order_id, иначе по payment_id
+                // 3) Payments: обновляем/создаём без дублей по unique(payments.order_id)
+                // ВАЖНО: order_id здесь должен быть именно legacyOrderId (строка), а не $order->id (число)
                 $payloadJson = json_encode($data, JSON_UNESCAPED_UNICODE);
 
+                // Сначала ищем по order_id (правильная связь)
                 $payment = Payment::where('order_id', $legacyOrderId)->lockForUpdate()->first();
+
+                // Если вдруг в старых данных было иначе — fallback по payment_id
                 if (!$payment) {
                     $payment = Payment::where('payment_id', (string)$invoiceId)->lockForUpdate()->first();
                 }
 
                 if ($payment) {
-                    $payment->order_id = $legacyOrderId;
-                    $payment->payment_id = (string)$invoiceId;
+                    $payment->order_id = $legacyOrderId;           // фиксируем правильную связь
+                    $payment->payment_id = (string)$invoiceId;     // invoiceId
                     $payment->status = $status ?: $payment->status;
                     $payment->currency = $payment->currency ?: 'UAH';
                     $payment->response = $payloadJson;
@@ -171,92 +172,55 @@ class MonobankWebhookController extends Controller
 
                     $payment->save();
                 } else {
+                    // Создаём безопасно через updateOrCreate по order_id (уникальный ключ)
                     Payment::updateOrCreate(
                         ['order_id' => $legacyOrderId],
                         [
                             'user_id' => null,
                             'payment_id' => (string)$invoiceId,
                             'status' => $status ?: 'unknown',
-                            'amount' => null,
+                            'amount' => null, // можно подставить сумму из заказа/цены, но webhook может приходить без неё
                             'currency' => 'UAH',
                             'description' => "Monobank invoice #{$invoiceId}",
                             'response' => $payloadJson,
                             'paid_at' => in_array($status, ['success', 'paid'], true) ? now() : null,
                         ]
                     );
-
-                    $payment = Payment::where('order_id', $legacyOrderId)->lockForUpdate()->first();
-                }
-
-                // ✅ КРИТИЧНО: финализируем не “один раз когда payment_status != 2”,
-                // а если SUCCESS и еще нет отметки ticket_finalized_at в payments.response
-                if (in_array($status, ['success', 'paid'], true)) {
-                    $finalized = false;
-
-                    if ($payment && $payment->response) {
-                        $respArr = json_decode((string)$payment->response, true);
-                        if (is_array($respArr) && !empty($respArr['ticket_finalized_at'])) {
-                            $finalized = true;
-                        }
-                    }
-
-                    if (!$finalized) {
-                        $needFinalize = true;
-                        $legacyOrderIdForFinalize = $legacyOrderId;
-                    }
                 }
             });
         } catch (\Throwable $e) {
-            Log::channel('payment')->error('[Monobank] webhook TX FAILED', [
+            Log::error('[Monobank] webhook handle failed', [
                 'invoiceId' => $invoiceId,
                 'status' => $status,
                 'error' => $e->getMessage(),
-                'trace' => mb_substr($e->getTraceAsString(), 0, 3000),
             ]);
 
-            // возвращаем 200, чтобы не вызвать бесконечный ретрай при внутренних ошибках
+            // ВАЖНО: моно будет ретраить, если не 200.
+            // Мы возвращаем 200, чтобы не устроить бесконечные ретраи на проде.
             return response('ok', 200);
         }
 
-        // ✅ ВНЕ транзакции: запуск TicketService
+        // 3) ВНЕ транзакции запускаем финализацию билета/почты (это может быть тяжёлая операция)
         if ($needFinalize && $legacyOrderIdForFinalize) {
             try {
                 /** @var LegacyTicketService $ticketService */
                 $ticketService = app(LegacyTicketService::class);
 
-                Log::channel('payment')->info('[Monobank] FINALIZE START', [
-                    'legacy_order_id' => $legacyOrderIdForFinalize,
-                    'invoiceId' => $invoiceId,
-                ]);
-
-                // Важно: передаём legacy uniqid (у тебя это "order_....")
+                // Если у тебя сигнатура другая — скажешь, я подстрою.
+                // Важно: передаём legacy uniqId (ORDER_...) и сырые данные webhook.
                 $ticketService->processSuccessfulPayment((string)$legacyOrderIdForFinalize, $data);
 
-                // ✅ помечаем, что финализация прошла (чтобы не дублировать)
-                $p = Payment::where('order_id', (string)$legacyOrderIdForFinalize)->first();
-                if ($p) {
-                    $respArr = [];
-                    if ($p->response) {
-                        $tmp = json_decode((string)$p->response, true);
-                        if (is_array($tmp)) $respArr = $tmp;
-                    }
-                    $respArr['ticket_finalized_at'] = now()->toIso8601String();
-                    $p->response = json_encode($respArr, JSON_UNESCAPED_UNICODE);
-                    $p->save();
-                }
-
-                Log::channel('payment')->info('[Monobank] FINALIZE OK', [
+                Log::info('[Monobank] ticket finalized via TicketService', [
                     'legacy_order_id' => $legacyOrderIdForFinalize,
                     'invoiceId' => $invoiceId,
                 ]);
             } catch (\Throwable $e) {
-                Log::channel('payment')->error('[Monobank] FINALIZE FAILED', [
+                // Оплата прошла, но билет не сгенерился — это критично, но webhook уже приняли.
+                Log::error('[Monobank] ticket finalize failed', [
                     'legacy_order_id' => $legacyOrderIdForFinalize,
                     'invoiceId' => $invoiceId,
                     'error' => $e->getMessage(),
-                    'trace' => mb_substr($e->getTraceAsString(), 0, 3000),
                 ]);
-                // не ставим ticket_finalized_at => следующий success-webhook попробует снова
             }
         }
 
