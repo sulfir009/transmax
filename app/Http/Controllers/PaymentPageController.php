@@ -143,6 +143,9 @@ class PaymentPageController extends Controller
             case 'order_events':
                 return $this->withCorrelationId($this->orderEvents($request, $correlationId), $correlationId);
 
+            case 'order_events':
+                return $this->orderEvents($request);
+
             default:
                 return $this->withCorrelationId(response()->json(['error' => 'Unknown request type'], 400), $correlationId);
         }
