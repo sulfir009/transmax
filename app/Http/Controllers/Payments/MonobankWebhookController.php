@@ -121,6 +121,13 @@ class MonobankWebhookController extends Controller
                 // В модели у тебя аксессор getUniqidAttribute, поэтому обычно $order->uniqid уже ок.
                 $legacyOrderId = (string)($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
 
+                Log::info('[Monobank] webhook matched order', [
+                    'invoiceId' => $invoiceId,
+                    'order_db_id' => $order->id,
+                    'legacy_order_id' => $legacyOrderId,
+                    'mono_status' => $status,
+                ]);
+
                 // Запомним, был ли уже оплачен (идемпотентность)
                 $alreadyPaid = ((int)($order->payment_status ?? 0) === 2);
 

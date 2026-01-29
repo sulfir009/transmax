@@ -70,7 +70,7 @@ Route::any('/ajax/{lang}', function(Request $request, $lang) {
     }
 
     return response()->json(['error' => 'File not found'], 404);
-})->where('lang', '.*');
+})->where('lang', 'ru|uk|ua|en');
 
 Route::any('/public/pages/private/{file}', function(Request $request, $file) {
     $path = base_path('legacy/public/pages/private/' . $file);
