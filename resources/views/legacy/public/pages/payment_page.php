@@ -1263,6 +1263,8 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
             });
         }
 
+        var paymentDebugEnabled = (new URLSearchParams(window.location.search)).get('debug') === '1';
+
         // ✅ MONOBANK: стартуем оплату через redirect на backend-роут
         // Ожидаем что backend умеет:
         //   GET /payment/monobank/start/{order_db_id}
@@ -1295,6 +1297,15 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
             var uniqid = orderRouteResp.uniqid || orderRouteResp.uniqId || '';
             if (uniqid) {
                 url += (url.indexOf('?') === -1 ? '?' : '&') + 'uniqid=' + encodeURIComponent(uniqid);
+            }
+
+            if (paymentDebugEnabled && window.console) {
+                console.log('[PAYMENT TRACE] Monobank button', {
+                    endpoint: '/payment/monobank/start/{order}',
+                    order_db_id: orderDbId,
+                    uniqid: uniqid || null,
+                    redirect_url: url
+                });
             }
 
             window.location.href = url;

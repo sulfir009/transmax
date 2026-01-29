@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\Debug\PaymentDebugController;
 use App\Http\Controllers\Payments\MonobankPaymentController;
 use App\Http\Controllers\Payments\MonobankWebhookController;
 use App\Http\Middleware\VerifyCsrfToken;
@@ -24,6 +25,10 @@ Route::get('/payment/monobank/fail/{order}', [MonobankPaymentController::class, 
 Route::post('/payment/monobank/webhook', [MonobankWebhookController::class, 'handle'])
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->name('payment.monobank.webhook');
+
+// Debug endpoint (guarded by debug=1 + token in controller)
+Route::get('/__debug/payment/status', [PaymentDebugController::class, 'status'])
+    ->name('debug.payment.status');
 
 
 

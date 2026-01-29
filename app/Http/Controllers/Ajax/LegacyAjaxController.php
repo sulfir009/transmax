@@ -6,16 +6,18 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class LegacyAjaxController extends Controller
 {
     public function handleRequest(Request $request, $lang)
     {
+        $correlationId = (string) Str::uuid();
         $requestType = $request->input('request');
         
         // Обработка запроса filter_date
         if ($requestType === 'filter_date') {
-            return $this->handleFilterDate($request);
+            return $this->withCorrelationId($this->handleFilterDate($request), $correlationId);
         }
         
         // Обработка запроса clear_session_data - перенаправляем на новый контроллер
@@ -26,9 +28,9 @@ class LegacyAjaxController extends Controller
             $content = json_decode($response->getContent(), true);
             
             if ($content && isset($content['data']) && $content['data'] === 'ok') {
-                return response()->json(['data' => 'ok']);
+                return $this->withCorrelationId(response()->json(['data' => 'ok']), $correlationId);
             }
-            return response()->json(['data' => 'error']);
+            return $this->withCorrelationId(response()->json(['data' => 'error']), $correlationId);
         }
         
         // Обработка запроса feedback - перенаправляем на новый контроллер
@@ -40,9 +42,9 @@ class LegacyAjaxController extends Controller
             $content = json_decode($response->getContent(), true);
             
             if ($content && isset($content['status']) && $content['status'] === 'ok') {
-                return response('ok');
+                return $this->withCorrelationId(response('ok'), $correlationId);
             }
-            return response('error');
+            return $this->withCorrelationId(response('error'), $correlationId);
         }
         
         // Для всех остальных запросов используем legacy код
@@ -61,12 +63,25 @@ class LegacyAjaxController extends Controller
 
         if (!$legacyPath) {
             Log::error('[LegacyAjaxController] legacy ajax.php not found', [
+                'correlation_id' => $correlationId,
                 'candidates' => $pathCandidates,
                 'lang' => $lang,
                 'request' => $request->all(),
             ]);
 
-            return response('Legacy AJAX handler not found', 500);
+            if ($this->isDebugRequest($request)) {
+                return $this->withCorrelationId(response()->json([
+                    'error' => 'legacy_ajax_php_not_found',
+                    'tried_paths' => $pathCandidates,
+                    'debug_meta' => [
+                        'handled_by' => 'LegacyAjaxController@handleRequest',
+                        'route' => '/ajax/{lang}',
+                        'correlation_id' => $correlationId,
+                    ],
+                ], 500), $correlationId);
+            }
+
+            return $this->withCorrelationId(response('', 200), $correlationId);
         }
 
         $jsonPayload = [];
@@ -83,15 +98,41 @@ class LegacyAjaxController extends Controller
         require $legacyPath;
         $output = ob_get_clean();
 
+        Log::info('[LegacyAjaxController] legacy ajax handled', [
+            'correlation_id' => $correlationId,
+            'lang' => $lang,
+            'request_type' => $requestType,
+            'legacy_path' => $legacyPath,
+        ]);
+
         $decoded = $this->tryDecodeJson($output);
         if ($decoded !== null) {
-            return response()->json($decoded);
+            $response = response()->json($decoded);
+            if ($this->isDebugRequest($request)) {
+                $decoded['debug_meta'] = array_merge($decoded['debug_meta'] ?? [], [
+                    'handled_by' => 'LegacyAjaxController@handleRequest',
+                    'route' => '/ajax/{lang}',
+                    'correlation_id' => $correlationId,
+                    'legacy_path' => $legacyPath,
+                ]);
+                $response = response()->json($decoded);
+            }
+            return $this->withCorrelationId($response, $correlationId);
         }
 
-        return response()->json([
+        $payload = [
             'lang' => $lang,
             'data' => $output,
-        ]);
+        ];
+        if ($this->isDebugRequest($request)) {
+            $payload['debug_meta'] = [
+                'handled_by' => 'LegacyAjaxController@handleRequest',
+                'route' => '/ajax/{lang}',
+                'correlation_id' => $correlationId,
+                'legacy_path' => $legacyPath,
+            ];
+        }
+        return $this->withCorrelationId(response()->json($payload), $correlationId);
     }
 
     private function tryDecodeJson(?string $output): ?array
@@ -109,6 +150,28 @@ class LegacyAjaxController extends Controller
         }
 
         return null;
+    }
+
+    private function isDebugRequest(Request $request): bool
+    {
+        $debugEnabled = (string) $request->query('debug') === '1';
+        $token = (string) $request->header('X-Debug-Token');
+        $expected = (string) env('PAYMENT_DEBUG_TOKEN');
+
+        if (!$debugEnabled) {
+            return false;
+        }
+
+        if (app()->environment('local')) {
+            return true;
+        }
+
+        return $expected !== '' && hash_equals($expected, $token);
+    }
+
+    private function withCorrelationId($response, string $correlationId)
+    {
+        return $response->header('X-Correlation-Id', $correlationId);
     }
     
     private function handleFilterDate(Request $request)
