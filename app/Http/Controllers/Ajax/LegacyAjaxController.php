@@ -83,24 +83,32 @@ class LegacyAjaxController extends Controller
         require $legacyPath;
         $output = ob_get_clean();
 
-        return response($output)->header('Content-Type', $this->detectContentType($output));
+        $decoded = $this->tryDecodeJson($output);
+        if ($decoded !== null) {
+            return response()->json($decoded);
+        }
+
+        return response()->json([
+            'lang' => $lang,
+            'data' => $output,
+        ]);
     }
 
-    private function detectContentType(?string $output): string
+    private function tryDecodeJson(?string $output): ?array
     {
         $trimmed = trim((string) $output);
         if ($trimmed === '') {
-            return 'text/plain; charset=UTF-8';
+            return null;
         }
 
         if (in_array($trimmed[0], ['{', '['], true)) {
-            json_decode($trimmed);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                return 'application/json';
+            $decoded = json_decode($trimmed, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                return $decoded;
             }
         }
 
-        return 'text/plain; charset=UTF-8';
+        return null;
     }
     
     private function handleFilterDate(Request $request)
