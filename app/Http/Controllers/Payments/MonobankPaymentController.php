@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\TourStopPrice;
 use App\Services\Payments\MonobankAcquiringService;
+use App\Services\Payments\PaymentFinalizer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -131,6 +132,14 @@ class MonobankPaymentController extends Controller
             );
         });
 
+        $correlationId = PaymentFinalizer::buildCorrelationId($order->id, $legacyOrderId, $invoiceId);
+        Log::info('[Monobank] start invoice created', [
+            'correlation_id' => $correlationId,
+            'order_db_id' => $order->id,
+            'legacy_order_id' => $legacyOrderId,
+            'invoiceId' => $invoiceId,
+        ]);
+
         // 8) Редирект на оплату
         return redirect()->away($pageUrl);
     }
@@ -144,24 +153,39 @@ class MonobankPaymentController extends Controller
      */
     public function return(Order $order)
     {
-        return redirect('/dyakuyu-za-bronyuvannya-biletu')
-            ->with('payment_provider', 'monobank')
-            ->with('order_id', $order->id);
+        $legacyOrderId = (string) ($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
+        $query = http_build_query([
+            'order_id' => $order->id,
+            'uniqid' => $legacyOrderId,
+            'payment_provider' => 'monobank',
+        ]);
+
+        return redirect('/dyakuyu-za-bronyuvannya-biletu?' . $query);
     }
 
     public function success(Order $order)
     {
-        return redirect('/dyakuyu-za-bronyuvannya-biletu')
-            ->with('payment_provider', 'monobank')
-            ->with('order_id', $order->id)
-            ->with('payment_hint', 'success_url');
+        $legacyOrderId = (string) ($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
+        $query = http_build_query([
+            'order_id' => $order->id,
+            'uniqid' => $legacyOrderId,
+            'payment_provider' => 'monobank',
+            'payment_hint' => 'success_url',
+        ]);
+
+        return redirect('/dyakuyu-za-bronyuvannya-biletu?' . $query);
     }
 
     public function fail(Order $order)
     {
-        return redirect('/dyakuyu-za-bronyuvannya-biletu')
-            ->with('payment_provider', 'monobank')
-            ->with('order_id', $order->id)
-            ->with('payment_hint', 'fail_url');
+        $legacyOrderId = (string) ($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
+        $query = http_build_query([
+            'order_id' => $order->id,
+            'uniqid' => $legacyOrderId,
+            'payment_provider' => 'monobank',
+            'payment_hint' => 'fail_url',
+        ]);
+
+        return redirect('/dyakuyu-za-bronyuvannya-biletu?' . $query);
     }
 }

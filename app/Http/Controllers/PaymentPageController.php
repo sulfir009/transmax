@@ -7,14 +7,12 @@ use App\Repository\BusRepository;
 use App\Repository\Order\OrderRepository;
 use App\Models\Order;
 use App\Service\LiqPayService;
-use App\Service\TicketService;
+use App\Services\Payments\PaymentFinalizer;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class PaymentPageController extends Controller
@@ -229,6 +227,12 @@ class PaymentPageController extends Controller
                 'uniqid' => $uniqid,
             ]);
 
+            Log::warning('[order_events] response', [
+                'correlation_id' => $correlationId,
+                'status' => 'error',
+                'reason' => 'order_not_found',
+            ]);
+
             $response = response()->json([
                 'status' => 'error',
                 'message' => 'order_not_found',
@@ -245,66 +249,31 @@ class PaymentPageController extends Controller
         }
 
         $legacyOrderId = (string) ($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
+        $correlationId = PaymentFinalizer::buildCorrelationId($order->id, $legacyOrderId, $order->mono_invoice_id ?? null);
 
         if ((int) $order->payment_status === 2) {
-            $alreadyFinalized = $this->isOrderFinalized($order->getTable(), $order->id);
-
-            if (!$alreadyFinalized) {
-                try {
-                    /** @var TicketService $ticketService */
-                    $ticketService = app(TicketService::class);
-                    Cache::put($this->finalizeAttemptCacheKey($order->id), [
-                        'started_at' => now()->toIso8601String(),
-                        'source' => 'order_events',
-                        'correlation_id' => $correlationId,
-                    ], now()->addDay());
-                    $ticketService->processSuccessfulPayment($legacyOrderId, [
-                        'source' => 'order_events',
-                        'order_id' => $orderId,
-                        'uniqid' => $uniqid,
-                    ]);
-                } catch (\Throwable $e) {
-                    Cache::put($this->finalizeErrorCacheKey($order->id), [
-                        'error' => $e->getMessage(),
-                        'failed_at' => now()->toIso8601String(),
-                        'source' => 'order_events',
-                        'correlation_id' => $correlationId,
-                    ], now()->addDay());
-                    Log::error('[order_events] finalization failed', [
-                        'correlation_id' => $correlationId,
-                        'order_id' => $orderId,
-                        'uniqid' => $uniqid,
-                        'error' => $e->getMessage(),
-                    ]);
-
-                    $response = response()->json([
-                        'status' => 'error',
-                        'message' => 'finalization_failed',
-                    ], 500);
-                    if ($this->isDebugRequest($request)) {
-                        $response = $this->withDebugMeta($response, [
-                            'handled_by' => 'PaymentPageController@ajax',
-                            'route' => '/ajax/payment/{lang}',
-                            'correlation_id' => $correlationId,
-                            'request' => 'order_events',
-                            'notes' => ['finalization_failed'],
-                        ]);
-                    }
-                    return $response;
-                }
-            }
+            /** @var PaymentFinalizer $finalizer */
+            $finalizer = app(PaymentFinalizer::class);
+            $finalizeResult = $finalizer->finalize($order, [
+                'source' => 'order_events',
+                'order_id' => $orderId,
+                'uniqid' => $uniqid,
+                'invoiceId' => $order->mono_invoice_id,
+            ], 'order_events');
+            $finalized = $finalizeResult['status'] === 'ok'
+                || ($finalizeResult['status'] === 'skipped' && ($finalizeResult['reason'] ?? null) === 'already_finalized');
 
             Log::info('[order_events] processed', [
                 'correlation_id' => $correlationId,
                 'order_id' => $orderId,
                 'uniqid' => $uniqid,
-                'finalized' => !$alreadyFinalized,
+                'finalize_result' => $finalizeResult,
             ]);
 
             $response = response()->json([
                 'status' => 'ok',
                 'payment_status' => 2,
-                'finalized' => !$alreadyFinalized,
+                'finalized' => $finalized,
             ]);
             if ($this->isDebugRequest($request)) {
                 $response = $this->withDebugMeta($response, [
@@ -339,48 +308,6 @@ class PaymentPageController extends Controller
         return $response;
     }
 
-    private function isOrderFinalized(string $table, int $orderId): bool
-    {
-        $orderRow = DB::table($table)->where('id', $orderId)->first();
-        if (!$orderRow) {
-            return false;
-        }
-
-        $onlineIndicators = [
-            'payment_type',
-            'pay_type',
-            'payment_method',
-            'pay_method',
-            'payment_provider',
-            'provider',
-            'payment_form',
-            'type_pay',
-            'payment_way',
-            'payment_kind',
-        ];
-
-        foreach ($onlineIndicators as $column) {
-            if (!Schema::hasColumn($table, $column)) {
-                continue;
-            }
-
-            $value = $orderRow->{$column} ?? null;
-            if (is_numeric($value) && (int) $value === 2) {
-                return true;
-            }
-
-            if (is_string($value) && in_array(strtolower($value), ['online', 'monobank', 'liqpay'], true)) {
-                return true;
-            }
-        }
-
-        if (Schema::hasColumn($table, 'paid_online')) {
-            return (int) ($orderRow->paid_online ?? 0) === 1;
-        }
-
-        return false;
-    }
-
     private function isDebugRequest(Request $request): bool
     {
         $debugEnabled = (string) $request->query('debug') === '1';
@@ -408,16 +335,6 @@ class PaymentPageController extends Controller
     private function withCorrelationId(JsonResponse $response, string $correlationId): JsonResponse
     {
         return $response->header('X-Correlation-Id', $correlationId);
-    }
-
-    private function finalizeErrorCacheKey(int $orderId): string
-    {
-        return 'payment_debug:last_finalize_error:' . $orderId;
-    }
-
-    private function finalizeAttemptCacheKey(int $orderId): string
-    {
-        return 'payment_debug:last_finalize_attempt:' . $orderId;
     }
 
     /**
