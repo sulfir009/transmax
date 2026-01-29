@@ -30,6 +30,10 @@ class MonobankWebhookController extends Controller
     public function handle(Request $request, MonobankAcquiringService $mono)
     {
         $raw = (string)$request->getContent();
+        Log::info('[Monobank] webhook received', [
+            'headers' => $request->headers->all(),
+            'body' => $raw,
+        ]);
 
         // Моно может прислать подпись в X-Sign (часто) или X-Signature (иногда)
         $xSign = (string)($request->header('X-Sign') ?: $request->header('X-Signature'));
@@ -120,6 +124,13 @@ class MonobankWebhookController extends Controller
                 // legacy uniqId (ключ mt_orders) — это то, что LiqPay пишет как order_id и что TicketService понимает
                 // В модели у тебя аксессор getUniqidAttribute, поэтому обычно $order->uniqid уже ок.
                 $legacyOrderId = (string)($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
+
+                Log::info('[Monobank] webhook matched order', [
+                    'invoiceId' => $invoiceId,
+                    'order_db_id' => $order->id,
+                    'legacy_order_id' => $legacyOrderId,
+                    'mono_status' => $status,
+                ]);
 
                 // Запомним, был ли уже оплачен (идемпотентность)
                 $alreadyPaid = ((int)($order->payment_status ?? 0) === 2);
