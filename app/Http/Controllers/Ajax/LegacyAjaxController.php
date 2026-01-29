@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Ajax;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class LegacyAjaxController extends Controller
 {
@@ -45,12 +46,69 @@ class LegacyAjaxController extends Controller
         }
         
         // Для всех остальных запросов используем legacy код
+        $pathCandidates = [
+            base_path('legacy/public/pages/ajax.php'),
+            base_path('resources/views/legacy/public/pages/ajax.php'),
+        ];
+
+        $legacyPath = null;
+        foreach ($pathCandidates as $candidate) {
+            if (is_file($candidate)) {
+                $legacyPath = $candidate;
+                break;
+            }
+        }
+
+        if (!$legacyPath) {
+            Log::error('[LegacyAjaxController] legacy ajax.php not found', [
+                'candidates' => $pathCandidates,
+                'lang' => $lang,
+                'request' => $request->all(),
+            ]);
+
+            return response('Legacy AJAX handler not found', 500);
+        }
+
+        $jsonPayload = [];
+        $contentType = (string) $request->header('Content-Type');
+        if (str_starts_with($contentType, 'application/json')) {
+            $jsonPayload = json_decode((string) $request->getContent(), true) ?? [];
+        }
+
+        $_GET = $request->query();
+        $_POST = $jsonPayload + $request->post();
+        $_REQUEST = array_merge($_GET, $_POST);
+
         ob_start();
-        $_POST = $request->all();
-        require app_path('../../legacy/public/pages/ajax.php');
+        require $legacyPath;
         $output = ob_get_clean();
-        
-        return response($output);
+
+        $decoded = $this->tryDecodeJson($output);
+        if ($decoded !== null) {
+            return response()->json($decoded);
+        }
+
+        return response()->json([
+            'lang' => $lang,
+            'data' => $output,
+        ]);
+    }
+
+    private function tryDecodeJson(?string $output): ?array
+    {
+        $trimmed = trim((string) $output);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (in_array($trimmed[0], ['{', '['], true)) {
+            $decoded = json_decode($trimmed, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return null;
     }
     
     private function handleFilterDate(Request $request)

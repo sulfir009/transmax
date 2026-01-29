@@ -857,26 +857,26 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                             </label>
 
                             <!-- ✅ MONOBANK (3-й метод оплаты) -->
-                            <!--<label class="pv2_method pv2_method--mono">
-                                <!--<input type="radio"
-                                       <!--name="paymethod"
-                                       <!--hidden
-                                       <!--data-cardpay="false"
-                                       <!--value="monobank">
-                                <!--<span class="pv2_radio"></span>
+                            <label class="pv2_method pv2_method--mono">
+                                <input type="radio"
+                                       name="paymethod"
+                                       hidden
+                                       data-cardpay="false"
+                                       value="monobank">
+                                <span class="pv2_radio"></span>
 
-                                <!--<span class="pv2_method_name">
-                                    <!--monobank (mono)
-                                <!--</span>
+                                <span class="pv2_method_name">
+                                    monobank (mono)
+                                </span>
 
-                                <!--<span class="pv2_method_logo pv2_method_logo--mono" aria-hidden="true">
-                                    <!--<span class="mono_badge">mono</span>
-                                <!--</span>
+                                <span class="pv2_method_logo pv2_method_logo--mono" aria-hidden="true">
+                                    <span class="mono_badge">mono</span>
+                                </span>
 
-                                <!--<span class="pv2_method_price">
-                                    <!--<?php echo $totalPrice . ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
-                                <!--</span>
-                            <!--</label>
+                                <span class="pv2_method_price">
+                                    <?php echo $totalPrice . ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
+                                </span>
+                            </label>
 
                         </div>
 
