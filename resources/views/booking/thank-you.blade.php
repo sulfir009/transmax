@@ -5,6 +5,14 @@
         .header {
             padding: 0px;
         }
+        .payment-status-note {
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            background: #f8f9fb;
+            color: #2b2f33;
+            font-size: 14px;
+        }
     </style>
 @endsection
 
@@ -19,6 +27,7 @@
                 <div class="thx_block_subtitle par">
                     {{ __('dictionary.MSG_MSG_THX_PAGE_DANI_VASHOGO_BILETU') }}
                 </div>
+                <div id="payment-status-note" class="payment-status-note" style="display:none;"></div>
                 <a href="{{ route('auth') }}" class="private_link h4_title blue_btn">
                     <span class="hidden-xs">
                         {{ __('dictionary.MSG_MSG_THX_PAGE_PEREJTI_U_PERSONALINIJ_KABINET') }}
@@ -68,6 +77,105 @@
             }
         });
     });
+</script>
+<script>
+    (function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        const orderId = urlParams.get('order_id') || '';
+        const uniqid = urlParams.get('uniqid') || '';
+        const lang = '{{ app()->getLocale() }}';
+        const pollingEndpoint = `/ajax/payment/${encodeURIComponent(lang)}`;
+        const note = document.getElementById('payment-status-note');
+
+        console.log('[PAYMENT THANKYOU] params', { order_id: orderId, uniqid: uniqid, lang: lang });
+        console.log('[PAYMENT THANKYOU] polling endpoint', pollingEndpoint);
+
+        if (!orderId && !uniqid) {
+            console.warn('[PAYMENT THANKYOU] missing order_id/uniqid in URL');
+            if (note) {
+                note.style.display = 'block';
+                note.textContent = 'Оплата обробляється. Якщо лист із квитком не прийде протягом 5–10 хвилин, зверніться до підтримки.';
+            }
+            return;
+        }
+
+        let pollCount = 0;
+        const maxPolls = 6;
+
+        function updateNote(text) {
+            if (!note) return;
+            note.style.display = 'block';
+            note.textContent = text;
+        }
+
+        function pollStatus() {
+            pollCount += 1;
+            const payload = new URLSearchParams({
+                request: 'order_events',
+                order_id: orderId,
+                uniqid: uniqid
+            });
+
+            fetch(pollingEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                },
+                body: payload.toString()
+            })
+                .then((resp) => resp.text().then((raw) => ({ resp, raw })))
+                .then(({ resp, raw }) => {
+                    let parsed = null;
+                    try {
+                        parsed = JSON.parse(raw);
+                    } catch (e) {
+                        parsed = { __parse_error: e.message };
+                    }
+
+                    const missingFields = [];
+                    if (!parsed || typeof parsed !== 'object') {
+                        missingFields.push('status');
+                    } else {
+                        if (!Object.prototype.hasOwnProperty.call(parsed, 'status')) {
+                            missingFields.push('status');
+                        }
+                        if (!Object.prototype.hasOwnProperty.call(parsed, 'payment_status')) {
+                            missingFields.push('payment_status');
+                        }
+                    }
+
+                    console.log('[PAYMENT THANKYOU] poll response', {
+                        poll: pollCount,
+                        http_status: resp.status,
+                        raw: raw,
+                        parsed: parsed,
+                        missing_fields: missingFields
+                    });
+
+                    if (parsed && parsed.status === 'ok' && parsed.payment_status === 2) {
+                        updateNote('Оплату підтверджено. Квиток буде надіслано на email.');
+                        return;
+                    }
+
+                    if (parsed && parsed.status === 'error') {
+                        updateNote('Не вдалося підтвердити оплату. Якщо оплата успішна, зверніться до підтримки.');
+                        return;
+                    }
+
+                    updateNote('Очікуємо підтвердження оплати...');
+
+                    if (pollCount < maxPolls) {
+                        setTimeout(pollStatus, 5000);
+                    }
+                })
+                .catch((err) => {
+                    console.warn('[PAYMENT THANKYOU] poll failed', err);
+                    updateNote('Проблема з перевіркою оплати. Спробуйте оновити сторінку.');
+                });
+        }
+
+        pollStatus();
+    })();
 </script>
 <script>
     (function () {
