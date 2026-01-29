@@ -46,16 +46,17 @@
 
 {{-- Легенда как на фото --}}
 <div class="b2_legend">
-    <div class="b2_legend_item b2_legend_item--ticket">
-        <span class="b2_legend_dot b2_legend_dot--blue"></span>
-        Отправим билет<span class="b2_req">*</span>
+    <div class="b2_legend_item">
+        <img class="b2_legend_icon" src="{{ asset('images/booking/send_ticket.png') }}" alt="">
+        <span>Отправим билет<span class="b2_req">*</span></span>
     </div>
 
-    <div class="b2_legend_item b2_legend_item--changes">
-        <span class="b2_legend_dot b2_legend_dot--orange"></span>
-        Сообщим об изменениях<span class="b2_req">*</span>
+    <div class="b2_legend_item">
+        <img class="b2_legend_icon" src="{{ asset('images/booking/notify_changes.png') }}" alt="">
+        <span>Сообщим об изменениях<span class="b2_req">*</span></span>
     </div>
 </div>
+
 <style>
     
     .booking_v2 .b2_legend{

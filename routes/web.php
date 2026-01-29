@@ -2,6 +2,29 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\Payments\MonobankPaymentController;
+use App\Http\Middleware\VerifyCsrfToken;
+
+// старт выставления инвойса
+Route::get('/payment/monobank/start/{order}', [MonobankPaymentController::class, 'start'])
+    ->name('payment.monobank.start');
+
+// success/return/fail — только редиректы, без логики “оплачено”
+Route::get('/payment/monobank/return/{order}', [MonobankPaymentController::class, 'return'])
+    ->name('payment.monobank.return');
+
+Route::get('/payment/monobank/success/{order}', [MonobankPaymentController::class, 'success'])
+    ->name('payment.monobank.success');
+
+Route::get('/payment/monobank/fail/{order}', [MonobankPaymentController::class, 'fail'])
+    ->name('payment.monobank.fail');
+
+// webhook — без CSRF
+Route::post('/payment/monobank/webhook', [MonobankPaymentController::class, 'webhook'])
+    ->withoutMiddleware([VerifyCsrfToken::class])
+    ->name('payment.monobank.webhook');
+
+
 
 // Main home page route
 Route::get('/', [HomeController::class, 'index'])->name('main');
@@ -84,6 +107,9 @@ Route::post('/payment/page/legacy-create', '\App\Http\Controllers\PaymentPageCon
 
 // Страница благодарности после оплаты (legacy route for backward compatibility)
 Route::get('/thank-you', '\App\Http\Controllers\PaymentPageController@thankYou')->name('payment.thank-you');
+Route::post('/ajax/{lang}', [PaymentPageController::class, 'ajax'])
+    ->where('lang', 'ru|ua|en');
+
 
 // Thank you page routes (refactored version)
 Route::get('/dyakuyu-za-bronyuvannya-biletu', [\App\Http\Controllers\ThankYouController::class, 'index'])

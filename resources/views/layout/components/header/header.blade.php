@@ -1,7 +1,7 @@
 {{-- ===========================
    HEADER (GLOBAL) — Sticky + Home Transparent + Desktop Icons
    Desktop: logo + (regular tours + rent buses) + lang + support(icon dropdown) + cabinet(icon) + burger(MENU)
-   Mobile: lang/support/cabinet moved into burger
+   Mobile: lang/support/cabinet moved into burger + CENTER BUTTON "Регулярные рейсы"
    =========================== --}}
 
 <style>
@@ -165,6 +165,55 @@
         background: no-repeat center/12px 12px;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%23FFFFFF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
         opacity: 0.85;
+    }
+
+    /* ===========================
+       MOBILE CENTER BUTTON (hidden on desktop)
+       =========================== */
+    .mt_header_blue .mt_mobile_center_nav{
+        display: none; /* desktop: hidden */
+    }
+
+    .mt_header_blue .mt_mobile_regular_btn{
+        appearance: none;
+        border: 1px solid rgba(255,255,255,0.22);
+        background: rgba(255,255,255,0.18);
+        color: #FFFFFF;
+
+        height: 36px;
+        padding: 0 16px;
+        border-radius: 999px;
+
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+
+        font-family: Montserrat, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        font-weight: 600;
+        font-size: 12px;
+        line-height: 1;
+
+        white-space: nowrap;
+        max-width: 210px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+
+        cursor: pointer;
+        transition: background .18s ease, border-color .18s ease, transform .06s ease;
+    }
+
+    .mt_header_blue .mt_mobile_regular_btn:hover{
+        background: rgba(255,255,255,0.26);
+        border-color: rgba(255,255,255,0.30);
+    }
+
+    .mt_header_blue .mt_mobile_regular_btn:active{
+        transform: translateY(1px);
+    }
+
+    .mt_header_blue .mt_mobile_regular_btn:focus-visible{
+        outline: 2px solid rgba(255,255,255,0.55);
+        outline-offset: 2px;
     }
 
     /* ===========================
@@ -379,6 +428,8 @@
     /* ===========================
        MOBILE RULES
        - hide desktop nav + support/cabinet/lang -> inside burger
+       - show center button "Регулярные рейсы"
+       - make header layout: logo | center button | burger
        =========================== */
     @media (max-width: 768px) {
         /* скрываем на мобилке поддержку/кабинет/язык в шапке */
@@ -388,14 +439,164 @@
             display: none !important;
         }
 
-        /* на мобилке центральное меню обычно мешает — у тебя есть пункты в бургер-меню */
+        /* скрываем десктоп-центр меню на мобилке */
         .mt_header_blue .central-links-header {
             display: none !important;
         }
 
+        /* делаем грид, чтобы кнопка была реально по центру */
+        .mt_header_blue .header-link-block{
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 12px;
+            justify-content: unset;
+        }
+
+        /* лого на мобилке не держим 180px, иначе центр не помещается */
+        .mt_header_blue .header-logo-container-prop{
+            min-width: unset;
+        }
+
+        .mt_header_blue .header-logo-container-prop .logo img{
+            height: 28px;
+        }
+
+        /* показываем центр-кнопку */
+        .mt_header_blue .mt_mobile_center_nav{
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            min-width: 0; /* важно для grid на узких экранах */
+        }
+
+        /* правая часть прижата вправо */
+        .mt_header_blue .last-link-block{
+            justify-self: end;
+        }
+
         .mt_header_blue .mt_actions { gap: 10px; }
     }
+
+    /* Hover: светло-голубой + плавность */
+    #popup-regular .countries-regular a.regular_tour{
+        transition: color .18s ease, background-color .18s ease, text-decoration-color .18s ease;
+    }
+
+    /* Вариант 1: меняем цвет текста на светло-голубой */
+    #popup-regular .countries-regular a.regular_tour:hover{
+        color: #35BAF0; /* светло-голубой */
+    }
+
+    /* (опционально) если хочешь ещё и подсветку фоном как "плашка" */
+    #popup-regular .countries-regular a.regular_tour{
+        display: inline-block;        /* чтобы background работал аккуратно */
+        padding: 6px 10px;            /* можно подогнать */
+        border-radius: 8px;           /* мягкое скругление */
+    }
+
+    #popup-regular .countries-regular a.regular_tour:hover{
+        background: rgba(53, 186, 240, 0.10); /* лёгкая заливка */
+        text-decoration: none;                /* если нужно убрать подчеркивание */
+    }
+
+    html.popup-open,
+    body.popup-open{
+        overflow: hidden !important;
+        height: 100%;
+    }
 </style>
+
+<script>
+(function(){
+    let scrollY = 0;
+    let isLocked = false;
+
+    function lockScroll(){
+        if (isLocked) return;
+        isLocked = true;
+
+        scrollY = window.scrollY || window.pageYOffset || 0;
+
+        document.documentElement.classList.add('popup-open');
+        document.body.classList.add('popup-open');
+
+        // фиксируем body, чтобы не прыгало и не скроллилось
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollY}px`;
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+        document.body.style.width = '100%';
+    }
+
+    function unlockScroll(){
+        if (!isLocked) return;
+        isLocked = false;
+
+        document.documentElement.classList.remove('popup-open');
+        document.body.classList.remove('popup-open');
+
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        document.body.style.width = '';
+
+        window.scrollTo(0, scrollY);
+    }
+
+    function isPopupVisible(popup){
+        if (!popup) return false;
+        const st = window.getComputedStyle(popup);
+        return st.display !== 'none' && st.visibility !== 'hidden' && st.opacity !== '0';
+    }
+
+    document.addEventListener('DOMContentLoaded', function(){
+        const popup = document.getElementById('popup-regular');
+        if (!popup) return;
+
+        // 1) Следим за изменениями class/style попапа (jQuery fadeIn/display block/классы)
+        const obs = new MutationObserver(() => {
+            if (isPopupVisible(popup)) lockScroll();
+            else unlockScroll();
+        });
+        obs.observe(popup, { attributes: true, attributeFilter: ['class','style'] });
+
+        // 2) Подстраховка: когда жмут на кнопку открытия — через тик проверяем и лочим
+        document.addEventListener('click', function(e){
+            if (e.target.closest('[data-open-popup-regular]')) {
+                setTimeout(function(){
+                    if (isPopupVisible(popup)) lockScroll();
+                }, 0);
+            }
+        }, true);
+
+        // 3) Закрытие по клику на оверлей (если у тебя так задумано)
+        popup.addEventListener('click', function(e){
+            if (e.target === popup) {
+                // если твой код закрывает попап сам — это не мешает
+                popup.style.display = 'none';
+                popup.classList.remove('is-open');
+                unlockScroll();
+            }
+        });
+
+        // 4) ESC
+        document.addEventListener('keydown', function(e){
+            if (e.key === 'Escape' && isPopupVisible(popup)) {
+                popup.style.display = 'none';
+                popup.classList.remove('is-open');
+                unlockScroll();
+            }
+        });
+
+        // 5) iOS safeguard: запрещаем touchmove пока попап открыт
+        document.addEventListener('touchmove', function(e){
+            if (document.body.classList.contains('popup-open')) e.preventDefault();
+        }, { passive: false });
+    });
+})();
+</script>
 
 <div class="{{ $header_class }} mt_header_blue">
     <div class="container">
@@ -410,6 +611,13 @@
                         <img src="/images/legacy/logo-light.svg" alt="MAXTRANS" class="fit_img">
                     </picture>
                 </a>
+            </div>
+
+            {{-- MOBILE CENTER BUTTON: "Регулярные рейсы" --}}
+            <div class="mt_mobile_center_nav">
+                <button class="mt_mobile_regular_btn" type="button" data-open-popup-regular>
+                    {{ __('dictionary.MSG_REGULAR_TOURS') }}
+                </button>
             </div>
 
             {{-- CENTER NAV (DESKTOP): "Регулярные рейсы ▾" + "Аренда автобусов" --}}

@@ -5,6 +5,8 @@ namespace App\Service;
 use Mpdf\Mpdf;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
 
 class TicketService
 {
@@ -154,9 +156,35 @@ class TicketService
             // Обновляем статус оплаты
             Log::channel('payment')->info('Updating payment status to 2 (paid)');
             
-            $updateResult = DB::table($this->dbPrefix . '_orders')
-                ->where('uniqId', $orderId)
-                ->update(['payment_status' => 2]);
+// Определяем провайдера/лейбл по данным платежа
+$paymentLabel = $this->detectPaymentLabel($paymentData);          // "Онлайн Monobank" / "Онлайн LiqPay" / "Онлайн"
+$paymentProvider = $this->detectPaymentProvider($paymentData);    // "monobank" / "liqpay" / "online"
+
+// Готовим update для legacy mt_orders
+$legacyUpdate = ['payment_status' => 2];
+
+// Пытаемся выставить “онлайн” во всех возможных колонках (только если они реально есть)
+$legacyUpdate = array_merge($legacyUpdate, $this->buildLegacyPaymentFieldsUpdate($paymentProvider));
+
+// если в таблице есть поле paid_at / payment_date / paid_date — тоже проставим
+$legacyUpdate = array_merge($legacyUpdate, $this->buildLegacyPaidDateUpdate());
+
+// Обновляем
+Log::channel('payment')->info('Updating payment status + payment method fields', [
+    'uniqId' => $orderId,
+    'update' => $legacyUpdate,
+    'payment_label' => $paymentLabel,
+    'payment_provider' => $paymentProvider,
+]);
+
+$updateResult = DB::table($this->dbPrefix . '_orders')
+    ->where('uniqId', $orderId)
+    ->update($legacyUpdate);
+
+Log::channel('payment')->info('Payment status update result', [
+    'affected_rows' => $updateResult
+]);
+
             
             Log::channel('payment')->info('Payment status update result', [
                 'affected_rows' => $updateResult
@@ -243,7 +271,8 @@ class TicketService
                 'client_email' => $orderInfo->client_email ?? 'N/A'
             ]);
             
-            $this->sendTicketsEmail($orderInfo, $ticketInfo, $passengers, $pdfFiles);
+            $this->sendTicketsEmail($orderInfo, $ticketInfo, $passengers, $pdfFiles, (array)$paymentData);
+
             
             Log::channel('payment')->info('Emails sent successfully');
 
@@ -728,7 +757,7 @@ class TicketService
     /**
      * Отправка email с билетами
      */
-    private function sendTicketsEmail($orderInfo, $ticketInfo, $passengers, $pdfFiles)
+    private function sendTicketsEmail($orderInfo, $ticketInfo, $passengers, $pdfFiles, array $paymentData = [])
     {
         Log::channel('payment')->info('sendTicketsEmail called', [
             'client_email' => $orderInfo->client_email,
@@ -760,6 +789,7 @@ class TicketService
                 'toCity' => $toCity->title_uk,
                 'fromStop' => $fromStop->title_uk,
                 'toStop' => $toStop->title_uk,
+                'paymentMethodLabel' => $this->detectPaymentLabel($paymentData ?? []),
                 'totalPrice' => $ticketInfo->price * $orderInfo->passagers,
             ];
 
@@ -1209,7 +1239,7 @@ class TicketService
                 </tr>
                 <tr>
                     <td class='email-titles'>Спосіб оплати</td>
-                    <td>Онлайн LiqPay</td>
+                    <td>{$data['paymentMethodLabel'] ?? 'Онлайн'}</td>
                 </tr>
             </table>
             <p>Перевізник: Maks Trans LTD</p>
@@ -1219,4 +1249,138 @@ class TicketService
 
         return $html;
     }
+    
+    /**
+ * Определяем провайдера по payload.
+ */
+private function detectPaymentProvider(array $paymentData): string
+{
+    // Monobank webhook обычно содержит invoiceId
+    if (!empty($paymentData['invoiceId'])) {
+        return 'monobank';
+    }
+
+    // LiqPay callback обычно содержит liqpay_order_id / payment_id / public_key и т.п.
+    if (!empty($paymentData['liqpay_order_id']) || !empty($paymentData['payment_id']) || !empty($paymentData['public_key'])) {
+        return 'liqpay';
+    }
+
+    return 'online';
+}
+
+/**
+ * Красивый лейбл для писем/админки.
+ */
+private function detectPaymentLabel(array $paymentData): string
+{
+    $provider = $this->detectPaymentProvider($paymentData);
+
+    return match ($provider) {
+        'monobank' => 'Онлайн Monobank',
+        'liqpay'   => 'Онлайн LiqPay',
+        default    => 'Онлайн',
+    };
+}
+
+/**
+ * Выставляем “онлайн/монобанк” во ВСЕХ релевантных legacy колонках,
+ * но только если они существуют в mt_orders.
+ *
+ * Логика:
+ * - если колонка числовая (int/tinyint) => ставим 2 (онлайн)
+ * - если строковая => ставим 'online' / 'monobank'
+ */
+private function buildLegacyPaymentFieldsUpdate(string $provider): array
+{
+    $table = $this->dbPrefix . '_orders';
+
+    // Быстро получаем типы колонок (SHOW COLUMNS)
+    $columns = [];
+    try {
+        $cols = DB::select("SHOW COLUMNS FROM `{$table}`");
+        foreach ($cols as $c) {
+            $columns[$c->Field] = strtolower((string)$c->Type);
+        }
+    } catch (\Throwable $e) {
+        Log::channel('payment')->warning('SHOW COLUMNS failed, fallback to Schema::hasColumn', [
+            'table' => $table,
+            'error' => $e->getMessage(),
+        ]);
+    }
+
+    $has = function(string $col) use ($table, $columns): bool {
+        if (!empty($columns)) return array_key_exists($col, $columns);
+        return Schema::hasColumn($table, $col);
+    };
+
+    $isNumeric = function(string $col) use ($columns): bool {
+        if (empty($columns) || empty($columns[$col])) return false;
+        return str_contains($columns[$col], 'int') || str_contains($columns[$col], 'decimal') || str_contains($columns[$col], 'float') || str_contains($columns[$col], 'double');
+    };
+
+    // Значения
+    $onlineNumeric = 2;                 // типично: 1=нал, 2=онлайн
+    $onlineString  = 'online';
+    $providerString = $provider;        // monobank / liqpay / online
+
+    $u = [];
+
+    // Самые частые варианты полей в legacy
+    $candidates = [
+        'payment_type',        // int/string
+        'pay_type',            // int
+        'payment_method',      // string
+        'pay_method',          // string
+        'payment_provider',    // string
+        'provider',            // string
+        'payment_form',        // string/int
+        'type_pay',            // int/string
+        'payment_way',         // string/int
+        'payment_kind',        // string/int
+    ];
+
+    foreach ($candidates as $col) {
+        if (!$has($col)) continue;
+
+        if ($isNumeric($col)) {
+            $u[$col] = $onlineNumeric;
+        } else {
+            // если это “provider/merchant” поле — ставим конкретно monobank/liqpay
+            if (str_contains($col, 'provider') || str_contains($col, 'method')) {
+                $u[$col] = $providerString;
+            } else {
+                $u[$col] = $onlineString;
+            }
+        }
+    }
+
+    // Иногда бывает булевый флаг "paid_online"
+    if ($has('paid_online')) {
+        $u['paid_online'] = 1;
+    }
+
+    return $u;
+}
+
+/**
+ * Если в legacy таблице есть поле даты оплаты — проставим.
+ */
+private function buildLegacyPaidDateUpdate(): array
+{
+    $table = $this->dbPrefix . '_orders';
+    $u = [];
+
+    // популярные варианты
+    $dateCols = ['paid_at', 'payment_date', 'paid_date', 'pay_date', 'date_paid'];
+
+    foreach ($dateCols as $col) {
+        if (Schema::hasColumn($table, $col)) {
+            // строковый datetime в legacy обычно ок
+            $u[$col] = date('Y-m-d H:i:s');
+        }
+    }
+
+    return $u;
+}
+
 }

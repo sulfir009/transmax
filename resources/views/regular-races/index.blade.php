@@ -390,4 +390,94 @@
         background-color: #FFFFFF !important;
         cursor: pointer !important;
     }
+    /* =========================
+   CONTACT FORM — FIX overflow on mobile
+   ========================= */
+@media (max-width: 768px) {
+
+  /* 0) страховка: чтобы padding не раздувал ширину */
+  .contact_container,
+  .contact_container * {
+    box-sizing: border-box !important;
+  }
+
+  /* 1) сам контейнер — строго в экран */
+  .contact_container {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden; /* чтобы точно не было горизонтального скролла */
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* 2) внутренний контейнер формы тоже не должен иметь фиксированных ширин */
+  .contact_container .form-container,
+  .contact_container form {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 3) все form-group на всю ширину */
+  .contact_container .form-group,
+  .contact_container .contact_block {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 4) блок телефона: разрешаем перенос и убираем min-width */
+  .contact_container .callback-group {
+    display: flex !important;
+    flex-wrap: wrap !important;     /* ключевое: перенос на новую строку */
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  /* иконка телефона */
+  .contact_container .callback-group .icon_input_phone {
+    flex: 0 0 34px; /* фикс ширина иконки */
+  }
+
+  /* код страны */
+  .contact_container #phone_code {
+    flex: 0 0 120px;
+    width: 120px !important;
+    max-width: 120px !important;
+  }
+
+  /* само поле телефона — растягивается, без min-width */
+  .contact_container #callback_phone {
+    flex: 1 1 auto;
+    min-width: 0 !important;        /* ключевое: убираем раздувание */
+    width: 1% !important;           /* трюк: заставляет flex нормально сжиматься */
+  }
+
+  /* 5) Кнопка отправки — 100% ширины (перебиваем твой inline style) */
+  .contact_container .send_request_btn {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    padding: 16px 0 !important;     /* вместо 18px 218px */
+    display: block !important;
+    margin: 0 auto !important;
+  }
+
+  /* 6) textarea тоже на всю ширину */
+  .contact_container .textarea_block,
+  .contact_container .cb_text_area {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+.col-md-6 {
+    margin-bottom: 15px;
+}
+@media (max-width: 768px) {
+    .block_table_btn {
+        margin-top: 16px;
+        margin-left: 5px;
+        padding: 8px 13px;
+    }
+}
+
 </style>

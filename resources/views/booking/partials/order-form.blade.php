@@ -1,8 +1,7 @@
 {{-- Форма оформления билета --}}
 @php
-    // Нормализуем количество пассажиров (чтобы не было строк/нулей)
-    $passengersCount = (int)($passengers ?? 1);
-    if ($passengersCount < 1) { $passengersCount = 1; }
+    // Нормализуем количество пассажиров (минимум 1)
+    $passengersCount = max(1, (int)($passengers ?? 1));
 @endphp
 
 <div class="ticket_order_block shadow_block">
@@ -14,9 +13,10 @@
         @lang('dictionary.MSG_MSG_BOOKING_ZAZNACHENI_DANI_NEOBHIDNI_DLYA_ZDIJSNENNYA_BRONYUVANNYA_I_BUDUTI_PEREVIRENI_PID_CHAS_POSADKI_V_AVTOBUS')
     </div>
 
+    {{-- Обертка всех пассажиров. data-max-passengers используется JS для лимитов --}}
     <div class="customer_data" id="b2_passengers_wrap" data-max-passengers="{{ $passengersCount }}">
 
-        {{-- Пассажир №1 (всегда видимый) --}}
+        {{-- Пассажир №1 (всегда видимый, основной покупатель) --}}
         <div class="b2_passenger_title">
             Контактные данные пассажира №1
         </div>
@@ -29,6 +29,7 @@
                     data-passengers-family-name
                     placeholder="@lang('dictionary.MSG_MSG_BOOKING_PRIZVISCHE')"
                     id="family_name"
+                    name="family_name"
                     value="{{ $clientInfo['second_name'] ?? '' }}"
                 >
             </div>
@@ -40,6 +41,7 @@
                     data-passengers-family-name
                     placeholder="@lang('dictionary.MSG_MSG_BOOKING_IMYA_')"
                     id="name"
+                    name="name"
                     value="{{ $clientInfo['name'] ?? '' }}"
                 >
             </div>
@@ -49,57 +51,56 @@
             @lang('dictionary.MSG_MSG_BOOKING_VILINA_ROZSADKA') <span class="b2_req">*</span>
         </div>
 
-        {{-- Остальные пассажиры (сразу в DOM, но скрыты) --}}
-        {{-- Остальные пассажиры (в DOM, ИЗНАЧАЛЬНО ОТКРЫТЫ по количеству с шага 1) --}}
-@for ($i = 1; $i < $passengersCount; $i++)
-    <div class="b2_passenger_wrap js_passenger_block {{ ((int)$i === 1) ? '' : 'is_hidden' }}"
-     data-passenger-index="{{ $i }}"
-     style="{{ ((int)$i === 1) ? '' : 'display:none;' }}">
+        {{-- Остальные пассажиры (генерируются в DOM, но скрыты display:none, если их нет в выборе) --}}
+        {{-- Цикл начинаем с 1, так как 0 (первый) уже выведен выше --}}
+        @for ($i = 1; $i < 10; $i++) {{-- Генерируем с запасом или используем $passengersCount, если лимит жесткий --}}
+<div class="b2_passenger_wrap js_passenger_block {{ ($i < $passengersCount) ? '' : 'is_hidden' }}"
+     data-passenger-index="{{ $i }}">
 
-        <div class="b2_passenger_title">
-            Контактные данные пассажира №{{ $i + 1 }}
 
-            {{-- Удаление пассажира --}}
-            <button
-                type="button"
-                class="b2_remove_dot js_remove_passenger"
-                data-passenger-index="{{ $i }}"
-                title="Удалить пассажира"
-                aria-label="Удалить пассажира №{{ $i + 1 }}"
-            ></button>
-        </div>
+                <div class="b2_passenger_title">
+                    Контактные данные пассажира №{{ $i + 1 }}
 
-        <div class="b2_grid">
-            <div class="row">
-                <input
-                    type="text"
-                    class="c_input par req_input"
-                    placeholder="@lang('dictionary.MSG_MSG_BOOKING_PRIZVISCHE')"
-                    name="passengers[{{ $i }}][family_name]"
-                    value=""
-                >
+                    {{-- Кнопка удаления пассажира --}}
+                    <button
+                        type="button"
+                        class="b2_remove_dot js_remove_passenger"
+                        data-passenger-index="{{ $i }}"
+                        title="Удалить пассажира"
+                        aria-label="Удалить пассажира №{{ $i + 1 }}"
+                    ></button>
+                </div>
+
+                <div class="b2_grid">
+                    <div class="row">
+                        <input
+                            type="text"
+                            class="c_input par req_input"
+                            placeholder="@lang('dictionary.MSG_MSG_BOOKING_PRIZVISCHE')"
+                            name="passengers[{{ $i }}][family_name]"
+                            value=""
+                        >
+                    </div>
+
+                    <div class="row">
+                        <input
+                            type="text"
+                            class="c_input par req_input"
+                            placeholder="@lang('dictionary.MSG_MSG_BOOKING_IMYA_')"
+                            name="passengers[{{ $i }}][name]"
+                            value=""
+                        >
+                    </div>
+                    
+                    {{-- Скрытые поля для совместимости, если нужны --}}
+                    <input type="hidden" name="passengers[{{ $i }}][patronymic]" value="">
+                    <input type="hidden" name="passengers[{{ $i }}][birthdate]" value="">
+                </div>
             </div>
+        @endfor
 
-            <div class="row">
-                <input
-                    type="text"
-                    class="c_input par req_input"
-                    placeholder="@lang('dictionary.MSG_MSG_BOOKING_IMYA_')"
-                    name="passengers[{{ $i }}][name]"
-                    value=""
-                >
-            </div>
-
-            <input type="hidden" name="passengers[{{ $i }}][patronymic]" value="">
-            <input type="hidden" name="passengers[{{ $i }}][birthdate]" value="">
-        </div>
-    </div>
-@endfor
-
-
-        {{-- Строка “Добавить пассажира” — РЕНДЕРИМ ВСЕГДА.
-            Если пассажиров реально нет, JS сам спрячeт. --}}
-        <div class="b2_add_row" id="b2_add_row">
+        {{-- Кнопка “Добавить пассажира” --}}
+        <div class="b2_add_row" id="b2_add_row" style="{{ ($passengersCount >= 10) ? 'display:none;' : '' }}">
             <button type="button" class="b2_add_btn" id="b2_add_passenger_btn">+</button>
 
             <button type="button" class="b2_add_text_btn" id="b2_add_passenger_text">
@@ -109,3 +110,55 @@
 
     </div>
 </div>
+
+{{-- ВСТАВИТЬ В КОНЕЦ ФАЙЛА ВМЕСТО СТАРОГО СКРИПТА --}}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // 1. ЛОГИКА УДАЛЕНИЯ
+    $(document).on('click', '.js_remove_passenger', function() {
+        var $block = $(this).closest('.js_passenger_block');
+        
+        // А. Очищаем значения (визуально и физически)
+        $block.find('input').val('');
+
+        // Б. УДАЛЯЕМ атрибут name. 
+        // Поле без name не отправится на сервер ни в каком виде.
+        $block.find('input').each(function() {
+            var $input = $(this);
+            // Сохраняем имя в запасной атрибут, чтобы можно было восстановить
+            if ($input.attr('name')) {
+                $input.attr('data-temp-name', $input.attr('name'));
+                $input.removeAttr('name');
+            }
+            // Для надежности отключаем
+            $input.prop('disabled', true);
+        });
+
+        // В. Скрываем блок
+        $block.addClass('is_hidden').hide();
+        
+        console.log('Пассажир удален. Атрибуты name удалены.');
+    });
+
+    // 2. ЛОГИКА ВОССТАНОВЛЕНИЯ (Кнопка "Добавить")
+    $('#b2_add_passenger_btn, #b2_add_passenger_text').on('click', function() {
+        // Ищем первый скрытый блок
+        var $hiddenBlock = $('.js_passenger_block.is_hidden').first();
+        
+        if ($hiddenBlock.length) {
+            // Восстанавливаем атрибут name из запаса
+            $hiddenBlock.find('input').each(function() {
+                var $input = $(this);
+                if ($input.attr('data-temp-name')) {
+                    $input.attr('name', $input.attr('data-temp-name'));
+                }
+                $input.prop('disabled', false);
+            });
+            
+            // Показываем блок
+            $hiddenBlock.removeClass('is_hidden').show();
+        }
+    });
+});
+</script>

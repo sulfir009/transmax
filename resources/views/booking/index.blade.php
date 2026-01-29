@@ -188,17 +188,51 @@
             margin:10px 0 8px;
             display:flex;
             align-items:center;
-            justify-content:space-between;
         }
 
         /* Красная точка справа (как на фото у пассажира №2) */
-        .booking_v2 .b2_remove_dot{
-            width:12px;
-            height:12px;
-            border-radius:999px;
-            background:#EB5757;
-            flex:0 0 auto;
-        }
+.booking_v2 .b2_remove_dot{
+    width:12px;
+    height:12px;
+    margin-left:10px;
+    border-radius:999px;
+    background:#EB5757;
+    flex:0 0 auto;
+
+    /* чтобы кнопка выглядела как иконка, а не стандартная кнопка */
+    border:0;
+    padding:0;
+    appearance:none;
+    -webkit-appearance:none;
+
+    /* центрируем минус внутри */
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+
+    cursor:pointer;
+    position:relative;
+}
+
+/* белый минус внутри кружка */
+.booking_v2 .b2_remove_dot::before{
+    content:"";
+    width:7px;      /* длина минуса */
+    height:2px;     /* толщина минуса */
+    background:#fff;
+    border-radius:2px; /* чуть скруглим края минуса как на иконках */
+}
+
+/* приятные состояния (не обязательно, но обычно нужно) */
+.booking_v2 .b2_remove_dot:hover{
+    background:#d94b4b;
+}
+
+.booking_v2 .b2_remove_dot:focus-visible{
+    outline:2px solid rgba(235,87,87,.35);
+    outline-offset:2px;
+}
+
 
         /* “Добавить пассажира” строка */
         .booking_v2 .b2_add_row{
@@ -349,7 +383,6 @@
         /* Строки “Когда/Пассажиров” */
         .booking_v2 .b2_row{
             display:flex;
-            justify-content:space-between;
             gap:10px;
             margin-top:10px;
             font-family: Montserrat, system-ui;
@@ -828,7 +861,247 @@
     margin-bottom: 30px;
 }
 }
+/* =========================
+   CONTACT DATA (match screenshot)
+   ========================= */
 
+/* сама карточка */
+.booking_v2 .customer_contact_data.shadow_block{
+    border: 2px solid #A3E8F9 !important;
+    border-radius: 14px !important;
+    padding: 18px 18px 14px !important;
+}
+
+/* 2 поля в ряд как на фото */
+.booking_v2 .customer_contact_data .b2_grid{
+    margin-top: 12px !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 16px !important;
+    align-items: center !important;
+}
+
+/* ВАЖНО: убиваем твои 90% и margin-left:10px именно в этой карточке */
+.booking_v2 .customer_contact_data .c_input{
+    width: 100% !important;
+    margin-left: 0 !important;
+}
+
+/* общий стиль инпутов в карточке (чуть выше/плотнее как на фото) */
+.booking_v2 .customer_contact_data .c_input,
+.booking_v2 .customer_contact_data .customer_phone_input,
+.booking_v2 .customer_contact_data .nice-select{
+    height: 38px !important;
+    min-height: 38px !important;
+    border-radius: 10px !important;
+    border: 2px solid #A3E8F9 !important;
+    background: #fff !important;
+    box-shadow: inset 0 0 10px rgba(163,216,249,.30) !important;
+    padding: 0 12px !important;
+}
+
+/* ===== телефон как одно единое поле (общая рамка вокруг селекта + инпута) ===== */
+.booking_v2 .customer_contact_data .phone_input_wrapper{
+    height: 38px !important;
+    border: 2px solid #A3E8F9 !important;
+    border-radius: 10px !important;
+    background: #fff !important;
+    box-shadow: inset 0 0 10px rgba(163,216,249,.30) !important;
+
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+
+    padding: 0 10px !important;
+}
+
+/* внутри “единого поля” убираем рамки у отдельных частей */
+.booking_v2 .customer_contact_data .phone_input_wrapper .nice-select{
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    padding-left: 6px !important;
+    padding-right: 26px !important; /* место под стрелку */
+    margin-left: 0 !important;
+
+    /* легкий разделитель между UA и номером (как на макете) */
+    border-right: 1px solid rgba(163,232,249,.8) !important;
+    border-radius: 0 !important;
+}
+
+/* стрелку nice-select чуть ближе и аккуратнее */
+.booking_v2 .customer_contact_data .phone_input_wrapper .nice-select:after{
+    right: 8px !important;
+}
+
+/* инпут номера без собственной рамки */
+.booking_v2 .customer_contact_data .phone_input_wrapper .customer_phone_input{
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    padding-left: 10px !important;
+    padding-right: 6px !important;
+
+    width: 100% !important;
+    margin-left: 0 !important;
+}
+
+/* фокус как “мягкое свечение” (похоже на фото) */
+.booking_v2 .customer_contact_data .c_input:focus,
+.booking_v2 .customer_contact_data .customer_phone_input:focus{
+    outline: none !important;
+}
+.booking_v2 .customer_contact_data .phone_input_wrapper:focus-within,
+.booking_v2 .customer_contact_data .c_input:focus{
+    border-color: #35BAF0 !important;
+    box-shadow: 0 0 0 3px rgba(53,186,240,.15), inset 0 0 10px rgba(163,216,249,.25) !important;
+}
+
+/* ===== легенда как на фото: в одну строку (2 элемента) ===== */
+.booking_v2 .customer_contact_data .phone_input_wrapper{
+    /* размеры и внешний вид единого поля */
+    height: 38px !important;
+    border: 2px solid #A3E8F9 !important;
+    border-radius: 10px !important;
+    background: #fff !important;
+    box-shadow: inset 0 0 10px rgba(163,216,249,.30) !important;
+
+    /* раскладка внутри: селект + инпут */
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+
+    /* внутренние отступы как у поля */
+    padding: 0 10px !important;
+
+    /* важно: чтобы не было “baseline” и других наследований */
+    align-items: center !important;
+}
+
+
+.booking_v2 .customer_contact_data .b2_legend_item{
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+
+    font-family: Montserrat, system-ui !important;
+    font-weight: 700 !important;
+    font-size: 11px !important;
+    color: #6E7172 !important;
+}
+
+.booking_v2 .customer_contact_data .b2_legend_icon{
+    width: 16px !important;
+    height: 16px !important;
+    display: block !important;
+    flex: 0 0 auto !important;
+}
+
+/* звездочка уже есть, просто гарантируем цвет */
+.booking_v2 .customer_contact_data .b2_req{
+    color:#EB5757 !important;
+}
+
+/* мобильная: поля в колонку */
+@media (max-width: 520px){
+    .booking_v2 .customer_contact_data .b2_grid{
+        grid-template-columns: 1fr !important;
+    }
+}
+/* ===== FIX: legend в одну строку ===== */
+.booking_v2 .customer_contact_data .b2_legend{
+    margin-top: 10px !important;
+    display: flex !important;
+    flex-direction: row !important;      /* КЛЮЧ: перебиваем column */
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 22px !important;
+    flex-wrap: nowrap !important;        /* не переносить вниз */
+}
+
+.booking_v2 .customer_contact_data .b2_legend_item{
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+
+    width: auto !important;              /* чтобы не было 100% ширины */
+    flex: 0 1 auto !important;
+    white-space: nowrap !important;      /* текст не ломается */
+}
+/* ===== FIX: phone select + input в одну строку ===== */
+.booking_v2 .customer_contact_data .phone_input_wrapper{
+    display: flex !important;
+    flex-direction: row !important;   /* на всякий: точно не колонка */
+    flex-wrap: nowrap !important;
+
+    align-items: center !important;
+    gap: 8px !important;
+
+    height: 38px !important;
+    border: 2px solid #A3E8F9 !important;
+    border-radius: 10px !important;
+    background: #fff !important;
+    box-shadow: inset 0 0 10px rgba(163,216,249,.30) !important;
+
+    padding: 0 10px !important;
+}
+
+/* селект (nice-select) — фиксируем ширину, НЕ даём стать 100% */
+.booking_v2 .customer_contact_data .phone_input_wrapper .nice-select{
+    flex: 0 0 auto !important;
+    width: auto !important;
+
+    display: flex !important;
+    align-items: center !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+
+    margin: 0 !important;
+    padding-left: 6px !important;
+    padding-right: 26px !important;
+
+    border-right: 1px solid rgba(163,232,249,.8) !important;
+    border-radius: 0 !important;
+    white-space: nowrap !important;
+}
+
+.booking_v2 .customer_contact_data .phone_input_wrapper .nice-select:after{
+    right: 8px !important;
+}
+
+/* инпут — занимает оставшееся место */
+.booking_v2 .customer_contact_data .phone_input_wrapper .customer_phone_input{
+    flex: 1 1 auto !important;
+    min-width: 0 !important;   /* важно для flex, чтобы не ломал строку */
+    width: auto !important;
+
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+
+    height: 34px !important;
+    min-height: 34px !important;
+
+    margin: 0 !important;
+    padding-left: 10px !important;
+    padding-right: 6px !important;
+}
+.page_content_wrapper {
+    padding: 50px 0;
+}
 
     </style>
 @endsection

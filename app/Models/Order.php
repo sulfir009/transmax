@@ -118,4 +118,19 @@ class Order extends Model
     {
         return $this->client_phone;
     }
+    
+    // app/Models/Order.php
+
+public function getUniqidAttribute()
+{
+    // чтобы $order->uniqid работал даже если колонка uniqId
+    return $this->attributes['uniqId'] ?? $this->attributes['uniqid'] ?? null;
+}
+
+public function setUniqidAttribute($value)
+{
+    // чтобы $order->uniqid = ... писало в uniqId
+    $this->attributes['uniqId'] = $value;
+}
+
 }

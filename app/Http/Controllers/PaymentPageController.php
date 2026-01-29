@@ -8,6 +8,7 @@ use App\Repository\Order\OrderRepository;
 use App\Service\LiqPayService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -35,10 +36,405 @@ class PaymentPageController extends Controller
         $this->db = $Db;
         $this->user = $User;
 
-        $this->busRepository = $busRepository ?: new BusRepository();
+        $this->busRepository   = $busRepository ?: new BusRepository();
         $this->orderRepository = $orderRepository ?: new OrderRepository();
-        $this->liqpayService = $liqpayService ?: new LiqPayService();
+        $this->liqpayService   = $liqpayService ?: new LiqPayService();
     }
+
+    /* ============================================================
+       TABLE HELPERS
+       ============================================================ */
+
+    protected function ordersTable(): string
+    {
+        return DB_PREFIX . '_orders';
+    }
+
+    protected function eventsTable(): string
+    {
+        return DB_PREFIX . '_order_events';
+    }
+
+    /**
+     * Возвращает список колонок таблицы mt_orders (и кэширует).
+     */
+    protected function getOrdersColumns(): array
+    {
+        static $cols = null;
+        if ($cols !== null) return $cols;
+
+        $table = $this->ordersTable();
+
+        if ($this->db) {
+            $rows = $this->db->getAll("SHOW COLUMNS FROM `{$table}`");
+            $cols = [];
+            foreach (($rows ?? []) as $r) {
+                $name = null;
+                if (is_array($r)) $name = $r['Field'] ?? null;
+                if (is_object($r)) $name = $r->Field ?? null;
+                if ($name) $cols[] = $name;
+            }
+            return $cols;
+        }
+
+        $rows = DB::select("SHOW COLUMNS FROM `{$table}`");
+        $cols = [];
+        foreach ($rows as $r) {
+            $cols[] = $r->Field;
+        }
+        return $cols;
+    }
+
+    /**
+     * Оставляет только те поля, которые реально есть в таблице mt_orders.
+     */
+    protected function filterOrderDataByExistingColumns(array $data): array
+    {
+        $cols = $this->getOrdersColumns();
+        if (!$cols) return [];
+
+        $allowed = array_flip($cols);
+        return array_intersect_key($data, $allowed);
+    }
+
+    /**
+     * Универсальный update по id (через твой $this->db или через Laravel DB)
+     */
+    protected function updateOrderById(int $id, array $data): void
+    {
+        $table = $this->ordersTable();
+        $data  = $this->filterOrderDataByExistingColumns($data);
+        if (!$data) return;
+
+        try {
+            if ($this->db) {
+                $this->db->where('id', $id);
+                $this->db->update($table, $data);
+                return;
+            }
+
+            DB::table($table)->where('id', $id)->update($data);
+        } catch (\Throwable $e) {
+            Log::error("updateOrderById failed id={$id}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Безопасно получить заказ по id
+     */
+    protected function getOrderRowById(int $orderId): ?array
+    {
+        $table = $this->ordersTable();
+
+        try {
+            if ($this->db) {
+                $row = $this->db->getOne("SELECT * FROM `{$table}` WHERE id = ? LIMIT 1", [$orderId]);
+                return $row ? (is_array($row) ? $row : (array)$row) : null;
+            }
+
+            $obj = DB::table($table)->where('id', $orderId)->first();
+            return $obj ? (array)$obj : null;
+        } catch (\Throwable $e) {
+            Log::error("getOrderRowById failed id={$orderId}: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /* ============================================================
+       EVENTS LOGGING
+       ============================================================ */
+
+    protected function orderEvent(int $orderId, string $type, string $message, array $payload = []): void
+    {
+        try {
+            $table = $this->eventsTable();
+
+            $row = [
+                'order_id'   => $orderId,
+                'type'       => $type,
+                'message'    => $message,
+                'payload'    => $payload ? json_encode($payload, JSON_UNESCAPED_UNICODE) : null,
+                'created_at' => date('Y-m-d H:i:s'),
+            ];
+
+            if ($this->db) {
+                $this->db->insert($table, $row);
+            } else {
+                DB::table($table)->insert($row);
+            }
+        } catch (\Throwable $e) {
+            // не валим процесс из-за логов
+            Log::warning('orderEvent failed: ' . $e->getMessage());
+        }
+    }
+
+    protected function getOrderEvents(int $orderId, int $afterId = 0, int $limit = 50): array
+    {
+        $table = $this->eventsTable();
+
+        try {
+            if ($this->db) {
+                $limit = max(1, min(200, (int)$limit));
+                $sql = "SELECT * FROM `{$table}` WHERE order_id = ? AND id > ? ORDER BY id ASC LIMIT {$limit}";
+                $rows = $this->db->getAll($sql, [$orderId, $afterId]) ?: [];
+                return array_map(function ($r) {
+                    return is_array($r) ? $r : (array)$r;
+                }, $rows);
+            }
+
+            $rows = DB::table($table)
+                ->where('order_id', $orderId)
+                ->where('id', '>', $afterId)
+                ->orderBy('id', 'asc')
+                ->limit(max(1, min(200, (int)$limit)))
+                ->get();
+
+            return $rows ? $rows->map(function ($r) { return (array)$r; })->all() : [];
+        } catch (\Throwable $e) {
+            Log::warning("getOrderEvents failed order_id={$orderId}: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /* ============================================================
+       EMAIL
+       ============================================================ */
+
+    protected function sendTicketEmailByOrderId(int $orderId): void
+    {
+        $row = $this->getOrderRowById($orderId);
+
+        if (!$row) {
+            Log::warning("sendTicketEmailByOrderId: order not found id={$orderId}");
+            $this->orderEvent($orderId, 'email_failed', 'Order not found', []);
+            return;
+        }
+
+        $email = (string)($row['client_email'] ?? '');
+        if ($email === '') {
+            Log::warning("sendTicketEmailByOrderId: empty email order_id={$orderId}");
+            $this->orderEvent($orderId, 'email_failed', 'Empty client_email', []);
+            return;
+        }
+
+        $ticketInfo = $this->getTicketInfo(
+            (int)($row['tour_id'] ?? 0),
+            (int)($row['from_stop'] ?? 0),
+            (int)($row['to_stop'] ?? 0)
+        );
+
+        $passengers = (int)($row['passengers_count'] ?? $row['passagers'] ?? 1);
+        $passengers = max(1, min(10, $passengers));
+
+        $passengerData = [
+            'name'        => $row['client_name'] ?? '',
+            'family_name' => $row['client_surname'] ?? '',
+            'patronymic'  => $row['client_patronymic'] ?? '',
+            'birth_date'  => $row['client_birth_date'] ?? '',
+            'email'       => $email,
+            'phone'       => $row['client_phone'] ?? '',
+            'phone_code'  => $row['client_phone_code'] ?? '',
+            'passengers'  => json_decode((string)($row['passengers_data'] ?? '[]'), true) ?: [],
+        ];
+
+        // total_price у тебя нет — считаем “на лету”
+        $totalPrice = (int)round($passengers * (float)($ticketInfo['price'] ?? 0));
+
+        $emailData = [
+            'ticketInfo'    => $ticketInfo,
+            'order'         => $row,
+            'passengerData' => $passengerData,
+            'totalPrice'    => $totalPrice,
+        ];
+
+        $this->orderEvent($orderId, 'email_send_try', 'Trying to send email', ['to' => $email]);
+
+        try {
+            Mail::send('emails.order_confirmation', $emailData, function ($message) use ($email) {
+                $message->to($email)->subject('Подтверждение заказа билета');
+            });
+
+            $this->orderEvent($orderId, 'email_sent', 'Email sent', ['to' => $email]);
+        } catch (\Throwable $e) {
+            Log::error("Email send failed order_id={$orderId}: " . $e->getMessage());
+            $this->orderEvent($orderId, 'email_failed', 'Email send failed', [
+                'to' => $email,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /* ============================================================
+       MONOBANK WEBHOOK
+       ============================================================ */
+
+    public function monobankWebhook(Request $request): Response
+    {
+        try {
+            $rawBody = (string)$request->getContent();
+            $xSign   = (string)$request->header('X-Sign');
+
+            if ($rawBody === '' || $xSign === '') {
+                Log::warning('Mono webhook: empty body or missing X-Sign');
+                // orderId неизвестен — в mt_order_events не запишем
+                return response('ok', 200);
+            }
+
+            $pubKeyB64 = $this->getMonobankPubKeyBase64();
+            if (!$pubKeyB64) {
+                Log::error('Mono webhook: cannot fetch pubkey');
+                return response('ok', 200);
+            }
+
+            $pubPem = "-----BEGIN PUBLIC KEY-----\n"
+                . chunk_split($pubKeyB64, 64, "\n")
+                . "-----END PUBLIC KEY-----\n";
+
+            $signature = base64_decode($xSign, true);
+            if ($signature === false) {
+                Log::warning('Mono webhook: X-Sign is not base64');
+                return response('ok', 200);
+            }
+
+            $ok = openssl_verify($rawBody, $signature, $pubPem, OPENSSL_ALGO_SHA256);
+            if ($ok !== 1) {
+                Log::warning('Mono webhook: signature invalid');
+                return response('ok', 200);
+            }
+
+            $payload = json_decode($rawBody, true);
+            if (!is_array($payload)) {
+                Log::warning('Mono webhook: invalid json');
+                return response('ok', 200);
+            }
+
+            $invoiceId = (string)($payload['invoiceId'] ?? '');
+            $status    = (string)($payload['status'] ?? '');
+            $modified  = (int)($payload['modifiedDate'] ?? 0);
+
+            if ($invoiceId === '') {
+                Log::warning('Mono webhook: missing invoiceId');
+                return response('ok', 200);
+            }
+
+            // Находим заказ по mono_invoice_id
+            $table = $this->ordersTable();
+            $orderRow = null;
+
+            if ($this->db) {
+                $tmp = $this->db->getOne("SELECT * FROM `{$table}` WHERE mono_invoice_id = ? LIMIT 1", [$invoiceId]);
+                $orderRow = $tmp ? (is_array($tmp) ? $tmp : (array)$tmp) : null;
+            } else {
+                $obj = DB::table($table)->where('mono_invoice_id', $invoiceId)->first();
+                $orderRow = $obj ? (array)$obj : null;
+            }
+
+            if (!$orderRow || empty($orderRow['id'])) {
+                Log::warning('Mono webhook: order not found for invoiceId=' . $invoiceId);
+                return response('ok', 200);
+            }
+
+            $orderId = (int)$orderRow['id'];
+
+            $this->orderEvent($orderId, 'mono_webhook_received', 'Webhook received', [
+                'invoiceId' => $invoiceId,
+                'status' => $status,
+                'modifiedDate' => $modified,
+            ]);
+
+            // если уже success — не трогаем
+            if ((string)($orderRow['mono_status'] ?? '') === 'success') {
+                $this->orderEvent($orderId, 'mono_webhook_ok', 'Already success ранее, пропускаем', [
+                    'current_mono_status' => (string)($orderRow['mono_status'] ?? ''),
+                ]);
+                return response('ok', 200);
+            }
+
+            $update = [
+                'mono_status' => $status,
+            ];
+
+            if ($status === 'success') {
+                $update['payment_status'] = 5; // paid
+                $update['paid_at'] = date('Y-m-d H:i:s');
+
+                $this->updateOrderById($orderId, $update);
+
+                $this->orderEvent($orderId, 'payment_success', 'Payment success. Order updated', $update);
+
+                // письмо после оплаты
+                $this->sendTicketEmailByOrderId($orderId);
+            } else {
+                // промежуточные/ошибочные статусы
+                if ($status === 'processing') $update['payment_status'] = 4;
+                if ($status === 'failure' || $status === 'expired') $update['payment_status'] = 9;
+
+                $this->updateOrderById($orderId, $update);
+
+                $this->orderEvent($orderId, 'mono_status_updated', 'Mono status updated (non-success)', $update);
+            }
+
+            return response('ok', 200);
+
+        } catch (\Throwable $e) {
+            Log::error('Mono webhook error: ' . $e->getMessage());
+            return response('ok', 200);
+        }
+    }
+
+    /**
+     * Получение pubkey (base64) мерчанта.
+     * Делаем максимально "живуче":
+     *  - если ответ JSON: берем key/pubkey
+     *  - если ответ просто строка base64: используем как есть
+     */
+    protected function getMonobankPubKeyBase64(): ?string
+    {
+        static $cached = null;
+        if ($cached !== null) return $cached;
+
+        $token = config('services.monobank.token') ?: env('MONOBANK_TOKEN');
+        if (!$token) return null;
+
+        $ch = curl_init('https://api.monobank.ua/api/merchant/pubkey');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => ['X-Token: ' . $token],
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_CONNECTTIMEOUT => 10,
+        ]);
+
+        $res  = curl_exec($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+
+        if ($code !== 200 || !$res) {
+            Log::error("getMonobankPubKeyBase64 failed http={$code} err={$err}");
+            return null;
+        }
+
+        $res = trim((string)$res);
+        if ($res === '') return null;
+
+        // Попробуем JSON
+        $j = json_decode($res, true);
+        if (is_array($j)) {
+            $key = $j['key'] ?? $j['pubkey'] ?? null;
+            if (is_string($key) && trim($key) !== '') {
+                $cached = trim($key);
+                return $cached;
+            }
+        }
+
+        // Иначе считаем, что это уже base64 строка
+        $cached = $res;
+        return $cached;
+    }
+
+    /* ============================================================
+       PAGES
+       ============================================================ */
 
     /**
      * Отображение страницы оплаты
@@ -49,8 +445,6 @@ class PaymentPageController extends Controller
             session_start();
         }
 
-        // ✅ НИКАКИХ "тестовых данных" на проде.
-        // Если заказа нет — возвращаем на главный шаг.
         if (!isset($_SESSION['order']['tour_id'])) {
             return redirect()->route('main');
         }
@@ -63,11 +457,9 @@ class PaymentPageController extends Controller
 
         $lang = $this->router->lang ?? 'ru';
 
-        // ✅ СИНХРОНИЗАЦИЯ passengers на входе в оплату
-        // Если на шаге 2 ты удалил пассажира, но order.passengers "залип" — мы выравниваем.
+        // синхронизация количества пассажиров
         $this->syncPassengersFromPassengerData();
 
-        // Инфа о билете — всегда из БД по данным из сессии (не из клиента)
         $ticketInfo = $this->getTicketInfo(
             (int)($_SESSION['order']['tour_id'] ?? 0),
             (int)($_SESSION['order']['from'] ?? 0),
@@ -97,21 +489,64 @@ class PaymentPageController extends Controller
         }
 
         $viewData = [
-            'ticketInfo' => $ticketInfo,
-            'monthData' => $monthData,
+            'ticketInfo'      => $ticketInfo,
+            'monthData'       => $monthData,
             'paymentDateTime' => $paymentDateTime,
-            'totalPrice' => $totalPrice,
-            'busOptions' => $busOptions,
-            'passengers' => $passengers,
-            'order' => $_SESSION['order'],
-            'tourDate' => $_SESSION['order']['date'] ?? date('Y-m-d'),
-            'Router' => $this->router,
-            'lang' => $lang,
-            'dictionary' => $GLOBALS['dictionary'] ?? []
+            'totalPrice'      => $totalPrice,
+            'busOptions'      => $busOptions,
+            'passengers'      => $passengers,
+            'order'           => $_SESSION['order'],
+            'tourDate'        => $_SESSION['order']['date'] ?? date('Y-m-d'),
+            'Router'          => $this->router,
+            'lang'            => $lang,
+            'dictionary'      => $GLOBALS['dictionary'] ?? []
         ];
 
         return view('payment.index', $viewData);
     }
+
+    public function thankYou(Request $request)
+    {
+        return view('payment.thank-you');
+    }
+
+    /* ============================================================
+       AJAX: order_events
+       ============================================================ */
+
+protected function ajaxOrderEvents(Request $request, string $lang = 'ru'): JsonResponse
+{
+    $orderId = (int)$request->input('order_id', 0);
+    $afterId = (int)$request->input('after_id', 0);
+
+    if ($orderId <= 0) {
+        return response()->json([
+            'lang'  => $lang,
+            'data'  => 'err',
+            'ok'    => false,
+            'error' => 'order_id_required',
+        ], 400);
+    }
+
+    $events = $this->getOrderEvents($orderId, $afterId, 100);
+
+    // - data:"ok" (legacy)
+    // - ok:true (новый стиль)
+    // - events (реальные данные)
+    return response()->json([
+        'lang'         => $lang,
+        'data'         => 'ok',
+        'ok'           => true,
+        'order_id'     => $orderId,
+        'after_id'     => $afterId,
+        'events'       => $events,
+        'events_count' => count($events),
+
+        '__marker'     => 'ajaxOrderEvents_v3_20260129',
+    ]);
+}
+
+
 
     /**
      * AJAX обработчики
@@ -122,11 +557,16 @@ class PaymentPageController extends Controller
             session_start();
         }
 
-        $requestType = $request->input('request');
+$requestType = $this->detectRequestType($request);
+
+
 
         switch ($requestType) {
             case 'order_route':
                 return $this->orderRoute($request);
+
+            case 'order_events':
+                return $this->ajaxOrderEvents($request, $lang);
 
             case 'delete_order_tour_id':
                 return $this->deleteOrderTourId();
@@ -135,13 +575,51 @@ class PaymentPageController extends Controller
                 return $this->sendOrderEmail($request);
 
             default:
-                return response()->json(['error' => 'Unknown request type'], 400);
+    Log::warning('AJAX unknown request type', [
+        'requestType' => $requestType,
+        'payload' => $request->all(),
+    ]);
+
+    return response()->json([
+        'data' => 'err',
+        'lang' => $lang,
+        'error' => 'Unknown request type',
+        'requestType' => $requestType,
+    ], 400);
+
+        }
+    }
+    
+    protected function detectRequestType(Request $request): string
+{
+    // что угодно мог прислать фронт
+    $t = (string)(
+        $request->input('request')
+        ?: $request->input('action')
+        ?: $request->input('type')
+        ?: $request->input('requestType')
+        ?: $request->input('r')
+        ?: ''
+    );
+
+    $t = trim($t);
+
+    // ✅ авто-детект: если requestType не прислали, но есть order_id/after_id — это order_events
+    if ($t === '') {
+        $orderId = (int)$request->input('order_id', 0);
+        if ($orderId > 0 && $request->has('after_id')) {
+            return 'order_events';
         }
     }
 
-    /**
-     * Создание заказа
-     */
+    return $t;
+}
+
+
+    /* ============================================================
+       ORDER ROUTE
+       ============================================================ */
+
     protected function orderRoute(Request $request): JsonResponse
     {
         try {
@@ -149,41 +627,144 @@ class PaymentPageController extends Controller
                 return response()->json(['data' => 'error', 'error' => 'no_order_in_session'], 400);
             }
 
-            // ✅ На всякий случай синхронизируем passengers ещё раз
             $this->syncPassengersFromPassengerData();
 
-            $paymethod = $request->input('paymethod');
+            $paymethod = (string)$request->input('paymethod', '');
+            if ($paymethod === '') $paymethod = 'monobank';
 
-            // ✅ ticketInfo / order — НЕ берём из клиента, берём из сессии и БД
             $order = $_SESSION['order'];
 
             $ticketInfo = $this->getTicketInfo(
-                (int)$order['tour_id'],
-                (int)$order['from'],
-                (int)$order['to']
+                (int)($order['tour_id'] ?? 0),
+                (int)($order['from'] ?? 0),
+                (int)($order['to'] ?? 0)
             );
 
             $passengerData = $_SESSION['passenger_data'] ?? [];
 
+            // Идемпотентность: если в сессии уже есть last_order_id и он существует — вернем его
+            $existingId = (int)($_SESSION['last_order_id'] ?? 0);
+            if ($existingId > 0) {
+                $ex = $this->getOrderRowById($existingId);
+                if ($ex && (int)($ex['id'] ?? 0) === $existingId) {
+                    $passengers = (int)($ex['passengers_count'] ?? $ex['passagers'] ?? 1);
+                    $passengers = max(1, min(10, $passengers));
+
+                    $this->orderEvent($existingId, 'order_route_reuse', 'Reusing existing order from session', [
+                        'paymethod' => $paymethod,
+                    ]);
+
+                    return response()->json([
+                        'data'           => 'ok',
+                        'mode'           => 'exists',
+                        'order_db_id'    => $existingId,
+                        'uniqid'         => (string)($ex['uniqid'] ?? ($_SESSION['last_order_uniqid'] ?? '')),
+                        'passengers'     => $passengers,
+                        'payment_status' => (int)($ex['payment_status'] ?? 0),
+                        'price'          => (int)round((float)($ticketInfo['price'] ?? 0)),
+                    ]);
+                }
+            }
+
             $orderId = $this->createOrder($order, $ticketInfo, $passengerData, $paymethod);
 
             if (!$orderId) {
-                return response()->json(['data' => 'error'], 500);
+                return response()->json([
+                    'data' => 'err',
+                    'code' => 'order_route_failed',
+                    'message' => 'create_order_failed',
+                ], 500);
             }
 
             $_SESSION['last_order_id'] = $orderId;
 
-            return response()->json(['data' => 'ok']);
+            $passengers = (int)($_SESSION['order']['passengers'] ?? 1);
+            $passengers = max(1, min(10, $passengers));
 
-        } catch (\Exception $e) {
+            $paymentStatus = ($paymethod === 'cash') ? 1 : 3;
+
+            return response()->json([
+                'data'           => 'ok',
+                'mode'           => 'created',
+                'order_db_id'    => $orderId,
+                'uniqid'         => (string)($_SESSION['last_order_uniqid'] ?? ''),
+                'passengers'     => $passengers,
+                'payment_status' => $paymentStatus,
+                'price'          => (int)round((float)($ticketInfo['price'] ?? 0)),
+            ]);
+
+        } catch (\Throwable $e) {
             Log::error('Order creation error: ' . $e->getMessage());
-            return response()->json(['data' => 'error'], 500);
+            return response()->json([
+                'data' => 'err',
+                'code' => 'order_route_failed',
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
 
     /**
-     * Создание платежа через LiqPay (legacy)
+     * Удаление tour_id из сессии
      */
+    protected function deleteOrderTourId(): JsonResponse
+    {
+        unset($_SESSION['order']['tour_id']);
+        return response()->json(['data' => 'ok']);
+    }
+
+    /* ============================================================
+       EMAIL (manual request)
+       ============================================================ */
+
+    protected function sendOrderEmail(Request $request): JsonResponse
+    {
+        try {
+            if (!isset($_SESSION['order']['tour_id'])) {
+                return response()->json('no_order', 400);
+            }
+
+            $this->syncPassengersFromPassengerData();
+
+            $order = $_SESSION['order'];
+
+            $ticketInfo = $this->getTicketInfo(
+                (int)($order['tour_id'] ?? 0),
+                (int)($order['from'] ?? 0),
+                (int)($order['to'] ?? 0)
+            );
+
+            $passengerData = $_SESSION['passenger_data'] ?? [];
+            if (empty($passengerData['email'])) {
+                return response()->json('no_email', 400);
+            }
+
+            $passengers = (int)($order['passengers'] ?? 1);
+            $passengers = max(1, min(10, $passengers));
+
+            $emailData = [
+                'ticketInfo'    => $ticketInfo,
+                'order'         => $order,
+                'passengerData' => $passengerData,
+                'totalPrice'    => (int)round($passengers * (float)($ticketInfo['price'] ?? 0)),
+            ];
+
+            Mail::send('emails.order_confirmation', $emailData, function ($message) use ($passengerData) {
+                $message->to($passengerData['email'])
+                    ->subject('Подтверждение заказа билета');
+            });
+
+            return response()->json('ok');
+
+        } catch (\Throwable $e) {
+            Log::error('Email sending error: ' . $e->getMessage());
+            return response()->json('error', 500);
+        }
+    }
+
+    /* ============================================================
+       LEGACY LIQPAY
+       ============================================================ */
+
     public function createLegacyPayment(Request $request): JsonResponse
     {
         try {
@@ -191,15 +772,14 @@ class PaymentPageController extends Controller
                 return response()->json(['success' => false, 'error' => 'no_order_in_session'], 400);
             }
 
-            // ✅ Не доверяем total_price из клиента — считаем заново
             $this->syncPassengersFromPassengerData();
 
             $order = $_SESSION['order'];
 
             $ticketInfo = $this->getTicketInfo(
-                (int)$order['tour_id'],
-                (int)$order['from'],
-                (int)$order['to']
+                (int)($order['tour_id'] ?? 0),
+                (int)($order['from'] ?? 0),
+                (int)($order['to'] ?? 0)
             );
 
             $passengers = (int)($order['passengers'] ?? 1);
@@ -231,7 +811,7 @@ class PaymentPageController extends Controller
                 'signature' => $paymentData['signature']
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Legacy payment creation error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
@@ -240,108 +820,105 @@ class PaymentPageController extends Controller
         }
     }
 
-    /**
-     * Удаление tour_id из сессии
-     */
-    protected function deleteOrderTourId(): JsonResponse
-    {
-        unset($_SESSION['order']['tour_id']);
-        return response()->json(['data' => 'ok']);
-    }
+    /* ============================================================
+       CREATE ORDER
+       ============================================================ */
 
-    /**
-     * Отправка email с информацией о заказе
-     */
-    protected function sendOrderEmail(Request $request): JsonResponse
-    {
-        try {
-            if (!isset($_SESSION['order']['tour_id'])) {
-                return response()->json('no_order', 400);
-            }
-
-            $this->syncPassengersFromPassengerData();
-
-            $order = $_SESSION['order'];
-
-            $ticketInfo = $this->getTicketInfo(
-                (int)$order['tour_id'],
-                (int)$order['from'],
-                (int)$order['to']
-            );
-
-            $passengerData = $_SESSION['passenger_data'] ?? [];
-            if (empty($passengerData['email'])) {
-                return response()->json('no_email', 400);
-            }
-
-            $passengers = (int)($order['passengers'] ?? 1);
-            $passengers = max(1, min(10, $passengers));
-
-            $emailData = [
-                'ticketInfo' => $ticketInfo,
-                'order' => $order,
-                'passengerData' => $passengerData,
-                'totalPrice' => (int)round($passengers * (float)($ticketInfo['price'] ?? 0)),
-            ];
-
-            Mail::send('emails.order_confirmation', $emailData, function ($message) use ($passengerData) {
-                $message->to($passengerData['email'])
-                    ->subject('Подтверждение заказа билета');
-            });
-
-            return response()->json('ok');
-
-        } catch (\Exception $e) {
-            Log::error('Email sending error: ' . $e->getMessage());
-            return response()->json('error', 500);
-        }
-    }
-
-    /**
-     * Создание записи заказа в БД
-     */
     protected function createOrder($order, $ticketInfo, $passengerData, $paymethod): ?int
     {
         try {
-            $prefix = DB_PREFIX;
+            $table = $this->ordersTable();
 
             $passengers = (int)($order['passengers'] ?? 1);
             $passengers = max(1, min(10, $passengers));
 
-            $price = (float)($ticketInfo['price'] ?? 0);
-            $total = (int)round($passengers * $price);
+            $uniqid = 'order_' . uniqid('', true);
+            $now = date('Y-m-d H:i:s');
 
-            $orderData = [
-                'tour_id' => (int)($order['tour_id'] ?? 0),
-                'from_stop' => (int)($order['from'] ?? 0),
-                'to_stop' => (int)($order['to'] ?? 0),
-                'tour_date' => $order['date'] ?? date('Y-m-d'),
-                'passengers_count' => $passengers,
-                'price' => $price,
-                'total_price' => $total,
-                'payment_method' => $paymethod,
-                'status' => $paymethod === 'cash' ? 'pending' : 'waiting_payment',
-                'client_name' => $passengerData['name'] ?? '',
-                'client_surname' => $passengerData['family_name'] ?? '',
-                'client_patronymic' => $passengerData['patronymic'] ?? '',
-                'client_email' => $passengerData['email'] ?? '',
-                'client_phone' => $passengerData['phone'] ?? '',
-                'client_phone_code' => $passengerData['phone_code'] ?? '',
-                'passengers_data' => json_encode($passengerData['passengers'] ?? []),
-                'created_at' => date('Y-m-d H:i:s')
-            ];
-
-            if ($this->db) {
-                return $this->db->insert("{$prefix}_orders", $orderData);
+            $rawPhone = (string)($passengerData['phone'] ?? '');
+            $phoneDigits = preg_replace('/\D+/', '', $rawPhone);
+            if (strlen($phoneDigits) > 20) {
+                $phoneDigits = substr($phoneDigits, 0, 20);
             }
 
-            return DB::table("{$prefix}_orders")->insertGetId($orderData);
+            $orderData = [
+                'active'           => 1,
+                'client_id'        => (int)($this->user->id ?? 0),
 
-        } catch (\Exception $e) {
+                'tour_id'          => (int)($order['tour_id'] ?? 0),
+                'from_stop'        => (int)($order['from'] ?? 0),
+                'to_stop'          => (int)($order['to'] ?? 0),
+                'tour_date'        => $order['date'] ?? date('Y-m-d'),
+
+                'passengers_count' => $passengers,
+                'passagers'        => $passengers,
+
+                'document'         => 0,
+                'date'             => $now,
+                'created_at'       => $now,
+
+                'ticket_return'    => 0,
+
+                'client_name'      => (string)($passengerData['name'] ?? ''),
+                'client_surname'   => (string)($passengerData['family_name'] ?? ''),
+                'client_patronymic'=> (string)($passengerData['patronymic'] ?? ''),
+                'client_birth_date'=> (string)($passengerData['birth_date'] ?? ''),
+
+                'client_email'     => (string)($passengerData['email'] ?? ''),
+                'client_phone'     => $phoneDigits ?: (string)($passengerData['phone'] ?? ''),
+                'client_phone_code'=> (string)($passengerData['phone_code'] ?? ''),
+
+                'passengers_data'  => json_encode($passengerData['passengers'] ?? [], JSON_UNESCAPED_UNICODE),
+
+                'uniqid'           => $uniqid,
+
+                'payment_status'   => ($paymethod === 'cash') ? 1 : 3,
+                'mono_status'      => ($paymethod === 'monobank') ? 'created' : null,
+            ];
+
+            $orderData = $this->filterOrderDataByExistingColumns($orderData);
+            if (!$orderData) {
+                Log::error('createOrder: no valid columns to insert (check mt_orders structure)');
+                return null;
+            }
+
+            $newId = null;
+
+            if ($this->db) {
+                $newId = $this->db->insert($table, $orderData);
+            } else {
+                $newId = DB::table($table)->insertGetId($orderData);
+            }
+
+            if (!$newId) {
+                Log::error('createOrder: insert failed');
+                return null;
+            }
+
+            $_SESSION['last_order_id'] = (int)$newId;
+            $_SESSION['last_order_uniqid'] = $uniqid;
+
+            $this->orderEvent((int)$newId, 'order_created', 'Order inserted into mt_orders', [
+                'paymethod' => $paymethod,
+                'uniqid' => $uniqid,
+                'tour_id' => (int)($order['tour_id'] ?? 0),
+                'from' => (int)($order['from'] ?? 0),
+                'to' => (int)($order['to'] ?? 0),
+                'tour_date' => $order['date'] ?? null,
+                'passengers' => $passengers,
+            ]);
+
+            return (int)$newId;
+
+        } catch (\Throwable $e) {
             Log::error('Order creation DB error: ' . $e->getMessage());
             return null;
         }
     }
+
+    /* ============================================================
+       DATA QUERIES
+       ============================================================ */
 
     protected function getTicketInfo($tourId, $fromStop, $toStop): array
     {
@@ -374,53 +951,59 @@ class PaymentPageController extends Controller
         AND from_stop.stop_id = ?
         AND to_stop.stop_id = ?";
 
-        if ($this->db) {
-            $result = $this->db->getOne($sql, [(int)$tourId, (int)$fromStop, (int)$toStop]);
-            return $result ?? [];
-        }
+        try {
+            if ($this->db) {
+                $result = $this->db->getOne($sql, [(int)$tourId, (int)$fromStop, (int)$toStop]);
+                return $result ? (is_array($result) ? $result : (array)$result) : [];
+            }
 
-        $result = DB::selectOne($sql, [(int)$tourId, (int)$fromStop, (int)$toStop]);
-        return $result ? (array)$result : [];
+            $result = DB::selectOne($sql, [(int)$tourId, (int)$fromStop, (int)$toStop]);
+            return $result ? (array)$result : [];
+        } catch (\Throwable $e) {
+            Log::error('getTicketInfo error: ' . $e->getMessage());
+            return [];
+        }
     }
 
     protected function getMonthName($date, $lang = 'ru'): array
     {
         $prefix = DB_PREFIX;
-        $month = (int)explode('-', $date)[1];
+        $month = (int)explode('-', (string)$date)[1];
 
-        if ($this->db) {
-            return $this->db->getOne(
-                "SELECT title_{$lang} AS title FROM `{$prefix}_months` WHERE id = ?",
+        try {
+            if ($this->db) {
+                $r = $this->db->getOne(
+                    "SELECT title_{$lang} AS title FROM `{$prefix}_months` WHERE id = ?",
+                    [$month]
+                );
+                return $r ? (is_array($r) ? $r : (array)$r) : [];
+            }
+
+            $result = DB::selectOne(
+                "SELECT title_{$lang} as title FROM `{$prefix}_months` WHERE id = ?",
                 [$month]
-            ) ?? [];
+            );
+            return $result ? (array)$result : [];
+        } catch (\Throwable $e) {
+            Log::error('getMonthName error: ' . $e->getMessage());
+            return [];
         }
-
-        $result = DB::selectOne(
-            "SELECT title_{$lang} as title FROM `{$prefix}_months` WHERE id = ?",
-            [$month]
-        );
-        return $result ? (array)$result : [];
     }
 
     protected function formatPaymentDateTime($date, $departureTime, $monthData): string
     {
-        $parts = explode('-', $date);
+        $parts = explode('-', (string)$date);
         $day = isset($parts[2]) ? (int)$parts[2] : (int)date('d');
         $monthName = $monthData['title'] ?? '';
-        $time = $departureTime ? date('H:i', strtotime($departureTime)) : '00:00';
+        $time = $departureTime ? date('H:i', strtotime((string)$departureTime)) : '00:00';
 
         return "{$day} {$monthName} {$time}";
     }
 
-    public function thankYou(Request $request)
-    {
-        return view('payment.thank-you');
-    }
+    /* ============================================================
+       PASSENGERS SYNC
+       ============================================================ */
 
-    /**
-     * Выравниваем order.passengers по passenger_data.passengers, если оно есть.
-     * Это лечит "залипание" 2 после удаления пассажира на шаге 2.
-     */
     protected function syncPassengersFromPassengerData(): void
     {
         if (!isset($_SESSION['order'])) {
@@ -430,7 +1013,6 @@ class PaymentPageController extends Controller
         $extra = 0;
 
         if (isset($_SESSION['passenger_data']['passengers']) && is_array($_SESSION['passenger_data']['passengers'])) {
-            // считаем только реально заполненные строки, а не пустые болванки
             foreach ($_SESSION['passenger_data']['passengers'] as $row) {
                 if (!is_array($row)) continue;
 
@@ -449,7 +1031,6 @@ class PaymentPageController extends Controller
         $current = (int)($_SESSION['order']['passengers'] ?? 1);
         $current = max(1, min(10, $current));
 
-        // Если computed=1, а в order залипло 2 — выравниваем
         if ($computed !== $current) {
             $_SESSION['order']['passengers'] = $computed;
         }

@@ -212,7 +212,114 @@ body.fp-filter-open .passengers_filter_wrapper {
     pointer-events: none !important;
 }
 
+/* =========================
+   HOME HERO (MOBILE) — FIX: не уезжает под header + ровный цвет инпутов
+   ========================= */
+@media (max-width: 768px) {
 
+    /* 1) Чтобы контент не залезал под фикс-хедер */
+    .main_index_block .mib_content {
+        /* даём отступ сверху = высота шапки + небольшой запас */
+        padding-top: calc(var(--mt-header-h, 70px) + 14px) !important;
+    }
+
+    /* Если у тебя контейнеру задан свой padding/margin — страхуем */
+    .main_index_block .mib_content > .container {
+        padding-top: 0 !important;
+    }
+
+    /* 2) Делаем hero как "экран" на мобилке, чтобы фильтр был видим */
+    .main_index_block {
+        position: relative;
+        min-height: 100vh;  /* чтобы блок точно был высотой экрана */
+        overflow: hidden;
+    }
+
+    /* Картинка фоном */
+    .main_index_block .mib_back_img {
+        position: absolute !important;
+        inset: 0;
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+        object-position: 30%; /* видим левую часть */
+        transform: none !important;
+        z-index: 0 !important;
+    }
+
+    /* Затемнение */
+    .main_index_block::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.28);
+        z-index: 1;
+        pointer-events: none;
+    }
+
+    /* Контент поверх */
+    .main_index_block .mib_content {
+        position: relative;
+        z-index: 2;
+    }
+
+    /* Заголовок пожирнее */
+    .main_index_block .mib_content_header {
+        font-weight: 800 !important;
+        text-transform: uppercase;
+        text-shadow: 0 2px 10px rgba(0,0,0,.35);
+    }
+
+    /* =========================
+       3) Инпуты: единый серый фон ПОЛНОСТЬЮ (как на скрине)
+       ВАЖНО: красим "блок поля", а внутренности делаем прозрачными
+       ========================= */
+
+    /* Унифицированный цвет */
+    .main_index_block .filter_block_wrapper .filter_block,
+    .main_index_block .filter_block_wrapper .filter_block * {
+        box-shadow: none !important;
+    }
+
+    /* Именно "плашка поля" — серым */
+    .main_index_block .filter_block_wrapper .filter_block {
+        background: #E6E8EC !important;
+        border: 1px solid rgba(0,0,0,.10) !important;
+        border-radius: 4px !important;
+        overflow: hidden; /* чтобы серый был "целиком" */
+    }
+
+    /* Внутренние input/select делаем прозрачными, чтобы не было белых вставок */
+    .main_index_block .filter_block_wrapper .filter_block input,
+    .main_index_block .filter_block_wrapper .filter_block select,
+    .main_index_block .filter_block_wrapper .filter_block textarea {
+        background: transparent !important;
+        border: 0 !important;
+        outline: none !important;
+    }
+
+    /* Если у тебя select2/кастомный селект — тоже прозрачный внутри */
+    .main_index_block .select2-container .select2-selection--single,
+    .main_index_block .select2-container .select2-selection--multiple {
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    /* Лейблы немного спокойнее (как на скрине) */
+    .main_index_block .filter_block_wrapper label,
+    .main_index_block .filter_block_wrapper .filter_label,
+    .main_index_block .filter_block_wrapper .filter_title {
+        color: rgba(0,0,0,.55) !important;
+        font-weight: 500 !important;
+    }
+}
+@media (max-width: 992px) {
+    .main_filter {
+        padding: 90px 0;
+        margin-top: 115%;
+    }
+}
 </style>
 
 
