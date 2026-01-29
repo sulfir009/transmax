@@ -98,7 +98,7 @@ Route::post('/ajax/payment/{lang}', '\App\Http\Controllers\PaymentPageController
     ->name('payment.page.ajax');
 
 // Legacy AJAX route - должен быть перед другими ajax маршрутами
-Route::post('/ajax/{lang}', '\App\Http\Controllers\Ajax\LegacyAjaxController@handleRequest')
+Route::match(['GET', 'POST'], '/ajax/{lang}', '\App\Http\Controllers\Ajax\LegacyAjaxController@handleRequest')
     ->where('lang', 'ru|uk|ua|en')
     ->name('ajax.legacy');
 
