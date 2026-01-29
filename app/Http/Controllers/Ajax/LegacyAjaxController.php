@@ -12,6 +12,9 @@ class LegacyAjaxController extends Controller
 {
     public function handleRequest(Request $request, $lang)
     {
+        if (!$request instanceof Request) {
+            $request = request();
+        }
         $correlationId = (string) Str::uuid();
         $requestType = $request->input('request');
         
@@ -152,8 +155,11 @@ class LegacyAjaxController extends Controller
         return null;
     }
 
-    private function isDebugRequest(Request $request): bool
+    private function isDebugRequest($request): bool
     {
+        if (!$request instanceof Request) {
+            $request = request();
+        }
         $debugEnabled = (string) $request->query('debug') === '1';
         $token = (string) $request->header('X-Debug-Token');
         $expected = (string) env('PAYMENT_DEBUG_TOKEN');
