@@ -269,7 +269,7 @@ $(document).ready(function () {
 
     // =========================================================
     // TRACE order_events
-    // ВАЖНО: у тебя /ajax/ru отвечает legacy для order_events.
+    // ВАЖНО: /ajax/ru обслуживается legacy. Для order_events используем payment-роут.
     // Поэтому тут мы НЕ ГАДАЕМ, а делаем:
     // - если сервер вернул ok:true/events[] -> печатаем
     // - иначе -> показываем ERR и выводим сырой ответ
@@ -287,7 +287,7 @@ $(document).ready(function () {
 
         $.ajax({
             type: 'post',
-            url: '/ajax/ru',
+            url: '/ajax/payment/ru',
             dataType: 'text', // НЕ json, чтобы не падать на мусорных ответах
             timeout: 15000,
             headers: CSRF_TOKEN ? { 'X-CSRF-TOKEN': CSRF_TOKEN } : {},

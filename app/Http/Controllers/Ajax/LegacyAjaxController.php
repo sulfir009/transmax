@@ -5,11 +5,25 @@ namespace App\Http\Controllers\Ajax;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class LegacyAjaxController extends Controller
 {
     public function handleRequest(Request $request, $lang)
     {
+        $path = base_path('legacy/public/pages/ajax.php');
+        if (!is_file($path)) {
+            Log::error('Legacy ajax.php not found', [
+                'path' => $path,
+                'lang' => $lang,
+                'request' => $request->all(),
+            ]);
+            return response()->json([
+                'data' => 'error',
+                'error' => 'legacy_ajax_not_found',
+            ], 404);
+        }
+
         $requestType = $request->input('request');
         
         // Обработка запроса filter_date
@@ -47,7 +61,14 @@ class LegacyAjaxController extends Controller
         // Для всех остальных запросов используем legacy код
         ob_start();
         $_POST = $request->all();
-        require app_path('../../legacy/public/pages/ajax.php');
+        if (str_starts_with((string)$request->header('Content-Type'), 'application/json')) {
+            $jsonBody = json_decode((string)$request->getContent(), true);
+            if (is_array($jsonBody)) {
+                $_POST = $jsonBody + $_POST;
+            }
+        }
+        $_REQUEST = $_POST;
+        require $path;
         $output = ob_get_clean();
         
         return response($output);

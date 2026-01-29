@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Payments\MonobankPaymentController;
+use App\Http\Controllers\Payments\MonobankWebhookController;
 use App\Http\Middleware\VerifyCsrfToken;
 
 // старт выставления инвойса
@@ -20,7 +21,7 @@ Route::get('/payment/monobank/fail/{order}', [MonobankPaymentController::class, 
     ->name('payment.monobank.fail');
 
 // webhook — без CSRF
-Route::post('/payment/monobank/webhook', [MonobankPaymentController::class, 'webhook'])
+Route::post('/payment/monobank/webhook', [MonobankWebhookController::class, 'handle'])
     ->withoutMiddleware([VerifyCsrfToken::class])
     ->name('payment.monobank.webhook');
 
@@ -91,8 +92,15 @@ Route::get('/ajax/regular-races', '\App\Http\Controllers\Ajax\RegularRacesContro
 // Site AJAX routes
 Route::post('/ajax/site/lang', '\App\Http\Controllers\Ajax\SiteController@changeLang')->name('ajax.site.lang');
 
+// Payment AJAX routes (не должен перехватываться legacy)
+Route::post('/ajax/payment/{lang}', [\App\Http\Controllers\PaymentPageController::class, 'ajax'])
+    ->where('lang', 'ru|ua|en')
+    ->name('payment.page.ajax');
+
 // Legacy AJAX route - должен быть перед другими ajax маршрутами
-Route::post('/ajax/{lang}', '\App\Http\Controllers\Ajax\LegacyAjaxController@handleRequest')->name('ajax.legacy');
+Route::post('/ajax/{lang}', '\App\Http\Controllers\Ajax\LegacyAjaxController@handleRequest')
+    ->where('lang', 'ru|ua|en')
+    ->name('ajax.legacy');
 
 Route::post('/ajax/booking/{lang}', '\App\Http\Controllers\BookingController@ajax')->name('booking.ajax');
 
@@ -107,8 +115,8 @@ Route::post('/payment/page/legacy-create', '\App\Http\Controllers\PaymentPageCon
 
 // Страница благодарности после оплаты (legacy route for backward compatibility)
 Route::get('/thank-you', '\App\Http\Controllers\PaymentPageController@thankYou')->name('payment.thank-you');
-Route::post('/ajax/{lang}', [PaymentPageController::class, 'ajax'])
-    ->where('lang', 'ru|ua|en');
+// Route::post('/ajax/{lang}', [PaymentPageController::class, 'ajax'])
+//     ->where('lang', 'ru|ua|en');
 
 
 // Thank you page routes (refactored version)
@@ -143,4 +151,3 @@ Route::post('/payment/callback', [\App\Http\Controllers\PaymentController::class
 // Legacy платежи (без CSRF для совместимости с legacy кодом)
 Route::post('/payment/legacy/create', [\App\Http\Controllers\LegacyPaymentController::class, 'createFromLegacy'])->name('payment.legacy.create');
 Route::post('/payment/legacy/callback', [\App\Http\Controllers\LegacyPaymentController::class, 'callback'])->name('payment.legacy.callback');
-
