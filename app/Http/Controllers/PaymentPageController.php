@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Repository\BusRepository;
 use App\Repository\Order\OrderRepository;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Service\LiqPayService;
 use App\Services\Payments\MonobankAcquiringService;
 use App\Services\Payments\PaymentFinalizer;
@@ -264,13 +265,51 @@ class PaymentPageController extends Controller
 
         $legacyOrderId = (string) ($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
         $correlationId = PaymentFinalizer::buildCorrelationId($order->id, $legacyOrderId, $order->mono_invoice_id ?? null);
+        $requestPaymentProvider = (string) ($request->input('payment_provider') ?: $request->query('payment_provider') ?: '');
+        $paymentProvider = strtolower((string) ($order->payment_provider ?? $requestPaymentProvider));
+        $invoiceId = $order->mono_invoice_id ?? null;
+        $invoiceLinkedFromPayment = false;
+
+        if ($paymentProvider === 'monobank' && !$invoiceId) {
+            $payment = Payment::where('order_id', $legacyOrderId)->first();
+            if ($payment && $payment->payment_id) {
+                $invoiceId = (string) $payment->payment_id;
+                $invoiceLinkedFromPayment = true;
+                Log::info('[order_events] linked invoice from payment', [
+                    'correlation_id' => $correlationId,
+                    'order_id' => $order->id,
+                    'uniqid' => $legacyOrderId,
+                    'invoice_id' => $invoiceId,
+                ]);
+                if (array_key_exists('mono_invoice_id', $order->getAttributes())) {
+                    $order->mono_invoice_id = $invoiceId;
+                    try {
+                        $order->save();
+                    } catch (\Throwable $e) {
+                        Log::warning('[order_events] failed to persist mono_invoice_id', [
+                            'correlation_id' => $correlationId,
+                            'order_id' => $order->id,
+                            'uniqid' => $legacyOrderId,
+                            'invoice_id' => $invoiceId,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            }
+        }
+
+        if ($invoiceLinkedFromPayment) {
+            $correlationId = PaymentFinalizer::buildCorrelationId($order->id, $legacyOrderId, $invoiceId);
+        }
         $debugInfo = [
             'order_id' => $order->id,
             'uniqid_request' => $uniqid,
             'uniqid_db' => $legacyOrderId,
-            'invoiceId' => $order->mono_invoice_id ?? null,
+            'invoiceId' => $invoiceId,
             'poll' => $poll,
             'check_remote' => $checkRemote,
+            'payment_provider' => $paymentProvider,
+            'invoice_linked_from_payment' => $invoiceLinkedFromPayment,
         ];
 
         if ((int) $order->payment_status === 2) {
@@ -311,8 +350,6 @@ class PaymentPageController extends Controller
         $remoteStatus = null;
         $finalizeResult = null;
 
-        $paymentProvider = strtolower((string) ($order->payment_provider ?? ''));
-        $invoiceId = $order->mono_invoice_id ?? null;
         $alreadyFinalized = ((int) ($order->online ?? 0) === 1)
             || ((int) ($order->status ?? 0) === 1)
             || ((string) ($order->mono_status ?? '') === 'success');
