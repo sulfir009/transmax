@@ -3,8 +3,10 @@
 namespace App\Services\Payments;
 
 use App\Models\Order;
+use App\Models\Payment;
 use App\Service\TicketService;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class PaymentFinalizer
@@ -145,6 +147,137 @@ class PaymentFinalizer
                 'correlation_id' => $correlationId,
             ];
         }
+    }
+
+    public function finalizeMonobankPaidIfNeeded(Order $order, array $monoStatus, string $source = 'polling'): array
+    {
+        $legacyOrderId = (string) ($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
+        $invoiceId = $monoStatus['invoiceId'] ?? $order->mono_invoice_id ?? null;
+        $correlationId = self::buildCorrelationId($order->id, $legacyOrderId, $invoiceId);
+
+        $result = [
+            'finalized' => false,
+            'already' => false,
+            'ticket' => null,
+            'correlation_id' => $correlationId,
+        ];
+
+        DB::transaction(function () use (
+            $order,
+            $monoStatus,
+            $source,
+            $legacyOrderId,
+            $invoiceId,
+            $correlationId,
+            &$result
+        ) {
+            $lockedOrder = Order::where('id', $order->id)->lockForUpdate()->first();
+            if (!$lockedOrder) {
+                Log::warning('[PaymentFinalizer] monobank finalize missing order', [
+                    'correlation_id' => $correlationId,
+                    'invoice_id' => $invoiceId,
+                ]);
+                $result['error'] = 'missing_order';
+                return;
+            }
+
+            $monoStatusValue = strtolower((string) ($monoStatus['status'] ?? ''));
+            $alreadyFinalized = ((int) ($lockedOrder->online ?? 0) === 1)
+                || ((int) ($lockedOrder->status ?? 0) === 1)
+                || ((string) ($lockedOrder->mono_status ?? '') === 'success');
+
+            Log::info('[PaymentFinalizer] monobank finalize check', [
+                'correlation_id' => $correlationId,
+                'source' => $source,
+                'invoice_id' => $invoiceId,
+                'order_db_id' => $lockedOrder->id,
+                'legacy_order_id' => $legacyOrderId,
+                'mono_status' => $monoStatusValue,
+                'already_finalized' => $alreadyFinalized,
+            ]);
+
+            if ($alreadyFinalized) {
+                $result['finalized'] = true;
+                $result['already'] = true;
+                return;
+            }
+
+            if ($monoStatusValue !== 'success') {
+                return;
+            }
+
+            $lockedOrder->online = 1;
+            $lockedOrder->status = 1;
+            $lockedOrder->payment_status = 2;
+            if (array_key_exists('mono_status', $lockedOrder->getAttributes())) {
+                $lockedOrder->mono_status = 'success';
+            }
+
+            try {
+                $lockedOrder->save();
+            } catch (\Throwable $e) {
+                Log::error('[PaymentFinalizer] monobank finalize failed to save order', [
+                    'correlation_id' => $correlationId,
+                    'order_db_id' => $lockedOrder->id,
+                    'error' => $e->getMessage(),
+                ]);
+                $result['error'] = 'order_save_failed';
+                return;
+            }
+
+            $payloadJson = json_encode($monoStatus, JSON_UNESCAPED_UNICODE);
+            $payment = Payment::where('order_id', $legacyOrderId)->lockForUpdate()->first();
+            if ($payment) {
+                $payment->status = 'success';
+                $payment->response = $payloadJson;
+                $payment->paid_at = $payment->paid_at ?: now();
+                $payment->save();
+            } else {
+                Payment::updateOrCreate(
+                    ['order_id' => $legacyOrderId],
+                    [
+                        'payment_id' => $invoiceId ? (string) $invoiceId : null,
+                        'status' => 'success',
+                        'currency' => 'UAH',
+                        'response' => $payloadJson,
+                        'paid_at' => now(),
+                    ]
+                );
+            }
+
+            $result['finalized'] = true;
+        });
+
+        if (!$result['finalized'] || $result['already']) {
+            return $result;
+        }
+
+        try {
+            /** @var TicketService $ticketService */
+            $ticketService = app(TicketService::class);
+            $ticketService->processSuccessfulPayment($legacyOrderId, array_merge($monoStatus, [
+                'source' => $source,
+                'correlation_id' => $correlationId,
+            ]));
+            $result['ticket'] = ['status' => 'ok'];
+
+            Log::info('[PaymentFinalizer] monobank finalize tickets ok', [
+                'correlation_id' => $correlationId,
+                'order_db_id' => $order->id,
+                'legacy_order_id' => $legacyOrderId,
+            ]);
+        } catch (\Throwable $e) {
+            $result['ticket'] = ['status' => 'error', 'message' => $e->getMessage()];
+
+            Log::error('[PaymentFinalizer] monobank finalize ticket pipeline failed', [
+                'correlation_id' => $correlationId,
+                'order_db_id' => $order->id,
+                'legacy_order_id' => $legacyOrderId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $result;
     }
 
     private function findTicketFiles(int $orderId): array

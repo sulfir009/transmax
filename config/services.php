@@ -25,11 +25,12 @@ return [
     ],
     
     'monobank' => [
-    'token'        => env('MONOBANK_MERCHANT_TOKEN'),
+    'token'        => env('MONOBANK_TOKEN', env('MONOBANK_MERCHANT_TOKEN')),
     'api_base'     => env('MONOBANK_API_BASE', 'https://api.monobank.ua'),
     'ccy'          => (int) env('MONOBANK_CCY', 980),
     'redirect_url' => env('MONOBANK_REDIRECT_URL'),
     'webhook_url'  => env('MONOBANK_WEBHOOK_URL'),
+    'status_poll_seconds' => (int) env('MONOBANK_STATUS_POLL_SECONDS', 25),
 ],
 
 
