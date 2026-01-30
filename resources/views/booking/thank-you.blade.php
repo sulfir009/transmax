@@ -85,6 +85,7 @@
         const uniqid = urlParams.get('uniqid') || '';
         const lang = '{{ app()->getLocale() }}';
         const pollingEndpoint = `/ajax/payment/${encodeURIComponent(lang)}`;
+        const debugEnabled = urlParams.get('debug') === '1';
         const note = document.getElementById('payment-status-note');
 
         console.log('[PAYMENT THANKYOU] params', { order_id: orderId, uniqid: uniqid, lang: lang });
@@ -113,8 +114,13 @@
             const payload = new URLSearchParams({
                 request: 'order_events',
                 order_id: orderId,
-                uniqid: uniqid
+                uniqid: uniqid,
+                poll: String(pollCount),
+                check_remote: pollCount >= 6 ? '1' : '0'
             });
+            if (debugEnabled) {
+                payload.set('debug', '1');
+            }
 
             fetch(pollingEndpoint, {
                 method: 'POST',
@@ -151,6 +157,9 @@
                         parsed: parsed,
                         missing_fields: missingFields
                     });
+                    if (debugEnabled && parsed && parsed._debug) {
+                        console.log('[PAYMENT THANKYOU] debug', parsed._debug);
+                    }
 
                     if (parsed && parsed.status === 'ok' && parsed.payment_status === 2) {
                         updateNote('Оплату підтверджено. Квиток буде надіслано на email.');

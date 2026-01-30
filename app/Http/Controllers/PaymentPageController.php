@@ -6,10 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Repository\BusRepository;
 use App\Repository\Order\OrderRepository;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Service\LiqPayService;
+use App\Services\Payments\MonobankAcquiringService;
 use App\Services\Payments\PaymentFinalizer;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -199,8 +202,18 @@ class PaymentPageController extends Controller
 
     protected function orderEvents(Request $request, string $correlationId): JsonResponse
     {
+        // Manual verification notes (no automated tests in repo):
+        // - Open thank-you page with ?order_id=...&uniqid=...&debug=1 to view _debug payload.
+        // - Check logs for "[Monobank] invoice/status" and "[PaymentFinalizer] monobank finalize".
+        // - Verify DB: orders.online/status/payment_status=1/1/2 and payments.status=success.
         $orderId = $request->input('order_id');
         $uniqid = $request->input('uniqid');
+        $poll = (int) $request->input('poll', 0);
+        $checkRemote = (int) $request->input('check_remote', 0) === 1;
+        if ($poll >= 6) {
+            $checkRemote = true;
+        }
+        $debugEnabled = $this->isDebugRequest($request);
 
         Log::info('[order_events] incoming', [
             'correlation_id' => $correlationId,
@@ -237,19 +250,67 @@ class PaymentPageController extends Controller
                 'status' => 'error',
                 'message' => 'order_not_found',
             ], 404);
-            if ($this->isDebugRequest($request)) {
-                $response = $this->withDebugMeta($response, [
-                    'handled_by' => 'PaymentPageController@ajax',
-                    'route' => '/ajax/payment/{lang}',
-                    'correlation_id' => $correlationId,
-                    'request' => 'order_events',
-                ]);
+            if ($debugEnabled) {
+                $payload = $response->getData(true);
+                $payload['_debug'] = [
+                    'order_id' => $orderId,
+                    'uniqid_request' => $uniqid,
+                    'poll' => $poll,
+                    'check_remote' => $checkRemote,
+                ];
+                $response = response()->json($payload, $response->getStatusCode());
             }
             return $response;
         }
 
         $legacyOrderId = (string) ($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
         $correlationId = PaymentFinalizer::buildCorrelationId($order->id, $legacyOrderId, $order->mono_invoice_id ?? null);
+        $requestPaymentProvider = (string) ($request->input('payment_provider') ?: $request->query('payment_provider') ?: '');
+        $paymentProvider = strtolower((string) ($order->payment_provider ?? $requestPaymentProvider));
+        $invoiceId = $order->mono_invoice_id ?? null;
+        $invoiceLinkedFromPayment = false;
+
+        if ($paymentProvider === 'monobank' && !$invoiceId) {
+            $payment = Payment::where('order_id', $legacyOrderId)->first();
+            if ($payment && $payment->payment_id) {
+                $invoiceId = (string) $payment->payment_id;
+                $invoiceLinkedFromPayment = true;
+                Log::info('[order_events] linked invoice from payment', [
+                    'correlation_id' => $correlationId,
+                    'order_id' => $order->id,
+                    'uniqid' => $legacyOrderId,
+                    'invoice_id' => $invoiceId,
+                ]);
+                if (array_key_exists('mono_invoice_id', $order->getAttributes())) {
+                    $order->mono_invoice_id = $invoiceId;
+                    try {
+                        $order->save();
+                    } catch (\Throwable $e) {
+                        Log::warning('[order_events] failed to persist mono_invoice_id', [
+                            'correlation_id' => $correlationId,
+                            'order_id' => $order->id,
+                            'uniqid' => $legacyOrderId,
+                            'invoice_id' => $invoiceId,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            }
+        }
+
+        if ($invoiceLinkedFromPayment) {
+            $correlationId = PaymentFinalizer::buildCorrelationId($order->id, $legacyOrderId, $invoiceId);
+        }
+        $debugInfo = [
+            'order_id' => $order->id,
+            'uniqid_request' => $uniqid,
+            'uniqid_db' => $legacyOrderId,
+            'invoiceId' => $invoiceId,
+            'poll' => $poll,
+            'check_remote' => $checkRemote,
+            'payment_provider' => $paymentProvider,
+            'invoice_linked_from_payment' => $invoiceLinkedFromPayment,
+        ];
 
         if ((int) $order->payment_status === 2) {
             /** @var PaymentFinalizer $finalizer */
@@ -275,13 +336,67 @@ class PaymentPageController extends Controller
                 'payment_status' => 2,
                 'finalized' => $finalized,
             ]);
-            if ($this->isDebugRequest($request)) {
-                $response = $this->withDebugMeta($response, [
-                    'handled_by' => 'PaymentPageController@ajax',
-                    'route' => '/ajax/payment/{lang}',
-                    'correlation_id' => $correlationId,
-                    'request' => 'order_events',
+            if ($debugEnabled) {
+                $payload = $response->getData(true);
+                $payload['_debug'] = array_merge($debugInfo, [
+                    'finalize_result' => $finalizeResult,
                 ]);
+                $response = response()->json($payload, $response->getStatusCode());
+            }
+            return $response;
+        }
+
+        $remoteCheckAllowed = false;
+        $remoteStatus = null;
+        $finalizeResult = null;
+
+        $alreadyFinalized = ((int) ($order->online ?? 0) === 1)
+            || ((int) ($order->status ?? 0) === 1)
+            || ((string) ($order->mono_status ?? '') === 'success');
+
+        if ($checkRemote && $paymentProvider === 'monobank' && $invoiceId && !$alreadyFinalized) {
+            $throttleSeconds = (int) config('services.monobank.status_poll_seconds', 25);
+            $cacheKey = 'mono:status_check:' . $invoiceId;
+            $remoteCheckAllowed = Cache::add($cacheKey, 1, $throttleSeconds);
+
+            if ($remoteCheckAllowed) {
+                /** @var MonobankAcquiringService $monoService */
+                $monoService = app(MonobankAcquiringService::class);
+                $remoteStatus = $monoService->getInvoiceStatus((string) $invoiceId);
+
+                Log::info('[order_events] monobank remote status', [
+                    'correlation_id' => $correlationId,
+                    'invoice_id' => $invoiceId,
+                    'remote_status' => $remoteStatus,
+                ]);
+
+                if (is_array($remoteStatus) && ($remoteStatus['status'] ?? null) === 'success') {
+                    /** @var PaymentFinalizer $finalizer */
+                    $finalizer = app(PaymentFinalizer::class);
+                    $finalizeResult = $finalizer->finalizeMonobankPaidIfNeeded($order, $remoteStatus, 'polling');
+                    $order->refresh();
+                }
+            }
+        }
+
+        if ((int) $order->payment_status === 2) {
+            $response = response()->json([
+                'status' => 'ok',
+                'payment_status' => 2,
+                'finalized' => true,
+            ]);
+            if ($debugEnabled) {
+                $payload = $response->getData(true);
+                $payload['_debug'] = array_merge($debugInfo, [
+                    'remote_check_allowed' => $remoteCheckAllowed,
+                    'remote_status' => $remoteStatus,
+                    'finalize_result' => $finalizeResult,
+                    'errors' => [
+                        'remote' => is_array($remoteStatus) ? ($remoteStatus['_error'] ?? null) : null,
+                        'finalize' => is_array($finalizeResult) ? ($finalizeResult['error'] ?? null) : null,
+                    ],
+                ]);
+                $response = response()->json($payload, $response->getStatusCode());
             }
             return $response;
         }
@@ -297,13 +412,18 @@ class PaymentPageController extends Controller
             'status' => 'pending',
             'payment_status' => (int) $order->payment_status,
         ]);
-        if ($this->isDebugRequest($request)) {
-            $response = $this->withDebugMeta($response, [
-                'handled_by' => 'PaymentPageController@ajax',
-                'route' => '/ajax/payment/{lang}',
-                'correlation_id' => $correlationId,
-                'request' => 'order_events',
+        if ($debugEnabled) {
+            $payload = $response->getData(true);
+            $payload['_debug'] = array_merge($debugInfo, [
+                'remote_check_allowed' => $remoteCheckAllowed,
+                'remote_status' => $remoteStatus,
+                'finalize_result' => $finalizeResult,
+                'errors' => [
+                    'remote' => is_array($remoteStatus) ? ($remoteStatus['_error'] ?? null) : null,
+                    'finalize' => is_array($finalizeResult) ? ($finalizeResult['error'] ?? null) : null,
+                ],
             ]);
+            $response = response()->json($payload, $response->getStatusCode());
         }
         return $response;
     }
