@@ -159,20 +159,64 @@ class MonobankAcquiringService
 
     public function getInvoiceStatus(string $invoiceId): array
     {
-        $base  = rtrim(config('services.monobank.api_base'), '/');
-        $token = config('services.monobank.token');
+        $base  = rtrim((string) config('services.monobank.api_base', 'https://api.monobank.ua'), '/');
+        $token = (string) config('services.monobank.token');
 
-        $resp = Http::timeout(12)
-            ->retry(2, 300)
-            ->withHeaders(['X-Token' => $token, 'Accept' => 'application/json'])
-            ->get($base.'/api/merchant/invoice/status', ['invoiceId'=>$invoiceId]);
-
-        if (!$resp->ok()) {
-            Log::error('[Monobank] invoice/status failed', ['status'=>$resp->status(),'body'=>$resp->body()]);
-            throw new \RuntimeException('Monobank invoice/status failed: '.$resp->status());
+        if ($base === '' || $token === '') {
+            Log::warning('[Monobank] invoice/status missing config', [
+                'invoice_id' => $invoiceId,
+                'has_base' => $base !== '',
+                'has_token' => $token !== '',
+            ]);
+            return [
+                '_error' => true,
+                'error' => 'missing_config',
+            ];
         }
 
-        return $resp->json();
+        try {
+            $resp = Http::timeout(4)
+                ->connectTimeout(3)
+                ->withHeaders(['X-Token' => $token, 'Accept' => 'application/json'])
+                ->get($base . '/api/merchant/invoice/status', ['invoiceId' => $invoiceId]);
+        } catch (\Throwable $e) {
+            Log::warning('[Monobank] invoice/status request exception', [
+                'invoice_id' => $invoiceId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                '_error' => true,
+                'error' => 'request_exception',
+                'message' => $e->getMessage(),
+            ];
+        }
+
+        if (!$resp->ok()) {
+            Log::warning('[Monobank] invoice/status failed', [
+                'invoice_id' => $invoiceId,
+                'status' => $resp->status(),
+                'body' => $resp->body(),
+            ]);
+            return [
+                '_error' => true,
+                'error' => 'http_error',
+                'http_status' => $resp->status(),
+            ];
+        }
+
+        $json = $resp->json();
+        if (!is_array($json)) {
+            Log::warning('[Monobank] invoice/status invalid json', [
+                'invoice_id' => $invoiceId,
+                'body' => $resp->body(),
+            ]);
+            return [
+                '_error' => true,
+                'error' => 'invalid_json',
+            ];
+        }
+
+        return $json;
     }
 
     public function verifyWebhook(string $rawBody, ?string $xSignHeader): bool
