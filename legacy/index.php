@@ -13,6 +13,7 @@ if($Main->inject() ){
 
 $pageData = $Router->GetCPU();
 $Router->lang = \App\Service\Site::lang();
+app()->setLocale($Router->lang);
 //dd($_SESSION['last_lang']);
 $Db->setlang($Router->lang);
 

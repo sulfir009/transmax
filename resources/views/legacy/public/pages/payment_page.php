@@ -707,18 +707,14 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
         ])->render(); ?>
     </div>
 
-    <!-- ВАЖНО: добавили payment_v2 прямо на .content (как booking_v2) -->
     <div class="content payment_v2">
 
-        <!-- ДЕКОР (пунктир + пины + автобус) -->
         <div class="payment_v2__decor" aria-hidden="true">
-            <!-- dashed path 1 (левая) -->
             <svg class="payment_v2__path path1" viewBox="0 0 572 1829" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path class="payment_v2__dash"
                       d="M444.209 1.98722C444.209 1.98722 219.722 27.4398 135.756 142.505C-39.6686 382.902 599.912 507.562 540.994 818.843C486.312 1107.74 45.4024 936.525 4.07039 1228.8C-44.1303 1569.64 570.887 1826.66 570.887 1826.66"/>
             </svg>
 
-            <!-- dashed path 2 (правая) -->
             <svg class="payment_v2__path path2" viewBox="0 0 572 1829" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <g transform="translate(572 0) scale(-1 1)">
                     <path class="payment_v2__dash"
@@ -726,7 +722,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                 </g>
             </svg>
 
-            <!-- pins -->
             <div class="payment_v2__pin pin_left">
                 <img class="payment_v2__pin_icon" src="<?php echo asset('images/booking/pin.png'); ?>" alt="">
             </div>
@@ -735,7 +730,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                 <img class="payment_v2__pin_icon" src="<?php echo asset('images/booking/pin.png'); ?>" alt="">
             </div>
 
-            <!-- bus -->
             <div class="payment_v2__bus_wrap" aria-hidden="true">
                 <img class="payment_v2__bus" src="<?php echo asset('images/booking/bus.png'); ?>" alt="">
             </div>
@@ -746,7 +740,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                 <div class="container"></div>
             </div>
 
-            <!-- ШАГИ -->
             <div class="purchase_steps_wrapper">
                 <div class="tabs_links_container">
                     <div class="purchase_steps">
@@ -799,7 +792,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                     $totalPrice = $_SESSION['order']['passengers'] * $ticketInfo['price'];
                     ?>
 
-                    <!-- ЦЕНТРАЛЬНАЯ КАРТОЧКА как на фото -->
                     <div class="payment_v2__card shadow_block">
                         <div class="payment_v2__title">
                             <?php echo $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_OPLATA'] ?? 'Оплата'; ?>
@@ -811,7 +803,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
 
                         <div class="payment_v2__methods">
 
-                            <!-- CARD -->
                             <label class="pv2_method">
                                 <input type="radio"
                                        name="paymethod"
@@ -833,7 +824,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                                 </span>
                             </label>
 
-                            <!-- CASH -->
                             <label class="pv2_method">
                                 <input type="radio"
                                        name="paymethod"
@@ -856,7 +846,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                                 </span>
                             </label>
 
-                            <!-- ✅ MONOBANK (3-й метод оплаты) -->
                             <label class="pv2_method pv2_method--mono">
                                 <input type="radio"
                                        name="paymethod"
@@ -908,21 +897,16 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                             </label>
                         </div>
 
-                        <!-- ВАЖНО: id=orderTicket оставили, чтобы JS работал -->
                         <button type="button" class="payment_v2__btn" id="orderTicket">
                             <span class="pv2_btn_label"><?php echo $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_OPLATITI']; ?></span>
                             <span class="pv2_btn_mono_badge" aria-hidden="true">mono</span>
                         </button>
 
-                        <!-- ✅ FIX LiqPay: контейнер для формы (чтобы корректно инжектить HTML/форму) -->
                         <div id="liqpay_checkout_holder" style="display:none;"></div>
                     </div>
 
-                    <!-- Старый маршрут оставляем в DOM, но скрываем (на макете его нет) -->
                     <div class="payment_v2_hide">
-                        <div class="route_block">
-                            <!-- твой старый route_block целиком можно оставить тут, если хочешь просто спрятать -->
-                        </div>
+                        <div class="route_block"></div>
                     </div>
 
                 </div>
@@ -951,10 +935,13 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
         $('#card_valid_date').mask("99/99");
         $('#card_cvv').mask("999");
 
+        var LANG = '<?php echo $Router->lang ?>';
+        var AJAX_URL = '/ajax/' + LANG;
+
         function deleteOrderTourId() {
             $.ajax({
                 type: 'post',
-                url: '/ajax/ru',
+                url: AJAX_URL,
                 data: {
                     'request': 'delete_order_tour_id'
                 }
@@ -965,17 +952,14 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
         var order = <?php echo json_encode($_SESSION['order']); ?>;
         var totalPrice = <?php echo $totalPrice; ?>;
 
-        // ✅ Безопасно берём CSRF (если meta нет — будет пусто, и JS не упадёт)
         var CSRF_TOKEN = $('meta[name="csrf-token"]').attr('content') || '';
 
-        // ✅ Экранирование HTML, чтобы безопасно показывать responseText в <pre>
         function escHtml(s){
             return String(s || '').replace(/[&<>"']/g, function(m){
                 return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]);
             });
         }
 
-        // ✅ Печатаем ПОЛНУЮ ошибку в консоль + показываем её в alert
         function dumpAjaxError(where, xhr, extra){
             try {
                 console.group('[PAYMENT] ' + where + ' ERROR');
@@ -1022,7 +1006,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
             return { _raw: raw };
         }
 
-        // ✅ FIX LiqPay: пытаемся понять/запустить оплату из ответа сервера
         function isHtmlLike(s){
             s = String(s || '').trim();
             if (!s) return false;
@@ -1032,19 +1015,15 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
         function extractFirstFormFromHtml(html){
             var $holder = $('#liqpay_checkout_holder');
             $holder.empty().html(html);
-
-            // ищем форму где угодно
             var $form = $holder.find('form').first();
             return $form.length ? $form : null;
         }
 
         function submitForm($form){
             try {
-                // если action пустой — не отправляем
                 var action = ($form.attr('action') || '').trim();
                 if (!action) return false;
 
-                // обязательно добавим в DOM и отправим
                 $form.attr('target', '_self');
                 $form.css({display:'none'});
                 $('body').append($form);
@@ -1057,7 +1036,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
 
         function submitLiqpayCheckout(data, signature, actionUrl){
             actionUrl = actionUrl || 'https://www.liqpay.ua/api/3/checkout';
-
             if (!data || !signature) return false;
 
             var $form = $('<form>', {
@@ -1085,7 +1063,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
         }
 
         function handleCardPaySuccess(rawResponse, parsed){
-            // 1) Если сервер вернул HTML (частый кейс старого LiqPay: форма + автосабмит)
             if (isHtmlLike(rawResponse)) {
                 var $form = extractFirstFormFromHtml(rawResponse);
                 if ($form) {
@@ -1106,7 +1083,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                 return false;
             }
 
-            // 2) Если сервер вернул JSON с redirect_url
             var redirectUrl =
                 pick(parsed, ['redirect_url','redirectUrl','payment_url','paymentUrl','checkout_url','checkoutUrl','url'])
                 || (parsed && parsed.liqpay ? pick(parsed.liqpay, ['redirect_url','payment_url','checkout_url','url']) : null);
@@ -1116,7 +1092,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                 return true;
             }
 
-            // 3) Если сервер вернул JSON с data+signature
             var data =
                 pick(parsed, ['liqpay_data','data_liqpay','liqpayData','data'])
                 || (parsed && parsed.liqpay ? pick(parsed.liqpay, ['data','liqpay_data','liqpayData']) : null);
@@ -1125,11 +1100,8 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                 pick(parsed, ['liqpay_signature','signature_liqpay','liqpaySignature','signature'])
                 || (parsed && parsed.liqpay ? pick(parsed.liqpay, ['signature','liqpay_signature','liqpaySignature']) : null);
 
-            // ВАЖНО: поле `data` у тебя используется как "ok", поэтому тут подстрахуемся:
-            // если data === 'ok' — это НЕ liqpay data.
             if (String(data || '') === 'ok') data = null;
 
-            // action URL иногда тоже приходит
             var actionUrl =
                 pick(parsed, ['liqpay_action','action','action_url','actionUrl'])
                 || (parsed && parsed.liqpay ? pick(parsed.liqpay, ['action','action_url','actionUrl']) : null);
@@ -1139,7 +1111,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                 if (okL) return true;
             }
 
-            // 4) Если сервер вернул JSON с готовым HTML формы
             var htmlForm =
                 pick(parsed, ['form','form_html','payment_form','paymentForm','html'])
                 || (parsed && parsed.liqpay ? pick(parsed.liqpay, ['form','form_html','payment_form','html']) : null);
@@ -1152,7 +1123,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                 }
             }
 
-            // Не смогли стартовать LiqPay
             out(
                 'Не удалось запустить LiqPay',
                 '<div style="margin-bottom:8px;">Сервер не вернул ни redirect_url, ни data+signature, ни HTML-форму.</div>' +
@@ -1173,102 +1143,57 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
         }
 
         function startLiqPayCheckout(orderRouteResp, $btn) {
-    initLoader();
+            initLoader();
 
-    var paymethodSelected = $('input[name="paymethod"]:checked').val() || 'cardpay';
-    if (paymethodSelected === 'card') paymethodSelected = 'cardpay';
+            var paymethodSelected = $('input[name="paymethod"]:checked').val() || 'cardpay';
+            if (paymethodSelected === 'card') paymethodSelected = 'cardpay';
 
-    if (order && typeof order === 'object') {
-        order.paymethod = paymethodSelected;
-    }
+            if (order && typeof order === 'object') {
+                order.paymethod = paymethodSelected;
+            }
 
-    const payload = {
-        ticket_info: ticketInfo,
-        order: order,
-        total_price: totalPrice,
-        paymethod: paymethodSelected,
+            const payload = {
+                ticket_info: ticketInfo,
+                order: order,
+                total_price: totalPrice,
+                paymethod: paymethodSelected,
+                order_db_id: (orderRouteResp && (orderRouteResp.order_db_id || orderRouteResp.order_id)) ? (orderRouteResp.order_db_id || orderRouteResp.order_id) : '',
+                uniqid: orderRouteResp && (orderRouteResp.uniqid || orderRouteResp.uniqId) ? (orderRouteResp.uniqid || orderRouteResp.uniqId) : ''
+            };
 
-        // полезно для трассировки/связки (не мешает)
-        order_db_id: (orderRouteResp && (orderRouteResp.order_db_id || orderRouteResp.order_id)) ? (orderRouteResp.order_db_id || orderRouteResp.order_id) : '',
-        uniqid: orderRouteResp && (orderRouteResp.uniqid || orderRouteResp.uniqId) ? (orderRouteResp.uniqid || orderRouteResp.uniqId) : ''
-    };
+            $.ajax({
+                type: 'post',
+                url: '/payment/legacy/create',
+                dataType: 'text',
+                timeout: 20000,
+                headers: CSRF_TOKEN ? { 'X-CSRF-TOKEN': CSRF_TOKEN } : {},
+                data: payload,
 
-    $.ajax({
-        type: 'post',
-        url: '/payment/legacy/create',
-        dataType: 'json',
-        timeout: 20000,
-        headers: CSRF_TOKEN ? { 'X-CSRF-TOKEN': CSRF_TOKEN } : {},
-        data: payload,
                 success: function (raw, textStatus, xhr) {
-                    const pr = safeJsonParse(raw) || (xhr && xhr.responseJSON ? xhr.responseJSON : null);
+                    dumpAjaxSuccess('/payment/legacy/create', raw, textStatus, xhr, { paymethod: paymethodSelected, totalPrice: totalPrice });
 
-                    if (pr && pr.redirect_url) {
+                    var parsed = safeJsonParse(raw) || normalizeResponse(raw, xhr);
+
+                    var started = handleCardPaySuccess(raw, parsed);
+                    if (started) {
                         deleteOrderTourId();
-                        window.location.href = pr.redirect_url;
                         return;
-                    }
-
-                    const data = pr ? (pr.data || pr.liqpay_data) : null;
-                    const signature = pr ? (pr.signature || pr.liqpay_signature) : null;
-                    const action = pr ? (pr.payment_url || pr.action) : null;
-
-                    if (data && signature) {
-                        const formAction = action || 'https://www.liqpay.ua/api/3/checkout';
-
-                        const $form = $('<form/>', {
-                            method: 'POST',
-                            action: formAction,
-                            style: 'display:none'
-                        });
-
-                        $form.append($('<input/>', { type: 'hidden', name: 'data', value: data }));
-                        $form.append($('<input/>', { type: 'hidden', name: 'signature', value: signature }));
-
-                        $('body').append($form);
-
-                        deleteOrderTourId();
-                        $form.submit();
-                        return;
-                    }
-
-                    const html = (pr && pr.html) ? pr.html : raw;
-                    if (typeof html === 'string' && html.toLowerCase().indexOf('<form') !== -1) {
-                        const $wrap = $('<div/>', { style: 'display:none' }).html(html);
-                        $('body').append($wrap);
-
-                        const $f = $wrap.find('form').first();
-                        if ($f.length) {
-                            deleteOrderTourId();
-                            $f.submit();
-                            return;
-                        }
                     }
 
                     removeLoader();
                     unlockPayFlow($btn);
-
-                    out(
-                        'Не удалось запустить LiqPay',
-                        'Сервер не вернул ни redirect_url, ни data+signature, ни HTML-форму.<br><br>' +
-                        '<pre style="white-space:pre-wrap;max-height:320px;overflow:auto;">' + escHtml(raw) + '</pre>'
-                    );
                 },
 
                 error: function (xhr, textStatus, errorThrown) {
                     removeLoader();
                     unlockPayFlow($btn);
-                    dumpAjaxError('/payment/legacy/create', xhr, { textStatus, errorThrown });
+                    dumpAjaxError('/payment/legacy/create', xhr, { textStatus: textStatus, errorThrown: errorThrown });
                 }
             });
         }
 
         var paymentDebugEnabled = (new URLSearchParams(window.location.search)).get('debug') === '1';
 
-        // ✅ MONOBANK: стартуем оплату через redirect на backend-роут
-        // Ожидаем что backend умеет:
-        //   GET /payment/monobank/start/{order_db_id}
-        // и сам создаёт invoice + редиректит на pageUrl mono.
         function startMonoCheckout(orderRouteResp, $btn){
             initLoader();
 
@@ -1288,12 +1213,10 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                 return;
             }
 
-            // Чтобы не плодились повторные заказы из сессии
             deleteOrderTourId();
 
             var url = '/payment/monobank/start/' + encodeURIComponent(orderDbId);
 
-            // если backend хочет uniqid — передадим как query (не мешает)
             var uniqid = orderRouteResp.uniqid || orderRouteResp.uniqId || '';
             if (uniqid) {
                 url += (url.indexOf('?') === -1 ? '?' : '&') + 'uniqid=' + encodeURIComponent(uniqid);
@@ -1311,7 +1234,6 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
             window.location.href = url;
         }
 
-        // ✅ UI: переключаем стиль кнопки "Оплатити" под monobank
         var $payBtn = $('#orderTicket');
         var $payBtnLabel = $('#orderTicket .pv2_btn_label');
         var payBtnBaseText = ($payBtnLabel.text() || '').trim();
@@ -1340,16 +1262,16 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
 
             let paymethod = $('input[name="paymethod"]:checked').val();
             const isCardPay = !!$('input[name="paymethod"]:checked').data('cardpay');
-if (order && typeof order === 'object') {
-    order.paymethod = paymethod;
-}
 
+            if (order && typeof order === 'object') {
+                order.paymethod = paymethod;
+            }
 
             initLoader();
 
             $.ajax({
                 type: 'post',
-                url: '/ajax/ru',
+                url: AJAX_URL,
                 dataType: 'text',
                 timeout: 20000,
                 headers: CSRF_TOKEN ? { 'X-CSRF-TOKEN': CSRF_TOKEN } : {},
@@ -1369,7 +1291,7 @@ if (order && typeof order === 'object') {
 
                 success: function (raw, textStatus, xhr) {
                     removeLoader();
-                    dumpAjaxSuccess('/ajax/ru (order_route)', raw, textStatus, xhr, { paymethod, totalPrice });
+                    dumpAjaxSuccess(AJAX_URL + ' (order_route)', raw, textStatus, xhr, { paymethod: paymethod, totalPrice: totalPrice });
 
                     const r = safeJsonParse(raw) || normalizeResponse(raw, xhr);
                     const ok = (r && (r.data === 'ok' || r.status === 'ok' || r.result === 'ok'));
@@ -1385,11 +1307,10 @@ if (order && typeof order === 'object') {
                         return;
                     }
 
-                    // ✅ CASH (как было)
                     if (paymethod === 'cash' && !isCardPay) {
                         $.ajax({
                             type: 'post',
-                            url: '/ajax/ru',
+                            url: AJAX_URL,
                             data: {
                                 request: 'order_mail',
                                 ticket_info: JSON.stringify(ticketInfo),
@@ -1402,19 +1323,16 @@ if (order && typeof order === 'object') {
                         return;
                     }
 
-                    // ✅ CARD (LiqPay) (как было)
                     if (isCardPay) {
                         startLiqPayCheckout(r, $btn);
                         return;
                     }
 
-                    // ✅ MONOBANK
                     if (paymethod === 'monobank') {
                         startMonoCheckout(r, $btn);
                         return;
                     }
 
-                    // fallback (если появятся другие методы)
                     deleteOrderTourId();
                     window.location.href = '<?php echo $Router->writelink(90)?>';
                 },
@@ -1422,7 +1340,7 @@ if (order && typeof order === 'object') {
                 error: function (xhr, textStatus, errorThrown) {
                     removeLoader();
                     unlockPayFlow($btn);
-                    dumpAjaxError('/ajax/ru (order_route)', xhr, { textStatus, errorThrown, paymethod, totalPrice });
+                    dumpAjaxError(AJAX_URL + ' (order_route)', xhr, { textStatus: textStatus, errorThrown: errorThrown, paymethod: paymethod, totalPrice: totalPrice });
                 }
             });
         });
@@ -1456,8 +1374,6 @@ if (order && typeof order === 'object') {
             } else {
                 $('.payment_data').hide();
             }
-
-            // ✅ обновляем стиль кнопки под monobank
             updatePayBtnUi();
         });
 

@@ -7,6 +7,9 @@
 @section('content')
     <div class="content">
         <div class="page_content_wrapper">
+            <div class="container">
+                <h1 class="h2_title">{{ __('pages_menu_title_about_us') }}</h1>
+            </div>
             {{-- Welcome Block --}}
             <div class="welcome_block about_us_welcome">
                 <div class="container">

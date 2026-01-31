@@ -14,114 +14,7 @@
 @endsection
 @section('content')
     <div class="content">
-        <div class="banner_first">
 
-            @isset($images)
-                @if($images->image_desc)
-                    <img src="{{ asset('images/pages/regular_races/' . $images->image_desc) }}" class="desk_banner" alt="banner">
-                @endif
-
-                @if($images->image_mob)
-                    <img src="{{ asset('images/pages/regular_races/' . $images->image_mob) }}" class="mob_banner" alt="banner_mob">
-                @endif
-            @endisset
-        </div>
-        <section class="first_section">
-            <div class="left_line_diag_sec">
-                <img src="{{ asset('images/legacy/left_line_diag_sec.png') }}" alt="ll">
-            </div>
-            <div class="pin_bus_left">
-                <img src="{{ asset('images/legacy/pin_bus.png') }}" alt="pb">
-            </div>
-            <div class="right_line_diag_sec">
-                <img src="{{ asset('images/legacy/right_line_diag_sec.png') }}" alt="ll">
-            </div>
-            <div class="pin_bus_right">
-                <img src="{{ asset('images/legacy/pin_bus.png') }}" alt="pb">
-            </div>
-            <div class="diagram-section">
-                <div class="diagram-title">
-                    <h3>@lang('title_page_regular_races')</h3>
-                </div>
-                <div class="container_diag">
-                    <div class="straight_diagram_line_top">
-                        <img src="{{ asset('images/legacy/straight-line.png') }}" alt="pb">
-                    </div>
-                    <div class="straight_diagram_line_bottom">
-                        <img src="{{ asset('images/legacy/straight-line.png') }}" alt="pb">
-                    </div>
-                    <div class="left_diagram_line">
-                        <img src="{{ asset('images/legacy/left_diagram_line.png') }}" alt="pb">
-                    </div>
-                    <div class="right_diagram_line">
-                        <img src="{{ asset('images/legacy/right_diagram_line.png') }}" alt="pb">
-                    </div>
-                    <div class="mob_straight_l_top">
-                        <img src="{{ asset('images/legacy/mob_straight_l.png') }}" alt="pb">
-                    </div>
-                    <div class="mob_straight_l_bottom">
-                        <img src="{{ asset('images/legacy/mob_straight_l.png') }}" alt="pb">
-                    </div>
-                    <div class="mob_right_l">
-                        <img src="{{ asset('images/legacy/mob_right_diag.png') }}" alt="pb">
-                    </div>
-                    <div class="mob_left_l">
-                        <img src="{{ asset('images/legacy/mob_left_diag.png') }}" alt="pb">
-                    </div>
-                    @php
-                        $i = 0;
-                        $firstStop = '';
-                        $lastStops = '';
-                        $secondsStops = [];
-                        foreach($regularRaces as $alias => $races) {
-                            foreach($races as $race) {
-
-                                if ($i == 0) {
-                                    $firstStop = $race->stops->first()->stopCity;
-                                    $lastStops = $race->stops->last()->stopCity;
-                                    ++$i;
-                                } else {
-                                    $secondsStops[] = $race->stops->first()->stopCity;
-                                }
-                                $secondsStops = array_unique($secondsStops);
-                            }
-                        }
-
-                        if (count($secondsStops) < 4 ) {
-                            foreach ($stops as $stop) {
-                                $secondsStops = array_unique($secondsStops);
-                                $has = collect($tourStopPrices)->first(function ($inner) use ($stop) {
-                                    return array_key_exists($stop->stop_id, $inner);
-                                });
-                                if($has && count($secondsStops) < 4 && $stop->stopCity != $firstStop && !in_array($stop->stopCity, $secondsStops)) {
-                                    $secondsStops[] = $stop->stopCity;
-                                }
-                            }
-                        }
-                        $currentStop = '';
-                    @endphp
-
-
-                    <button class="button_diag left-button btn">{!! $firstStop !!} </button>
-                    <div class="column_diag">
-                        @for($i = 0; $i < 4; $i++)
-                            @if (isset($secondsStops[$i]) && $i < 2 && $secondsStops[$i] != $firstStop && $secondsStops[$i] != $lastStops)
-                                @php
-                                    $currentStop = $secondsStops[$i] ?? '';
-                                @endphp
-                                <button class="button_diag top-button btn">{{ $currentStop }} </button>
-                            @endif
-                        @endfor
-                        <button class="button_diag right-button btn">{!! $lastStops !!} </button>
-                    </div>
-                    <button
-                        class="button_diag right-button btn">{!! last($secondsStops) !== $currentStop ? last($secondsStops) : '' !!}</button>
-
-
-                </div>
-            </div>
-
-        </section>
         <section class="section_blocks">
             <div class="container">
                 <div class="right_blocks_line">
@@ -139,7 +32,7 @@
                 <div class="mob_pin_bus_block_m">
                     <img src="{{ asset('images/legacy/mob_pin.png') }}" alt="tpb">
                 </div>
-                <h1 class="element">@lang('way_schedule')</h1>
+                <h1 class="element" style="margin-top: 55px;">@lang('way_schedule')</h1>
                 <div class="container-fluid schedule">
                     <div class="custom-select-schedule-container">
                         <div class="custom-schedule-select-wrapper">

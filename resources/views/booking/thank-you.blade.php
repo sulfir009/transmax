@@ -28,7 +28,7 @@
                     {{ __('dictionary.MSG_MSG_THX_PAGE_DANI_VASHOGO_BILETU') }}
                 </div>
                 <div id="payment-status-note" class="payment-status-note" style="display:none;"></div>
-                <a href="{{ route('auth') }}" class="private_link h4_title blue_btn">
+                <a href="{{ route('auth') }}" class="private_link h4_title blue_btn" style="margin-top:15px;">
                     <span class="hidden-xs">
                         {{ __('dictionary.MSG_MSG_THX_PAGE_PEREJTI_U_PERSONALINIJ_KABINET') }}
                     </span>
@@ -110,11 +110,13 @@
         }
 
         function pollStatus() {
+            const paymentProvider = urlParams.get('payment_provider') || '';
             pollCount += 1;
             const payload = new URLSearchParams({
                 request: 'order_events',
                 order_id: orderId,
                 uniqid: uniqid,
+                payment_provider: paymentProvider,
                 poll: String(pollCount),
                 check_remote: pollCount >= 6 ? '1' : '0'
             });

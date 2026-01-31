@@ -7,6 +7,18 @@ use App\Http\Controllers\Payments\MonobankPaymentController;
 use App\Http\Controllers\Payments\MonobankWebhookController;
 use App\Http\Middleware\VerifyCsrfToken;
 
+if (!function_exists('schedulePathForLocale')) {
+    function schedulePathForLocale(?string $locale): string
+    {
+        return match ($locale) {
+            'uk' => 'rozklad',
+            'en' => 'schedule',
+            default => 'raspisanie',
+        };
+    }
+}
+
+$locale = app()->getLocale();
 // старт выставления инвойса
 Route::get('/payment/monobank/start/{order}', [MonobankPaymentController::class, 'start'])
     ->name('payment.monobank.start');
@@ -44,10 +56,29 @@ Route::get('/cabinet', function() {
 Route::get('/debug/session', [\App\Http\Controllers\DebugController::class, 'sessionDebug']);
 
 // Schedule routes
-Route::get('/raspisanie', [\App\Http\Controllers\ScheduleController::class, 'index'])->name('schedule');
+Route::get('/' . schedulePathForLocale($locale), [\App\Http\Controllers\ScheduleController::class, 'index'])->name('schedule');
+Route::get('/' . schedulePathForLocale($locale) . '/{from}-{to}', [\App\Http\Controllers\ScheduleController::class, 'route'])->name('schedule.route');
 Route::post('/schedule/route-details', [\App\Http\Controllers\ScheduleController::class, 'getRouteDetails'])->name('schedule.route-details');
 Route::post('/schedule/route-prices', [\App\Http\Controllers\ScheduleController::class, 'getRoutePrices'])->name('schedule.route-prices');
 Route::post('/schedule/remember-ticket', [\App\Http\Controllers\ScheduleController::class, 'rememberTicket'])->name('schedule.remember-ticket');
+if ($locale === 'ru') {
+    Route::get('/rozklad', function () {
+        return redirect('/uk/rozklad', 301);
+    });
+    Route::get('/schedule', function () {
+        return redirect('/en/schedule', 301);
+    });
+    Route::get('/djmjvn6tl1nl_yp', function () {
+        return redirect('/en/schedule', 301);
+    });
+}
+
+if ($locale === 'en') {
+    Route::get('/djmjvn6tl1nl_yp', function () {
+        return redirect()->route('schedule', [], 301);
+    });
+}
+
 
 // Autopark page
 Route::get('/avtopark', [\App\Http\Controllers\AutoparkController::class, 'index'])->name('avtopark');

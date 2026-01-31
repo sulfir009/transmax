@@ -604,7 +604,7 @@
 
             {{-- LOGO --}}
             <div class="header-logo-container-prop">
-                <a href="{{ route('main') }}">
+                <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('main') }}">
                     <picture class="logo flex_ac">
                         <source srcset="/images/legacy/logo-light.svg" media="(max-width: 768px)">
                         <source srcset="/images/legacy/logo-light.svg" media="(min-width: 769px)">
@@ -631,7 +631,7 @@
 
                     {{-- ВАЖНО: тут я использую route('avtopark') как страницу аренды.
                        Если у тебя отдельный роут аренды — просто замени route(...) --}}
-                    <a href="{{ route('avtopark') }}"
+                    <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('avtopark') }}"
                        class="mt_nav_link {{ Route::is('avtopark') ? 'is_active' : '' }}">
                         Аренда автобусов
                     </a>
@@ -647,7 +647,9 @@
                     <div class="language-select-wrapper">
                         <select class="mt_lang_select" id="change-lang-desktop">
                             @foreach ($siteLangs as $langInfo)
-                                <option value="{{ $langInfo->code }}" {{ ($langInfo->code === \App\Service\Site::lang()) ? 'selected' : '' }}>
+                                <<option value="{{ $langInfo->code }}"
+                                        data-url="{{ $seo['hreflangs'][$langInfo->code] ?? \App\Helpers\LocaleHelper::localizedRoute('main', [], true, $langInfo->code) }}"
+                                    {{ ($langInfo->code === \App\Service\Site::lang()) ? 'selected' : '' }}>
                                     {{ strtoupper($langInfo->code) }}
                                 </option>
                             @endforeach
@@ -682,7 +684,7 @@
 
                     {{-- CABINET ICON (desktop only; mobile -> burger) --}}
                     <a class="mt_icon_link mt_cabinet_desktop"
-                       href="{{ \App\Service\User::isAuth() ? route('future_races') : route('auth') }}"
+                       href="{{ \App\Service\User::isAuth() ? \App\Helpers\LocaleHelper::localizedRoute('future_races') : \App\Helpers\LocaleHelper::localizedRoute('auth') }}"
                        aria-label="{{ __('dictionary.MSG_ALL_OSOBISTIJ_KABINET') }}">
                         <span class="mt_icon mt_icon_user"></span>
                     </a>
@@ -713,13 +715,14 @@
 
             <div class="mobile_menu_links">
                 <ul>
-                    <li><a href="{{ route('main') }}" class="mobile_menu_link manrope {{ Route::is('main') ? 'active' : '' }}">@lang('pages_title_main')</a></li>
-                    <li><a href="#" data-open-popup-regular class="mobile_menu_link manrope {{ Route::is('regular_races') ? 'active' : '' }}">@lang('pages_title_regular_races')</a></li>
-                    <li><a href="{{ route('schedule') }}" class="mobile_menu_link manrope {{ Route::is('schedule') ? 'active' : '' }}">@lang('pages_menu_title_schedule')</a></li>
-                    <li><a href="{{ route('avtopark') }}" class="mobile_menu_link manrope {{ Route::is('avtopark') ? 'active' : '' }}">@lang('pages_menu_title_avtopark')</a></li>
-                    <li><a href="{{ route('about.us') }}" class="mobile_menu_link manrope {{ Route::is('about.us') ? 'active' : '' }}">@lang('pages_menu_title_about_us')</a></li>
-                    <li><a href="{{ route('kontakti') }}" class="mobile_menu_link manrope {{ Route::is('kontakti') ? 'active' : '' }}">@lang('pages_menu_title_kontakti')</a></li>
-                    <li><a href="{{ route('faq') }}" class="mobile_menu_link manrope {{ Route::is('faq') ? 'active' : '' }}">@lang('pages_menu_title_faq')</a></li>
+                    <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('main') }}" class="mobile_menu_link manrope {{ Route::is('main') ? 'active' : '' }}">@lang('pages_title_main')</a></li>
+                    <li><a href="{{ url('/regular_races') }}"
+ data-open-popup-regular class="mobile_menu_link manrope {{ Route::is('regular_races') ? 'active' : '' }}">@lang('pages_title_regular_races')</a></li>
+                    <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}" class="mobile_menu_link manrope {{ Route::is('schedule') ? 'active' : '' }}">@lang('pages_menu_title_schedule')</a></li>
+                    <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('avtopark') }}" class="mobile_menu_link manrope {{ Route::is('avtopark') ? 'active' : '' }}">@lang('pages_menu_title_avtopark')</a></li>
+                    <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('about.us') }}" class="mobile_menu_link manrope {{ Route::is('about.us') ? 'active' : '' }}">@lang('pages_menu_title_about_us')</a></li>
+                    <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('kontakti') }}" class="mobile_menu_link manrope {{ Route::is('kontakti') ? 'active' : '' }}">@lang('pages_menu_title_kontakti')</a></li>
+                    <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('faq') }}" class="mobile_menu_link manrope {{ Route::is('faq') ? 'active' : '' }}">@lang('pages_menu_title_faq')</a></li>
                 </ul>
             </div>
 
@@ -749,7 +752,9 @@
                 <div class="language-select-wrapper">
                     <select class="mt_lang_select" id="change-lang-mobile">
                         @foreach ($siteLangs as $langInfo)
-                            <option value="{{ $langInfo->code }}" {{ ($langInfo->code === \App\Service\Site::lang()) ? 'selected' : '' }}>
+                            <option value="{{ $langInfo->code }}"
+                                    data-url="{{ $seo['hreflangs'][$langInfo->code] ?? \App\Helpers\LocaleHelper::localizedRoute('main', [], true, $langInfo->code) }}"
+                                {{ ($langInfo->code === \App\Service\Site::lang()) ? 'selected' : '' }}>
                                 {{ strtoupper($langInfo->code) }}
                             </option>
                         @endforeach
@@ -762,7 +767,7 @@
                     </button>
                     <div class="regular_tours">
                         @foreach ($regularRaces as $race)
-                            <a href="{{ route('regular_races', ['tour' => $race->alias]) }}" class="regular_tour">
+                            <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('regular_races', ['tour' => $race->alias]) }}" class="regular_tour">
                                 {{ $race->title }}
                             </a>
                         @endforeach
@@ -808,7 +813,7 @@
             <div class="countries-regular">
                 @foreach ($regularRaces as $race)
                     <div class="country-regular">
-                        <a href="{{ route('regular_races', ['tour' => $race->alias]) }}" class="regular_tour">
+                        <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('regular_races', ['tour' => $race->alias]) }}" class="regular_tour">
                             {{ $race->title }}
                         </a>
                     </div>
@@ -822,6 +827,7 @@
     jQuery(document).ready(function () {
         $('#change-lang-desktop, #change-lang-mobile').on('change', function () {
             let lang = $(this).val();
+            let targetUrl = $(this).find('option:selected').data('url');
             $.ajax({
                 type: "POST",
                 url: '/ajax/site/lang',
@@ -831,7 +837,7 @@
                     'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
                 },
                 success: function () {
-                    window.location.reload();
+                    window.location.href = targetUrl || window.location.href;
                 },
                 error: function () {
                     // можно оставить пустым, как было

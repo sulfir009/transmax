@@ -40,37 +40,37 @@
                 <div class="footer_links">
                     <ul class="h5_title footer_links_list">
                         <li>
-                            <a href="{{ route('main') }}">
+                            <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('main') }}">
                                 @lang('pages_main')
                             </a>
                         </li>
                         <li>
-                            <a href="{{ route('about.us') }}">
+                            <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('about.us') }}">
                                 @lang('pages_about_us')
                             </a>
                         </li>
                         <li>
-                            <a href="{{ route('avtopark') }}">
+                            <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('avtopark') }}">
                                 @lang('pages_avtopark')
                             </a>
                         </li>
                         <li>
-                            <a href="{{ route('schedule') }}">
+                            <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}">
                                 @lang('pages_schedule')
                             </a>
                         </li>
                         <li>
-                            <a href="{{ route('faq') }}">
+                            <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('faq') }}">
                                 @lang('pages_faq')
                             </a>
                         </li>
                         <li>
-                            <a href="{{ route('kontakti') }}">
+                            <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('kontakti') }}">
                                 @lang('pages_kontakti')
                             </a>
                         </li>
                         <li>
-    <a href="{{ route('mobile.app') }}">
+    <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('mobile.app') }}">
         Мобильное приложение
     </a>
 </li>
@@ -125,8 +125,8 @@
         </div>
         <div class="footer_bottom_list flex_ac par">
             <div class="footer_bottom_links">
-                <a href="{{ route('privacy.policy') }}" class="footer_bottom_link">@lang('alias_policy') </a>
-                <a href="{{ route('offer') }}"
+                <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('privacy.policy') }}" class="footer_bottom_link">@lang('alias_policy') </a>
+                <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('offer') }}"
                    class="footer_bottom_link fbl_offer">@lang('alias_offer_agreement')</a>
             </div>
             <div class="copyrights">

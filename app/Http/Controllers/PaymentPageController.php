@@ -8,6 +8,7 @@ use App\Repository\Order\OrderRepository;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Service\LiqPayService;
+use App\Service\TicketService;
 use App\Services\Payments\MonobankAcquiringService;
 use App\Services\Payments\PaymentFinalizer;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Throwable;
 
 class PaymentPageController extends Controller
 {
@@ -55,13 +57,10 @@ class PaymentPageController extends Controller
             session_start();
         }
 
-        // ✅ НИКАКИХ "тестовых данных" на проде.
-        // Если заказа нет — возвращаем на главный шаг.
         if (!isset($_SESSION['order']['tour_id'])) {
             return redirect()->route('main');
         }
 
-        // Заголовки против кеша
         header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
         header("Cache-Control: no-cache, must-revalidate");
         header("Pragma: no-cache");
@@ -69,11 +68,8 @@ class PaymentPageController extends Controller
 
         $lang = $this->router->lang ?? 'ru';
 
-        // ✅ СИНХРОНИЗАЦИЯ passengers на входе в оплату
-        // Если на шаге 2 ты удалил пассажира, но order.passengers "залип" — мы выравниваем.
         $this->syncPassengersFromPassengerData();
 
-        // Инфа о билете — всегда из БД по данным из сессии (не из клиента)
         $ticketInfo = $this->getTicketInfo(
             (int)($_SESSION['order']['tour_id'] ?? 0),
             (int)($_SESSION['order']['from'] ?? 0),
@@ -159,12 +155,10 @@ class PaymentPageController extends Controller
                 return response()->json(['data' => 'error', 'error' => 'no_order_in_session'], 400);
             }
 
-            // ✅ На всякий случай синхронизируем passengers ещё раз
             $this->syncPassengersFromPassengerData();
 
             $paymethod = $request->input('paymethod');
 
-            // ✅ ticketInfo / order — НЕ берём из клиента, берём из сессии и БД
             $order = $_SESSION['order'];
 
             $ticketInfo = $this->getTicketInfo(
@@ -200,29 +194,28 @@ class PaymentPageController extends Controller
         }
     }
 
-    protected function orderEvents(Request $request, string $correlationId): JsonResponse
+    protected function orderEvents(Request $request, string $requestCorrelationId): JsonResponse
     {
-        // Manual verification notes (no automated tests in repo):
-        // - Open thank-you page with ?order_id=...&uniqid=...&debug=1 to view _debug payload.
-        // - Check logs for "[Monobank] invoice/status" and "[PaymentFinalizer] monobank finalize".
-        // - Verify DB: orders.online/status/payment_status=1/1/2 and payments.status=success.
         $orderId = $request->input('order_id');
         $uniqid = $request->input('uniqid');
         $poll = (int) $request->input('poll', 0);
+
         $checkRemote = (int) $request->input('check_remote', 0) === 1;
         if ($poll >= 6) {
             $checkRemote = true;
         }
+
         $debugEnabled = $this->isDebugRequest($request);
 
         Log::info('[order_events] incoming', [
-            'correlation_id' => $correlationId,
+            'correlation_id' => $requestCorrelationId,
             'order_id' => $orderId,
             'uniqid' => $uniqid,
             'payload' => $request->all(),
         ]);
 
         $order = null;
+
         if ($orderId) {
             $order = Order::find($orderId);
         }
@@ -235,21 +228,16 @@ class PaymentPageController extends Controller
 
         if (!$order) {
             Log::warning('[order_events] order not found', [
-                'correlation_id' => $correlationId,
+                'correlation_id' => $requestCorrelationId,
                 'order_id' => $orderId,
                 'uniqid' => $uniqid,
-            ]);
-
-            Log::warning('[order_events] response', [
-                'correlation_id' => $correlationId,
-                'status' => 'error',
-                'reason' => 'order_not_found',
             ]);
 
             $response = response()->json([
                 'status' => 'error',
                 'message' => 'order_not_found',
             ], 404);
+
             if ($debugEnabled) {
                 $payload = $response->getData(true);
                 $payload['_debug'] = [
@@ -260,34 +248,42 @@ class PaymentPageController extends Controller
                 ];
                 $response = response()->json($payload, $response->getStatusCode());
             }
+
             return $response;
         }
 
         $legacyOrderId = (string) ($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
-        $correlationId = PaymentFinalizer::buildCorrelationId($order->id, $legacyOrderId, $order->mono_invoice_id ?? null);
+
         $requestPaymentProvider = (string) ($request->input('payment_provider') ?: $request->query('payment_provider') ?: '');
         $paymentProvider = strtolower((string) ($order->payment_provider ?? $requestPaymentProvider));
+
         $invoiceId = $order->mono_invoice_id ?? null;
+        $paymentCorrelationId = PaymentFinalizer::buildCorrelationId((int) $order->id, $legacyOrderId, $invoiceId);
+
         $invoiceLinkedFromPayment = false;
 
+        // Если у заказа нет mono_invoice_id, пробуем подтянуть из таблицы payments
         if ($paymentProvider === 'monobank' && !$invoiceId) {
             $payment = Payment::where('order_id', $legacyOrderId)->first();
+
             if ($payment && $payment->payment_id) {
                 $invoiceId = (string) $payment->payment_id;
                 $invoiceLinkedFromPayment = true;
+
                 Log::info('[order_events] linked invoice from payment', [
-                    'correlation_id' => $correlationId,
+                    'correlation_id' => $paymentCorrelationId,
                     'order_id' => $order->id,
                     'uniqid' => $legacyOrderId,
                     'invoice_id' => $invoiceId,
                 ]);
+
                 if (array_key_exists('mono_invoice_id', $order->getAttributes())) {
                     $order->mono_invoice_id = $invoiceId;
                     try {
                         $order->save();
                     } catch (\Throwable $e) {
                         Log::warning('[order_events] failed to persist mono_invoice_id', [
-                            'correlation_id' => $correlationId,
+                            'correlation_id' => $paymentCorrelationId,
                             'order_id' => $order->id,
                             'uniqid' => $legacyOrderId,
                             'invoice_id' => $invoiceId,
@@ -295,13 +291,14 @@ class PaymentPageController extends Controller
                         ]);
                     }
                 }
+
+                $paymentCorrelationId = PaymentFinalizer::buildCorrelationId((int) $order->id, $legacyOrderId, $invoiceId);
             }
         }
 
-        if ($invoiceLinkedFromPayment) {
-            $correlationId = PaymentFinalizer::buildCorrelationId($order->id, $legacyOrderId, $invoiceId);
-        }
         $debugInfo = [
+            'request_correlation_id' => $requestCorrelationId,
+            'payment_correlation_id' => $paymentCorrelationId,
             'order_id' => $order->id,
             'uniqid_request' => $uniqid,
             'uniqid_db' => $legacyOrderId,
@@ -310,53 +307,46 @@ class PaymentPageController extends Controller
             'check_remote' => $checkRemote,
             'payment_provider' => $paymentProvider,
             'invoice_linked_from_payment' => $invoiceLinkedFromPayment,
+            'payment_status_db' => (int) ($order->payment_status ?? 0),
+            'mono_status_db' => (string) ($order->mono_status ?? ''),
         ];
 
+        // Если уже оплачено — просто ok (не шлем тикеты повторно, чтобы не задублировать)
         if ((int) $order->payment_status === 2) {
-            /** @var PaymentFinalizer $finalizer */
-            $finalizer = app(PaymentFinalizer::class);
-            $finalizeResult = $finalizer->finalize($order, [
-                'source' => 'order_events',
-                'order_id' => $orderId,
-                'uniqid' => $uniqid,
-                'invoiceId' => $order->mono_invoice_id,
-            ], 'order_events');
-            $finalized = $finalizeResult['status'] === 'ok'
-                || ($finalizeResult['status'] === 'skipped' && ($finalizeResult['reason'] ?? null) === 'already_finalized');
-
-            Log::info('[order_events] processed', [
-                'correlation_id' => $correlationId,
-                'order_id' => $orderId,
-                'uniqid' => $uniqid,
-                'finalize_result' => $finalizeResult,
+            Log::info('[order_events] already paid in DB', [
+                'correlation_id' => $paymentCorrelationId,
+                'order_id' => $order->id,
+                'uniqid' => $legacyOrderId,
+                'payment_status' => (int) $order->payment_status,
+                'mono_status' => (string) ($order->mono_status ?? ''),
             ]);
 
             $response = response()->json([
                 'status' => 'ok',
                 'payment_status' => 2,
-                'finalized' => $finalized,
+                'finalized' => true,
             ]);
+
             if ($debugEnabled) {
                 $payload = $response->getData(true);
-                $payload['_debug'] = array_merge($debugInfo, [
-                    'finalize_result' => $finalizeResult,
-                ]);
+                $payload['_debug'] = $debugInfo;
                 $response = response()->json($payload, $response->getStatusCode());
             }
+
             return $response;
         }
+
+        $alreadyFinalized = ((int) $order->payment_status === 2)
+            || ((string) ($order->mono_status ?? '') === 'success');
 
         $remoteCheckAllowed = false;
         $remoteStatus = null;
         $finalizeResult = null;
 
-        $alreadyFinalized = ((int) ($order->online ?? 0) === 1)
-            || ((int) ($order->status ?? 0) === 1)
-            || ((string) ($order->mono_status ?? '') === 'success');
-
         if ($checkRemote && $paymentProvider === 'monobank' && $invoiceId && !$alreadyFinalized) {
             $throttleSeconds = (int) config('services.monobank.status_poll_seconds', 25);
             $cacheKey = 'mono:status_check:' . $invoiceId;
+
             $remoteCheckAllowed = Cache::add($cacheKey, 1, $throttleSeconds);
 
             if ($remoteCheckAllowed) {
@@ -365,7 +355,7 @@ class PaymentPageController extends Controller
                 $remoteStatus = $monoService->getInvoiceStatus((string) $invoiceId);
 
                 Log::info('[order_events] monobank remote status', [
-                    'correlation_id' => $correlationId,
+                    'correlation_id' => $paymentCorrelationId,
                     'invoice_id' => $invoiceId,
                     'remote_status' => $remoteStatus,
                 ]);
@@ -373,9 +363,42 @@ class PaymentPageController extends Controller
                 if (is_array($remoteStatus) && ($remoteStatus['status'] ?? null) === 'success') {
                     /** @var PaymentFinalizer $finalizer */
                     $finalizer = app(PaymentFinalizer::class);
+
                     $finalizeResult = $finalizer->finalizeMonobankPaidIfNeeded($order, $remoteStatus, 'polling');
                     $order->refresh();
+
+                    // ✅ КЛЮЧЕВАЯ ЧАСТЬ: после paid запускаем генерацию билета + email (как в LiqPay flow)
+                    if ((int) $order->payment_status === 2) {
+                        $paymentPayloadForTicket = [
+                            'status' => 'success',
+                            'payment_provider' => 'monobank',
+                            'order_id' => $legacyOrderId,
+                            'invoiceId' => (string) ($remoteStatus['invoiceId'] ?? $invoiceId),
+                            'payMethod' => $remoteStatus['payMethod'] ?? null,
+                            'amount' => $remoteStatus['amount'] ?? null,
+                            'ccy' => $remoteStatus['ccy'] ?? null,
+                            'finalAmount' => $remoteStatus['finalAmount'] ?? null,
+                            'paid_at' => $order->paid_at ?? null,
+                            'remote_status' => $remoteStatus,
+                        ];
+
+                        $this->dispatchTicketsOnce($order, $legacyOrderId, $paymentPayloadForTicket, $paymentCorrelationId);
+                    }
+
+                    Log::info('[order_events] paid after remote check', [
+                        'correlation_id' => $paymentCorrelationId,
+                        'order_id' => $order->id,
+                        'uniqid' => $legacyOrderId,
+                        'invoice_id' => $invoiceId,
+                        'finalize_result' => $finalizeResult,
+                    ]);
                 }
+            } else {
+                Log::info('[order_events] monobank remote check throttled', [
+                    'correlation_id' => $paymentCorrelationId,
+                    'invoice_id' => $invoiceId,
+                    'throttle_seconds' => $throttleSeconds,
+                ]);
             }
         }
 
@@ -385,6 +408,7 @@ class PaymentPageController extends Controller
                 'payment_status' => 2,
                 'finalized' => true,
             ]);
+
             if ($debugEnabled) {
                 $payload = $response->getData(true);
                 $payload['_debug'] = array_merge($debugInfo, [
@@ -398,20 +422,22 @@ class PaymentPageController extends Controller
                 ]);
                 $response = response()->json($payload, $response->getStatusCode());
             }
+
             return $response;
         }
 
         Log::info('[order_events] pending', [
-            'correlation_id' => $correlationId,
-            'order_id' => $orderId,
-            'uniqid' => $uniqid,
-            'payment_status' => $order->payment_status,
+            'correlation_id' => $paymentCorrelationId,
+            'order_id' => $order->id,
+            'uniqid' => $legacyOrderId,
+            'payment_status' => (int) ($order->payment_status ?? 0),
         ]);
 
         $response = response()->json([
             'status' => 'pending',
-            'payment_status' => (int) $order->payment_status,
+            'payment_status' => (int) ($order->payment_status ?? 0),
         ]);
+
         if ($debugEnabled) {
             $payload = $response->getData(true);
             $payload['_debug'] = array_merge($debugInfo, [
@@ -425,7 +451,58 @@ class PaymentPageController extends Controller
             ]);
             $response = response()->json($payload, $response->getStatusCode());
         }
+
         return $response;
+    }
+
+    /**
+     * Запускаем генерацию PDF + email ОДИН РАЗ на оплаченный заказ.
+     * Нужен lock, потому что order_events дергается polling-ом много раз.
+     */
+    private function dispatchTicketsOnce(Order $order, string $legacyOrderId, array $paymentPayload, string $paymentCorrelationId): void
+    {
+        // lock на сутки, чтобы не дублировать письма на повторных поллах/рефрешах
+        $lockKey = 'tickets:sent:' . (int) $order->id;
+        $ttlSeconds = 86400;
+
+        if (!Cache::add($lockKey, 1, $ttlSeconds)) {
+            Log::info('[tickets] dispatch skipped (lock exists)', [
+                'correlation_id' => $paymentCorrelationId,
+                'order_id' => (int) $order->id,
+                'legacy_order_id' => $legacyOrderId,
+            ]);
+            return;
+        }
+
+        try {
+            /** @var TicketService $ticketService */
+            $ticketService = app(TicketService::class);
+
+            Log::info('[tickets] dispatch start', [
+                'correlation_id' => $paymentCorrelationId,
+                'order_id' => (int) $order->id,
+                'legacy_order_id' => $legacyOrderId,
+            ]);
+
+            // Это твой существующий LiqPay-флоу: генерация PDF + отправка email
+            $ticketService->processSuccessfulPayment($legacyOrderId, $paymentPayload);
+
+            Log::info('[tickets] dispatch done', [
+                'correlation_id' => $paymentCorrelationId,
+                'order_id' => (int) $order->id,
+                'legacy_order_id' => $legacyOrderId,
+            ]);
+        } catch (Throwable $e) {
+            // если упало — снимаем lock, чтобы можно было повторить при следующем poll/refresh
+            Cache::forget($lockKey);
+
+            Log::error('[tickets] dispatch failed', [
+                'correlation_id' => $paymentCorrelationId,
+                'order_id' => (int) $order->id,
+                'legacy_order_id' => $legacyOrderId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function isDebugRequest(Request $request): bool
@@ -467,7 +544,6 @@ class PaymentPageController extends Controller
                 return response()->json(['success' => false, 'error' => 'no_order_in_session'], 400);
             }
 
-            // ✅ Не доверяем total_price из клиента — считаем заново
             $this->syncPassengersFromPassengerData();
 
             $order = $_SESSION['order'];
@@ -695,7 +771,6 @@ class PaymentPageController extends Controller
 
     /**
      * Выравниваем order.passengers по passenger_data.passengers, если оно есть.
-     * Это лечит "залипание" 2 после удаления пассажира на шаге 2.
      */
     protected function syncPassengersFromPassengerData(): void
     {
@@ -706,7 +781,6 @@ class PaymentPageController extends Controller
         $extra = 0;
 
         if (isset($_SESSION['passenger_data']['passengers']) && is_array($_SESSION['passenger_data']['passengers'])) {
-            // считаем только реально заполненные строки, а не пустые болванки
             foreach ($_SESSION['passenger_data']['passengers'] as $row) {
                 if (!is_array($row)) continue;
 
@@ -725,7 +799,6 @@ class PaymentPageController extends Controller
         $current = (int)($_SESSION['order']['passengers'] ?? 1);
         $current = max(1, min(10, $current));
 
-        // Если computed=1, а в order залипло 2 — выравниваем
         if ($computed !== $current) {
             $_SESSION['order']['passengers'] = $computed;
         }

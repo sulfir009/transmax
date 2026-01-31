@@ -15,9 +15,9 @@
     <div class="page_content_wrapper">
         <div class="shedule_block">
             <div class="shedule_table_container">
-                <div class="shedule_title h2_title">
+                <h1 class="shedule_title h2_title">
                     {{ $pageTitle }}
-                </div>
+                </h1>
                 
                 <div class="shedule_table_wrapper">
                     <table class="shedule_table">

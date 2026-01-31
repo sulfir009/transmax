@@ -5,7 +5,7 @@
         ?>
         <div class="header_content flex_ac">
             <div class="logo">
-                <a href="<?php echo route('main')?>">
+                <a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('main')?>">
                     <?php $image_logo = $logo['black_logo'];
                     $burger = 'burger_dark.svg';
                     $langs_class = 'dark';
@@ -101,12 +101,12 @@
             </button>
             <div class="mobile_menu_links">
                 <ul>
-                    <li><a href="<?php echo route('main')?>" class="mobile_menu_link manrope <?php if ($pageData['page_id'] == '1'){echo 'active';}?>"><?php echo $Router->writetitle(1)?></a></li>
-                    <li><a href="<?php echo route('about.us')?>" class="mobile_menu_link manrope <?php if ($pageData['page_id'] == '71'){echo 'active';}?>"><?php echo $Router->writetitle(71)?></a></li>
-                    <li><a href="<?php echo route('avtopark')?>" class="mobile_menu_link manrope <?php if ($pageData['page_id'] == '72'){echo 'active';}?>"><?php echo $Router->writetitle(72)?></a></li>
-                    <li><a href="<?php echo route('schedule')?>" class="mobile_menu_link manrope <?php if ($pageData['page_id'] == '73'){echo 'active';}?>"><?php echo $Router->writetitle(73)?></a></li>
-                    <li><a href="<?php echo route('faq')?>" class="mobile_menu_link manrope <?php if ($pageData['page_id'] == '74'){echo 'active';}?>"><?php echo $Router->writetitle(74)?></a></li>
-                    <li><a href="<?php echo route('kontakti')?>" class="mobile_menu_link manrope <?php if ($pageData['page_id'] == '75'){echo 'active';}?>"><?php echo $Router->writetitle(75)?></a></li>
+                                        <li><a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('main')?>" class="mobile_menu_link manrope <?php if ($pageData['page_id'] == '1'){echo 'active';}?>"><?php echo $Router->writetitle(1)?></a></li>
+                    <li><a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('about.us')?>" class="mobile_menu_link manrope <?php if ($pageData['page_id'] == '71'){echo 'active';}?>"><?php echo $Router->writetitle(71)?></a></li>
+                    <li><a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('avtopark')?>" class="mobile_menu_link manrope <?php if ($pageData['page_id'] == '72'){echo 'active';}?>"><?php echo $Router->writetitle(72)?></a></li>
+                    <li><a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('schedule')?>" class="mobile_menu_link manrope <?php if ($pageData['page_id'] == '73'){echo 'active';}?>"><?php echo $Router->writetitle(73)?></a></li>
+                    <li><a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('faq')?>" class="mobile_menu_link manrope <?php if ($pageData['page_id'] == '74'){echo 'active';}?>"><?php echo $Router->writetitle(74)?></a></li>
+                    <li><a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('kontakti')?>" class="mobile_menu_link manrope <?php if ($pageData['page_id'] == '75'){echo 'active';}?>"><?php echo $Router->writetitle(75)?></a></li>
                 </ul>
             </div>
             <div class="mobile_menu_social">

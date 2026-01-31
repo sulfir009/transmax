@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Repository\Schedule\ScheduleRepository;
 use App\Service\Schedule\ScheduleService;
 use Illuminate\Http\Request;
+use App\Service\Site;
 
 class ScheduleController extends Controller
 {
@@ -22,6 +23,19 @@ class ScheduleController extends Controller
      */
     public function index(Request $request)
     {
+                if ($request->filled(['departure', 'arrival'])) {
+            $redirectUrl = $this->scheduleService->buildRouteRedirectUrl(
+                (int) $request->get('departure'),
+                (int) $request->get('arrival'),
+                $request->query()
+            );
+
+            if ($redirectUrl !== null) {
+                return redirect($redirectUrl, 301);
+            }
+
+            abort(404);
+        }
         // Получаем параметры фильтрации
         $filters = [
             'departure' => $request->get('departure'),
@@ -55,6 +69,42 @@ class ScheduleController extends Controller
             'domesticRoutes',
             'pageTitle'
         ));
+    }
+    
+        public function route(string $from, string $to, Request $request)
+    {
+        $cities = $this->scheduleService->getCitiesBySlugs($from, $to, Site::lang());
+
+        if (!$cities) {
+            abort(404);
+        }
+
+        $filters = [
+            'departure' => $cities['departure']->id,
+            'arrival' => $cities['arrival']->id,
+            'country' => $request->get('country'),
+            'city' => $request->get('city'),
+        ];
+
+        $perPage = 16;
+        $currentPage = $request->get('page', 1);
+        $routes = $this->scheduleService->getFilteredRoutes($filters, $currentPage, $perPage);
+
+        $countries = $this->scheduleRepository->getCountriesForHome();
+        $citiesList = $this->scheduleRepository->getPopularCities(10);
+        $internationalRoutes = $this->scheduleRepository->getInternationalRoutes();
+        $domesticRoutes = $this->scheduleRepository->getDomesticRoutes();
+        $pageTitle = $this->scheduleService->getPageTitle($filters, $routes);
+
+        return view('schedule.index', [
+            'routes' => $routes,
+            'filters' => $filters,
+            'countries' => $countries,
+            'cities' => $citiesList,
+            'internationalRoutes' => $internationalRoutes,
+            'domesticRoutes' => $domesticRoutes,
+            'pageTitle' => $pageTitle,
+        ]);
     }
 
     /**

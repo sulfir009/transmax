@@ -194,9 +194,9 @@
                     <div class="flex-row gap-30 contacts_info_blocks">
                         <div class="col-xl-6">
                             <div class="contact_txt_info">
-                                <div class="contact_txt_title h2_title">
+                                <h1 class="contact_txt_title h2_title">
                                     {{ $contactInfo['title'] ?? '' }}
-                                </div>
+                                </h1>
                                 <div class="contact_txt par">
                                     {!! $contactInfo['text'] ?? '' !!}
                                 </div>

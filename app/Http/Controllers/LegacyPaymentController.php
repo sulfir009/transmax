@@ -116,12 +116,21 @@ class LegacyPaymentController extends Controller
             ]);
 
             return response()->json([
-                'success' => true,
-                'payment_url' => 'https://www.liqpay.ua/api/3/checkout',
-                'data' => $paymentData['data'],
-                'signature' => $paymentData['signature'],
-                'order_id' => $orderId,
-            ]);
+    'success' => true,
+
+    // ✅ endpoint для POST
+    'action_url' => 'https://www.liqpay.ua/api/3/checkout',
+
+    // ✅ явные ключи, чтобы не путать с data:"ok" из других ответов
+    'liqpay_data' => $paymentData['data'],
+    'liqpay_signature' => $paymentData['signature'],
+
+    'order_id' => $orderId,
+
+    // (опционально) временная обратная совместимость:
+    // 'data' => $paymentData['data'],
+    // 'signature' => $paymentData['signature'],
+]);
 
         } catch (\Exception $e) {
             Log::channel('payment')->error('=== CREATE LEGACY PAYMENT ERROR ===', [

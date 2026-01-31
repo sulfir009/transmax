@@ -55,6 +55,7 @@ Route::match(['GET', 'POST', 'PUT', 'DELETE'],
     'file'    => '.*\.php$',
 ]);
 
+
 Route::any('/public/pages/private/{file}', function(Request $request, $file) {
     $path = base_path('legacy/public/pages/private/' . $file);
 

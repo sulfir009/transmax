@@ -206,7 +206,7 @@
     min-width:0;
     max-width:240px;
 }
-.rr3_side--arr .rr3_place{ align-items:flex-start; } /* оставил как у тебя */
+.rr3_side--arr .rr3_place{ align-items:flex-start; } /* оставляю как у тебя для мобилки */
 
 .rr3_cityline{
     display:flex;
@@ -278,42 +278,14 @@
 /* ТВОЁ ГОТОВОЕ ИЗОБРАЖЕНИЕ (линии+круг+автобус) */
 .rr3_dash_img{
     width:100%;
-    height:42px;          /* высота как у круга в макете */
-    display:block;
-    object-fit:contain;   /* не режем, просто вписываем */
-}
-
-
-.rr3_bus_circle{
-    width:42px; height:42px;
-    border-radius:999px;
-    border:1px solid #40A6FF;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background:#fff;
-    flex:0 0 auto;
-
-    overflow:hidden; /* важно: если вдруг попадется большой svg, он не “вылезет” */
-}
-
-/* === ключевой фикс: именно IMG внутри круга === */
-.rr3_bus_circle img.rr3_bus_img{
-    width:20px;
-    height:20px;
+    height:42px;
     display:block;
     object-fit:contain;
 }
 
-/* если вдруг fallback на svg — тоже пусть не ломает */
-.rr3_bus_circle svg.rr3_bus_img{
-    width:20px;
-    height:20px;
-    display:block;
-}
-
+/* duration: по умолчанию (мобилка) скрываем, desktop включим ниже */
 .rr3_duration{
-    display:flex;
+    display:none;
     align-items:center;
     gap:8px;
     color:#878D8F;
@@ -345,7 +317,7 @@
 .rr3_chip .rr3_chip_icon,
 .rr3_chip svg,
 .rr3_chip img{
-    width:20px; height:20px; display:block;
+    width:50px; height:50px; display:block;
 }
 
 /* Schedule */
@@ -569,18 +541,20 @@
 }
 
 /* =========================================================
-   RR3 — DESKTOP LAYOUT (>= 769px) — Мобилку НЕ ТРОГАЕМ
+   RR3 — DESKTOP LAYOUT (>= 769px) — match right.png
    ========================================================= */
 @media (min-width: 769px){
 
-  /* размеры, чтобы дальше не писать магические числа */
   .rr3_scope{
     --rr3-desk-media-w: 290px;  /* ширина превью слева */
     --rr3-desk-gap: 16px;       /* зазор между превью и правой частью */
     --rr3-desk-pad: 14px;       /* внутренние отступы карточки */
+
+    --rr3-chip: 44px;           /* белые кружки */
+    --rr3-chip-ico: 41px;       /* размер иконки внутри */
+    --rr3-actions-gap: 18px;    /* расстояние между кнопками */
   }
 
-  /* карточка становится "2-этажной": верх = превью+контент, низ = детали на всю ширину */
   .rr3_card{
     padding: var(--rr3-desk-pad);
     display:flex;
@@ -589,7 +563,6 @@
     gap:0;
   }
 
-  /* бейдж как на фото — не в край, а с отступом */
   .rr3_badge{
     left: calc(var(--rr3-desk-pad) + 8px);
     top:  calc(var(--rr3-desk-pad) + 8px);
@@ -599,7 +572,6 @@
     line-height: 14px;
   }
 
-  /* превью слева — не во всю ширину как на мобилке */
   .rr3_media{
     flex: 0 0 var(--rr3-desk-media-w);
     width: var(--rr3-desk-media-w);
@@ -611,150 +583,211 @@
     width:100%;
     height:100%;
     object-fit:cover;
+    display:block;
   }
 
-  /* правая часть */
   .rr3_body{
     flex: 1 1 calc(100% - var(--rr3-desk-media-w) - var(--rr3-desk-gap));
     margin-left: var(--rr3-desk-gap);
     padding:0;
 
-    /* переставляем блоки под desktop как в макете */
     display:grid;
     grid-template-columns: 1fr auto;
     grid-template-areas:
-      "top     top"
-      "icons   actions"
-      "schedule actions"
+      "top      top"
+      "icons    schedule"
+      "actions  actions"
       "detailsbtn detailsbtn"
       "details  details";
-    column-gap: 16px;
-    row-gap: 10px;
+    column-gap: 18px;
+    row-gap: 18px;
     align-items:center;
   }
 
-  .rr3_toprow{ grid-area: top; }
-
-  /* TOPROW на desktop = в одну линию (dep — mid — arr) */
+  /* ===== TOP ROW ===== */
   .rr3_toprow{
+    grid-area: top;
+
     display:flex;
     flex-direction:row;
     align-items:flex-start;
     justify-content:space-between;
-    gap: 14px;
-    margin-top: 2px;
+    gap: 28px;
+
+    padding-bottom: 18px;
+    border-bottom: 1px solid rgba(0,0,0,.10);
   }
 
-  /* dep/arr растягиваются, mid фиксированный */
   .rr3_side--dep{ flex:1 1 0; }
-  .rr3_side--arr{ flex:1 1 0; justify-content:flex-end; }
-
-  .rr3_mid{
-    flex:0 0 240px;
-    max-width:240px;
-    margin:0;
-    padding:0;
-    gap:6px;
+  .rr3_side--arr{
+    flex:1 1 0;
+    justify-content:flex-end;
+    text-align:right;
   }
 
-  /* шрифты как на десктопе (меньше, чем на мобилке) */
-  .rr3_time{ font-size:14px; line-height:16px; }
-  .rr3_city{ font-size:12px; line-height:14px; max-width:none; }
-  .rr3_station{ font-size:11px; line-height:13px; max-width:none; }
+  /* на референсе справа нет иконки часов */
+  .rr3_side--arr .rr3_clock_img{
+    display:none !important;
+  }
 
-  /* КЛЮЧ: город в одной строке со временем, станция ниже */
-  .rr3_place{
+  /* типографика как на фото */
+  .rr3_time{
+    font-size: 22px;
+    line-height: 26px;
+    margin-top: 12px;
+  }
+  .rr3_city{
+    font-size: 18px;
+    line-height: 22px;
     max-width:none;
-    display:flex;
-    flex-wrap:wrap;
-    align-items:center;
-    gap: 6px 8px;
   }
-  .rr3_cityline{ flex:0 0 auto; }
   .rr3_station{
-    flex: 0 0 100%;
-    margin-top: 2px;
+    font-size: 18px;
+    line-height: 22px;
+    max-width:none;
   }
 
-  /* справа выравниваем как на фото */
-  .rr3_side--arr{ text-align:right; }
-  .rr3_side--arr .rr3_place{ justify-content:flex-end; }
+  /* правый блок выравнивание */
+  .rr3_side--arr .rr3_place{ align-items:flex-end; }
+  .rr3_side--arr .rr3_cityline{ justify-content:flex-end; }
   .rr3_side--arr .rr3_station{ text-align:right; }
 
-  /* центральная картинка с линиями */
+  /* MID + duration */
+  .rr3_mid{
+    flex:0 0 260px;
+    max-width:260px;
+    margin:0;
+    padding:0;
+    gap:10px;
+  }
+
   .rr3_dash_img{
-    width:100%;
-    height: 28px;
+    height: 42px;
     object-fit:contain;
   }
 
   .rr3_duration{
-    font-size:11px;
-    line-height:14px;
-    gap:6px;
+    display:flex; /* desktop показываем */
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    color:#878D8F;
+    font-weight:400;
+    font-size:16px;
+    line-height:19px;
   }
-  .rr3_duration_img{ width:14px; height:14px; }
+  .rr3_duration_img{
+    width:18px;
+    height:18px;
+    flex:0 0 auto;
+  }
+  .rr3_duration_img svg,
+  .rr3_duration_img img{
+    width:18px;
+    height:18px;
+    display:block;
+  }
 
-  /* иконки удобств — компактнее */
-  .rr3_icons{ grid-area: icons; justify-content:flex-start; }
+  /* ===== chips: белые кружки с тенью как на фото ===== */
   .rr3_chip{
-    width:26px;
-    height:26px;
+    width: var(--rr3-chip);
+    height: var(--rr3-chip);
     border-radius:999px;
+    background:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex:0 0 auto;
+    box-shadow: 0px 6px 18px rgba(0,0,0,.12);
   }
+
   .rr3_chip .rr3_chip_icon,
   .rr3_chip svg,
   .rr3_chip img{
-    width:14px;
-    height:14px;
+    width: var(--rr3-chip-ico);
+    height: var(--rr3-chip-ico);
+    display:block;
   }
 
-  /* schedule как маленькая строка (не "пилюля") */
+  /* icons слева (не переносим) */
+  .rr3_icons{
+    grid-area: icons;
+    display:flex;
+    align-items:center;
+    gap: 14px;
+    flex-wrap:nowrap;
+  }
+
+  /* schedule справа */
   .rr3_schedule{
     grid-area: schedule;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap: 14px;
     background: transparent;
     padding:0;
-    gap:8px;
-    align-items:center;
+    border-radius:0;
   }
-  .rr3_schedule .rr3_chip{
-    width:18px;
-    height:18px;
-    background: transparent;
-  }
+
   .rr3_schedule_label{
-    font-size:12px;
-    line-height:14px;
+    font-size:16px;
+    line-height:19px;
+    color:#878D8F;
+    font-weight:400;
+    white-space:nowrap;
   }
+
   .rr3_schedule_value{
-    font-size:12px;
-    line-height:14px;
-    max-width:none;
+    font-size:16px;
+    line-height:19px;
+    color:#878D8F;
+    font-weight:700;
     margin-left:0;
+    max-width:none;
+    overflow:visible;
+    text-overflow:clip;
+    white-space:nowrap;
     text-align:left;
   }
 
-  /* кнопки справа, в одну линию */
+  /* ===== actions: две большие кнопки ===== */
   .rr3_actions{
     grid-area: actions;
     padding:0;
+    display:flex;
     flex-direction:row;
+    align-items:center;
     justify-content:flex-end;
-    gap:12px;
-  }
-  .rr3_btn{
-    width:auto;
-    padding:10px 18px;
-    font-size:12px;
-    line-height:14px;
-    border-radius: 999px;
+    gap: var(--rr3-actions-gap);
   }
 
-  /* КЛЮЧ: "Детали" должны быть на всю ширину карточки (включая под превью)
-     поэтому расширяем их через calc и отрицательный margin */
+  .rr3_btn{
+    width:auto;
+    border-radius:999px;
+    min-height: 68px;
+    padding: 0 46px;
+    font-size:18px;
+    line-height: 1;
+  }
+
+  .rr3_btn.buy{
+    min-width: clamp(240px, 32vw, 340px);
+    font-weight:700;
+    box-shadow: 0px 10px 25px rgba(255,153,0,.35);
+  }
+
+  .rr3_btn.reserve{
+    min-width: clamp(200px, 26vw, 280px);
+    font-weight:600;
+    box-shadow: 0px 10px 25px rgba(52,185,240,.30);
+  }
+
+  /* ===== детали — растягиваем на всю ширину как было, но без лишнего отступа сверху ===== */
   .rr3_details_btn{
     grid-area: detailsbtn;
-    margin-top: 50px;
+    margin-top: 0;
+
     width: calc(100% + var(--rr3-desk-media-w) + var(--rr3-desk-gap));
     margin-left: calc(-1 * (var(--rr3-desk-media-w) + var(--rr3-desk-gap)));
     padding: 12px 16px;
@@ -767,25 +800,23 @@
     margin-left: calc(-1 * (var(--rr3-desk-media-w) + var(--rr3-desk-gap)));
   }
 
-  /* серый контейнер деталей + две колонки (стопы / карта) */
   .rr3_details_body .rr3_stops_wrap{
     background:#F5F5F5;
     border-radius: 14px;
     padding: 14px;
     display:grid;
-    
     grid-template-columns: 1fr 1fr;
     gap: 16px;
     align-items:stretch;
   }
 
-  .rr3_stops_wrap{ padding-top:0; } /* убираем мобильный отступ */
+  .rr3_stops_wrap{ padding-top:0; }
 
-  /* стопы крупнее на десктопе */
   .rr3_stop{
     grid-template-columns: 190px 1fr;
     column-gap: 14px;
   }
+
   .rr3_stop_txt,
   .rr3_stop_station{
     font-size:12px;
@@ -797,6 +828,7 @@
     border-radius: 14px;
   }
 }
+
 
 </style>
 @endonce
@@ -874,7 +906,7 @@ document.addEventListener('click', function(e){
                         <div class="rr3_toprow">
                             {{-- Departure --}}
                             <div class="rr3_side rr3_side--dep">
-                                {!! $ico('rr3-clock.svg','rr3_clock_img','clock') !!}
+                                
                                 <div class="rr3_time">{{ $depTime }}</div>
 
                                 <div class="rr3_place">
@@ -893,7 +925,7 @@ document.addEventListener('click', function(e){
 </div>
 
 
-                                <div class="rr3_duration">
+                                <div class="rr3_duration" hidden>
                                     {!! $ico('rr3-duration.svg','rr3_duration_img','duration') !!}
                                     <span>{{ $durationText }}</span>
                                 </div>
