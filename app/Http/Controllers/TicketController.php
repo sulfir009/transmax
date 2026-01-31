@@ -7,6 +7,7 @@ use App\Repository\TicketRepository;
 use App\Repository\CityRepository;
 use App\Repository\Races\Params\TicketParams;
 use App\Service\Tour\TicketService;
+use App\Helpers\LocaleHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -66,6 +67,9 @@ class TicketController extends Controller
 
         // Обработка POST запроса от формы фильтра
         if ($request->isMethod('post')) {
+            if (!$request->filled(['departure', 'arrival'])) {
+                return redirect(LocaleHelper::localizedRoute('schedule'));
+            }
             // Сохраняем параметры фильтра в сессию
             $_SESSION['filter'] = [
                 'departure' => $request->input('departure', 0),
