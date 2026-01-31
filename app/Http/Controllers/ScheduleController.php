@@ -50,6 +50,7 @@ class ScheduleController extends Controller
         
         // Получаем отфильтрованные маршруты
         $routes = $this->scheduleService->getFilteredRoutes($filters, $currentPage, $perPage);
+        $routes = $this->applySort($routes, $request->get('sort'));
         
         // Получаем данные для блока "Наши направления"
         $countries = $this->scheduleRepository->getCountriesForHome();
@@ -89,6 +90,7 @@ class ScheduleController extends Controller
         $perPage = 16;
         $currentPage = $request->get('page', 1);
         $routes = $this->scheduleService->getFilteredRoutes($filters, $currentPage, $perPage);
+        $routes = $this->applySort($routes, $request->get('sort'));
 
         $countries = $this->scheduleRepository->getCountriesForHome();
         $citiesList = $this->scheduleRepository->getPopularCities(10);
@@ -178,5 +180,61 @@ class ScheduleController extends Controller
         }
 
         return response()->json('err', 400);
+    }
+
+    private function applySort($routes, ?string $sort)
+    {
+        $availableSorts = ['price', 'dep', 'arr', 'popular'];
+        if (!$sort || !in_array($sort, $availableSorts, true)) {
+            return $routes;
+        }
+
+        $collection = $routes->getCollection();
+        if ($collection->isEmpty()) {
+            return $routes;
+        }
+
+        $timeToSeconds = function (?string $time): int {
+            if (!$time) {
+                return PHP_INT_MAX;
+            }
+            $time = trim($time);
+            if (strlen($time) === 5) {
+                $time .= ':00';
+            }
+            $timestamp = strtotime($time);
+            return $timestamp !== false ? $timestamp : PHP_INT_MAX;
+        };
+
+        $sortValue = match ($sort) {
+            'price' => fn ($route) => (float) data_get($route, 'ticket_price', PHP_INT_MAX),
+            'dep' => fn ($route) => $timeToSeconds(data_get($route, 'departure_details.departure_time') ?? data_get($route, 'departure_time')),
+            'arr' => fn ($route) => $timeToSeconds(data_get($route, 'arrival_details.arrival_time') ?? data_get($route, 'arrival_time')),
+            'popular' => fn ($route) => (float) data_get($route, 'ticket_price', 0),
+            default => fn () => 0,
+        };
+
+        $sortGroup = function ($group) use ($sort, $sortValue) {
+            $groupCollection = collect($group);
+            $sorted = $sort === 'popular'
+                ? $groupCollection->sortByDesc($sortValue)
+                : $groupCollection->sortBy($sortValue);
+
+            return $sorted->values()->all();
+        };
+
+        $firstItem = $collection->first();
+        if (is_array($firstItem)) {
+            $routes->setCollection($collection->map($sortGroup));
+            return $routes;
+        }
+
+        $sorted = $sort === 'popular'
+            ? $collection->sortByDesc($sortValue)->values()
+            : $collection->sortBy($sortValue)->values();
+
+        $routes->setCollection($sorted);
+
+        return $routes;
     }
 }
