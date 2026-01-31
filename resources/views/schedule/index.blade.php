@@ -1,7 +1,6 @@
 @extends('layout.app')
 
 @section('page-styles')
-    <link rel="stylesheet" href="{{ mix('css/legacy/libs/slick/jquery.mCustomScrollbar.min.css') }}">
     <link rel="stylesheet" href="{{ asset('css/ticket_filter_hero.css') }}?v=1">
     <style>
         .mt_schedule_scope {
@@ -98,20 +97,6 @@
             background: #4d80ff;
             border-color: #4d80ff;
             color: #ffffff;
-        }
-
-        .mt_schedule_scope .shedule_block {
-            padding-top: 0;
-        }
-
-        .mt_schedule_scope .shedule_table_container {
-            padding-top: 0;
-        }
-
-        .mt_schedule_scope .shedule_table_wrapper {
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 12px 28px rgba(23, 29, 69, 0.08);
         }
 
         .mt_schedule_scope .mt_schedule_popular {
@@ -224,48 +209,35 @@
         'popular' => 'ПОПУЛЯРНІСТЬ',
     ];
 
-    $popularRoutes = [
-        [
-            'title' => 'З МІСТА КИЇВ',
-            'items' => [
-                ['label' => 'Київ → Львів', 'price' => '200 грн'],
-                ['label' => 'Київ → Варна', 'price' => '200 грн'],
-                ['label' => 'Київ → Одеса', 'price' => '200 грн'],
-                ['label' => 'Київ → Краків', 'price' => '200 грн'],
-                ['label' => 'Київ → Прага', 'price' => '200 грн'],
-            ],
-        ],
-        [
-            'title' => 'У МІСТО ВАРНА',
-            'items' => [
-                ['label' => 'Київ → Варна', 'price' => '200 грн'],
-                ['label' => 'Одеса → Варна', 'price' => '200 грн'],
-                ['label' => 'Львів → Варна', 'price' => '200 грн'],
-                ['label' => 'Чернівці → Варна', 'price' => '200 грн'],
-                ['label' => 'Кишинів → Варна', 'price' => '200 грн'],
-            ],
-        ],
-        [
-            'title' => 'У МІСТО КИЇВ',
-            'items' => [
-                ['label' => 'Львів → Київ', 'price' => '200 грн'],
-                ['label' => 'Варна → Київ', 'price' => '200 грн'],
-                ['label' => 'Одеса → Київ', 'price' => '200 грн'],
-                ['label' => 'Краків → Київ', 'price' => '200 грн'],
-                ['label' => 'Прага → Київ', 'price' => '200 грн'],
-            ],
-        ],
-        [
-            'title' => 'З МІСТА ВАРНА',
-            'items' => [
-                ['label' => 'Варна → Київ', 'price' => '200 грн'],
-                ['label' => 'Варна → Одеса', 'price' => '200 грн'],
-                ['label' => 'Варна → Львів', 'price' => '200 грн'],
-                ['label' => 'Варна → Чернівці', 'price' => '200 грн'],
-                ['label' => 'Варна → Кишинів', 'price' => '200 грн'],
-            ],
-        ],
-    ];
+    $routesCollection = $routes->getCollection();
+    $flatRoutes = is_array($routesCollection->first())
+        ? $routesCollection->flatten(1)
+        : $routesCollection;
+
+    $popularRoutes = $flatRoutes
+        ->groupBy('departure_city')
+        ->take(4)
+        ->map(function ($group, $departureCity) {
+            return [
+                'title' => 'З МІСТА ' . mb_strtoupper($departureCity, 'UTF-8'),
+                'items' => $group->take(5)->map(function ($route) {
+                    $price = $route->ticket_price ? number_format($route->ticket_price, 0, '.', ' ') . ' грн' : '—';
+                    $date = $route->nearest_departure_date ?? now()->format('Y-m-d');
+                    return [
+                        'label' => $route->departure_city . ' → ' . $route->arrival_city,
+                        'price' => $price,
+                        'url' => route('tickets.index', [
+                            'departure' => $route->departure,
+                            'arrival' => $route->arrival,
+                            'date' => $date,
+                            'adults' => 1,
+                            'kids' => 0,
+                        ]),
+                    ];
+                })->values(),
+            ];
+        })
+        ->values();
 @endphp
 
 <div class="content mt_schedule_scope">
@@ -312,95 +284,28 @@
             </div>
         </div>
 
-        <div class="page_content_wrapper">
-            <div class="shedule_block">
-                <div class="shedule_table_container">
-                    <div class="shedule_table_wrapper">
-                        <table class="shedule_table">
-                            <thead class="shedule_th">
-                                <tr>
-                                    <th>@lang('dictionary.MSG_MSG_SCHEDULE_KRANA')</th>
-                                    <th>@lang('dictionary.MSG_MSG_SCHEDULE_REJS')</th>
-                                    <th>@lang('dictionary.MSG_MSG_SCHEDULE_MARSHRUT')</th>
-                                    <th>@lang('dictionary.MSG_MSG_SCHEDULE_VARTISTI')</th>
-                                    <th>@lang('dictionary.MSG_MSG_SCHEDULE_POSILANNYA_NA_BRONYUVANNYA')</th>
-                                </tr>
-                            </thead>
-                            <tbody class="shedule_tbody">
-                                @forelse($routes as $countryId => $countryRoutes)
-                                    @foreach($countryRoutes as $k => $route)
-                                        <tr class="shedule_tr">
-                                            @if($k == 0)
-                                                <td class="shedule_td manrope" rowspan="{{ count($countryRoutes) }}">
-                                                    {{ $route->departure_country }}
-                                                </td>
-                                            @endif
-
-                                            <td class="shedule_td manrope">
-                                                {{ $route->departure_city }} - {{ $route->arrival_city }}
-                                            </td>
-
-                                            <td class="shedule_td">
-                                                <button class="schedule_details_btn"
-                                                        onclick="toggleRouteDetailsSchedule('{{ $route->id }}', '{{ optional($route->departure_details)->id ?? 0 }}', '{{ optional($route->arrival_details)->id ?? 0 }}')">
-                                                    @lang('dictionary.MSG_MSG_SCHEDULE_GRAFIK_I_RASPISANIE_REJSA')
-                                                </button>
-                                            </td>
-
-                                            <td class="shedule_td h4_title">
-                                                <button class="info_btn">
-                                                    <img src="{{ asset('images/legacy/common/info.svg') }}" alt="info">
-                                                </button>
-                                                <button class="schedule_details_btn"
-                                                        onclick="toggleRoutePricesSchedule('{{ $route->id }}', '{{ optional($route->departure_details)->id ?? 0 }}', '{{ optional($route->arrival_details)->id ?? 0 }}', '{{ $route->nearest_departure_date ?? '' }}')">
-                                                    @lang('dictionary.MSG_MSG_SCHEDULE_PRICE_TABLE')
-                                                </button>
-                                            </td>
-
-                                            <td class="shedule_td">
-                                                <button class="buy_btn h5_title"
-                                                        onclick="buyTicketFromSchedule(this, '{{ $route->id }}', '{{ optional($route->departure_details)->id ?? 0 }}', '{{ optional($route->arrival_details)->id ?? 0 }}', '{{ $route->nearest_departure_date ?? '' }}')">
-                                                    @lang('dictionary.MSG_MSG_SCHEDULE_KUPITI_KVITOK')
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                @empty
-                                    <tr>
-                                        <td colspan="5" class="text-center">
-                                            @lang('dictionary.MSG_MSG_SCHEDULE_NET_MARSHRUTOV')
-                                        </td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="shedule_table_pagination_wrapper">
-                        {{ $routes->appends(request()->query())->links('layout.components.pagination') }}
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <section class="mt_schedule_popular">
             <div class="container">
                 <div class="mt_schedule_popular_title">ПОПУЛЯРНІ РЕЙСИ</div>
-                <div class="mt_schedule_popular_grid">
-                    @foreach($popularRoutes as $popular)
-                        <div class="mt_schedule_popular_card">
-                            <div class="mt_schedule_popular_card_title">{{ $popular['title'] }}</div>
-                            <div class="mt_schedule_popular_list">
-                                @foreach($popular['items'] as $item)
-                                    <div class="mt_schedule_popular_item">
-                                        <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}">{{ $item['label'] }}</a>
-                                        <span class="mt_schedule_popular_price">{{ $item['price'] }}</span>
-                                    </div>
-                                @endforeach
+                @if($popularRoutes->isEmpty())
+                    <p class="mt_schedule_intro">@lang('dictionary.MSG_MSG_SCHEDULE_NET_MARSHRUTOV')</p>
+                @else
+                    <div class="mt_schedule_popular_grid">
+                        @foreach($popularRoutes as $popular)
+                            <div class="mt_schedule_popular_card">
+                                <div class="mt_schedule_popular_card_title">{{ $popular['title'] }}</div>
+                                <div class="mt_schedule_popular_list">
+                                    @foreach($popular['items'] as $item)
+                                        <div class="mt_schedule_popular_item">
+                                            <a href="{{ $item['url'] }}">{{ $item['label'] }}</a>
+                                            <span class="mt_schedule_popular_price">{{ $item['price'] }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
                             </div>
-                        </div>
-                    @endforeach
-                </div>
+                        @endforeach
+                    </div>
+                @endif
             </div>
         </section>
 
@@ -505,120 +410,4 @@
     </div>
 </div>
 
-{{-- Popups --}}
-<div class="schedule_route_details_popup"></div>
-<div class="schedule_route_details_overlay overlay" onclick="toggleRouteDetailsSchedule('0')"></div>
-@endsection
-
-@section('page-scripts')
-<script src="https://cdnjs.cloudflare.com/ajax/libs/malihu-custom-scrollbar-plugin/3.1.5/jquery.mCustomScrollbar.concat.min.js"></script>
-<script>
-    function toggleDetailsServices(item) {
-        $(item).toggleClass('active');
-        $('.sr_bus_options').slideToggle();
-    }
-
-    $(".shedule_table_wrapper").mCustomScrollbar({
-        axis: "x",
-        theme: 'maxtrans_theme'
-    });
-
-    function buyTicketFromSchedule(item, id, departure, arrival, date) {
-        initLoader();
-        $.ajax({
-            type: 'post',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            },
-            url: '{{ route("schedule.remember-ticket") }}',
-            data: {
-                'id': id,
-                'passengers': '1',
-                'departure': departure,
-                'date': date,
-                'arrival': arrival
-            },
-            success: function (response) {
-                removeLoader();
-                if ($.trim(response) == 'ok') {
-                    location.href = '{{ route("booking.index") }}';
-                } else if ($.trim(response) === 'late') {
-                    out('@lang("dictionary.MSG_MSG_TICKETS_ETOT_BILET_BOLISHE_KUPITI_NELIZYA_TK_ETOT_REJS_UZHE_UEHAL")');
-                }
-            }
-        });
-    }
-
-    function toggleRouteDetailsSchedule(id, departure, arrival) {
-        if (parseInt(id) > 0) {
-            initLoader();
-            $.ajax({
-                type: 'post',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                },
-                url: '{{ route("schedule.route-details") }}',
-                data: {
-                    'id': id,
-                    'departure': departure,
-                    'arrival': arrival
-                },
-                success: function (response) {
-                    removeLoader();
-                    if (response.html) {
-                        $('.schedule_route_details_popup').html(response.html).toggleClass('active');
-                        $('.schedule_route_details_overlay').fadeToggle();
-                        $('body').toggleClass('overflow');
-                    } else {
-                        out('Ошибка');
-                    }
-                }
-            });
-        } else {
-            $('.schedule_route_details_popup').html('').toggleClass('active');
-            $('.schedule_route_details_overlay').fadeToggle();
-            $('body').toggleClass('overflow');
-        }
-    }
-
-    function toggleRoutePricesSchedule(id, departure, arrival) {
-        if (parseInt(id) > 0) {
-            initLoader();
-            $.ajax({
-                type: 'post',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                },
-                url: '{{ route("schedule.route-prices") }}',
-                data: {
-                    'id': id,
-                    'departure': departure,
-                    'arrival': arrival
-                },
-                success: function (response) {
-                    removeLoader();
-                    if (response.data) {
-                        $('.schedule_route_details_popup').html(response.data).toggleClass('active');
-                        $('.schedule_route_details_overlay').fadeToggle();
-                        $('body').toggleClass('overflow');
-                    } else {
-                        out('Ошибка');
-                    }
-                }
-            });
-        } else {
-            $('.schedule_route_details_popup').html('').toggleClass('active');
-            $('.schedule_route_details_overlay').fadeToggle();
-            $('body').toggleClass('overflow');
-        }
-    }
-
-    function initLoader() {
-        $('body').prepend('<div class="loader"></div>');
-    }
-
-    function removeLoader() {
-        document.querySelector(".loader").remove();
-    }
-</script>
 @endsection
