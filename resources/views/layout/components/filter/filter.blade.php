@@ -1,4 +1,4 @@
-<form class="main_filter" method="post" action="{{ $formAction ?? route('tickets.index') }}">
+<form class="main_filter" method="post" action="{{ $formAction ?? route('tickets.index') }}" data-reset-url="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}">
     @csrf
     <div class="flex-row gap-8">
         {{-- Откуда --}}
@@ -9,9 +9,10 @@
                         @lang('dictionary.MSG_ALL_ZVIDKI')
                     </div>
                     <select class="filter_city_select" id="filter_departure" name="departure">
+                        <option value="" {{ empty($filterDeparture) ? 'selected' : '' }}>Оберіть місто</option>
                         @foreach($cities as $city)
                             <option value="{{ $city['id'] }}"
-                                {{ $filterDeparture == $city['id'] ? 'selected' : '' }}>
+                                {{ !empty($filterDeparture) && $filterDeparture == $city['id'] ? 'selected' : '' }}>
                                 {{ $city['title'] }}
                             </option>
                         @endforeach
@@ -31,9 +32,10 @@
                         @lang('dictionary.MSG_ALL_KUDA')
                     </div>
                     <select class="filter_city_select" id="filter_arrival" name="arrival">
+                        <option value="" {{ empty($filterArrival) ? 'selected' : '' }}>Оберіть місто</option>
                         @foreach($cities as $city)
                             <option value="{{ $city['id'] }}"
-                                {{ $filterArrival == $city['id'] ? 'selected' : '' }}>
+                                {{ !empty($filterArrival) && $filterArrival == $city['id'] ? 'selected' : '' }}>
                                 {{ $city['title'] }}
                             </option>
                         @endforeach
@@ -225,6 +227,25 @@
     // для элементов с классом .filter_date
     // Если нужна дополнительная логика, добавляем её после основной инициализации
     document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.main_filter').forEach((form) => {
+            if (form.dataset.emptyRedirectBound === '1') {
+                return;
+            }
+            form.dataset.emptyRedirectBound = '1';
+            form.addEventListener('submit', function(event) {
+                const departureSelect = form.querySelector('#filter_departure');
+                const arrivalSelect = form.querySelector('#filter_arrival');
+                if (!departureSelect || !arrivalSelect) {
+                    return;
+                }
+                if (!departureSelect.value || !arrivalSelect.value) {
+                    event.preventDefault();
+                    const resetUrl = form.dataset.resetUrl || '{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}';
+                    window.location.href = resetUrl;
+                }
+            });
+        });
+
         // Ждем немного, чтобы основная инициализация из footer_scripts завершилась
         setTimeout(function() {
             const filterDateInput = document.getElementById('filter_date_input');
