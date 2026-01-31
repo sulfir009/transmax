@@ -2,111 +2,11 @@
 
 @section('page-styles')
     <link rel="stylesheet" href="{{ mix('css/legacy/libs/slick/jquery.mCustomScrollbar.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/ticket_filter_hero.css') }}?v=1">
     <style>
         .mt_schedule_scope {
             font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
             color: #1d1f2b;
-        }
-
-        .mt_schedule_scope .mf__bg {
-            background: linear-gradient(100deg, #6fb8ff 0%, #b8a5ff 48%, #c8c5fa 100%);
-            padding: 44px 0 28px;
-        }
-
-        .mt_schedule_scope .mf__inner {
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-        }
-
-        .mt_schedule_scope .mf__hero {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 32px;
-        }
-
-        .mt_schedule_scope .mf__left {
-            max-width: 520px;
-            color: #ffffff;
-        }
-
-        .mt_schedule_scope .mf__logo {
-            width: 150px;
-            height: auto;
-            margin-bottom: 16px;
-        }
-
-        .mt_schedule_scope .mf__title {
-            font-size: 28px;
-            font-weight: 700;
-            line-height: 1.2;
-            margin-bottom: 12px;
-        }
-
-        .mt_schedule_scope .mf__desc {
-            font-size: 15px;
-            line-height: 1.45;
-            margin: 0;
-            color: rgba(255, 255, 255, 0.92);
-        }
-
-        .mt_schedule_scope .mf__right {
-            display: flex;
-            align-items: center;
-            gap: 24px;
-        }
-
-        .mt_schedule_scope .mf__phones {
-            width: 280px;
-            max-width: 40vw;
-            height: auto;
-            filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.22));
-        }
-
-        .mt_schedule_scope .mf__stores {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
-        }
-
-        .mt_schedule_scope .mf__store {
-            display: grid;
-            gap: 8px;
-            justify-items: center;
-            text-decoration: none;
-        }
-
-        .mt_schedule_scope .mf__qr {
-            width: 92px;
-            height: 92px;
-            object-fit: cover;
-            border-radius: 10px;
-            background: #fff;
-            padding: 6px;
-        }
-
-        .mt_schedule_scope .mf__badge {
-            width: 110px;
-            height: auto;
-        }
-
-        .mt_schedule_scope .mf__form_shell {
-            background: #ffffff;
-            border-radius: 16px;
-            padding: 16px;
-            box-shadow: 0 14px 30px rgba(22, 27, 63, 0.12);
-        }
-
-        .mt_schedule_scope .main_filter .flex-row {
-            display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
-            gap: 12px;
-        }
-
-        .mt_schedule_scope .main_filter .filter_btn {
-            width: 100%;
-            justify-content: center;
         }
 
         .mt_schedule_scope .mt_schedule_body {
@@ -292,41 +192,7 @@
             gap: 16px;
         }
 
-        @media (max-width: 992px) {
-            .mt_schedule_scope .mf__hero {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .mt_schedule_scope .mf__right {
-                width: 100%;
-                justify-content: space-between;
-            }
-
-            .mt_schedule_scope .main_filter .flex-row {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-        }
-
         @media (max-width: 768px) {
-            .mt_schedule_scope .mf__right {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .mt_schedule_scope .mf__phones {
-                width: 220px;
-                max-width: 100%;
-            }
-
-            .mt_schedule_scope .mf__stores {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
-            .mt_schedule_scope .main_filter .flex-row {
-                grid-template-columns: 1fr;
-            }
-
             .mt_schedule_scope .mt_schedule_popular_grid {
                 grid-template-columns: 1fr;
             }
