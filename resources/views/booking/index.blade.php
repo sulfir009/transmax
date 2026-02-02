@@ -1679,6 +1679,7 @@ window.__dbgPassengers = {
     }
 
     var balanceCents = parseInt(bonusBlock.getAttribute('data-bonus-balance-cents') || '0', 10);
+    var orderId = parseInt(bonusBlock.getAttribute('data-order-id') || '0', 10);
     var useBonusCheckbox = document.getElementById('js_use_bonus');
     var redeemEl = document.getElementById('js_bonus_redeem');
     var totalEl = document.getElementById('js_total_price');
@@ -1692,10 +1693,24 @@ window.__dbgPassengers = {
     }
 
     function calculateMaxRedeemCents(balance, payable) {
-        return Math.min(balance, payable, Math.floor(payable * 0.2));
+        return Math.min(balance, payable);
     }
 
     function syncBonusSession(useBonus, payableCents) {
+        if (orderId > 0) {
+            return $.ajax({
+                type: 'post',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                url: '/booking/' + orderId + '/apply-bonuses',
+                data: {
+                    use_bonus: useBonus ? 1 : 0,
+                    payable_cents: payableCents
+                }
+            });
+        }
+
         return $.ajax({
             type: 'post',
             url: '/ajax/{{ $lang }}',

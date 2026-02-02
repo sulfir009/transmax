@@ -143,14 +143,16 @@
     
         @if(!empty($bonusEligible))
         <div class="b2_divider"></div>
-        <div class="b2_bonus_block" data-bonus-balance-cents="{{ $bonusBalanceCents ?? 0 }}">
+        <div class="b2_bonus_block"
+             data-bonus-balance-cents="{{ $bonusBalanceCents ?? 0 }}"
+             data-order-id="{{ $order['order_db_id'] ?? 0 }}">
             <div class="b2_row">
                 <span>Бонусный баланс:</span>
                 <strong>{{ $bonusBalanceFormatted ?? '0' }} грн</strong>
             </div>
             <label class="b2_bonus_checkbox">
                 <input type="checkbox" id="js_use_bonus" />
-                <span>Рассчитаться бонусами (до 20% от оплаты)</span>
+                <span>Рассчитаться бонусами</span>
             </label>
             <div class="b2_row b2_bonus_row">
                 <span>Будет списано бонусами:</span>
