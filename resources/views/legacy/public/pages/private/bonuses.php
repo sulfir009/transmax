@@ -124,9 +124,12 @@
             </div>
         </div>
         <div class="page_content_wrapper">
-            <div class="container">
-                <?php $getBonuses = $Db->getOne("SELECT miles FROM `".DB_PREFIX."_clients` WHERE id = '".$User->id."' ");
-                if ((int)$getBonuses['miles'] < (int)$GLOBALS['site_settings']['FIRST_BONUS']){?>
+            <div class="container" data-bonus-user="<?php echo (int)$User->id; ?>">
+                <?php $getBonuses = $Db->getOne("SELECT miles, bonus_balance_cents FROM `".DB_PREFIX."_clients` WHERE id = '".$User->id."' ");
+                $bonusMiles = (int)($getBonuses['miles'] ?? 0);
+                $bonusBalanceCents = (int)($getBonuses['bonus_balance_cents'] ?? 0);
+                $bonusBalanceUah = number_format($bonusBalanceCents / 100, 2, '.', '');
+                if ($bonusBalanceCents <= 0){?>
                     <div class="private_empty_block">
                         <div class="private_empry_block_title h2_title">
                             <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_U_VAS_POKI_NEMA_BONUSIV']?>
@@ -143,6 +146,9 @@
                             </div>
                             <div class="current_bonuses_subtitle par">
                                 <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZA_KOZHEN_KUPLENIJ_KVITOK']?>
+                            </div>
+                            <div class="current_bonuses_subtitle par">
+                                <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VASHI_BONUSI']?>: <?php echo $bonusBalanceUah; ?> грн
                             </div>
                         </div>
                         <div class="current_bonuses_path_wrapper">
@@ -282,6 +288,18 @@
             $('.purchase_steps').slick('slickGoTo', 3, true)
         }
     });
+</script>
+<script>
+    (function () {
+        const bonusSnapshot = <?php echo json_encode([
+            'client_id' => (int) $User->id,
+            'bonus_balance_cents' => $bonusBalanceCents ?? 0,
+            'bonus_balance_uah' => $bonusBalanceUah ?? '0.00',
+            'miles' => $bonusMiles ?? 0,
+            'first_bonus_threshold' => (int) ($GLOBALS['site_settings']['FIRST_BONUS'] ?? 0),
+        ]); ?>;
+        console.log('[BONUSES PAGE] bonus snapshot', bonusSnapshot);
+    })();
 </script>
 </body>
 </html>
