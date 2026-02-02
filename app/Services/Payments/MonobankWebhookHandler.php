@@ -4,9 +4,11 @@ namespace App\Services\Payments;
 
 use App\Models\Order;
 use App\Models\Payment;
+use App\Service\TicketService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class MonobankWebhookHandler
 {
@@ -174,6 +176,10 @@ class MonobankWebhookHandler
             $finalizeResult = $this->finalizer->finalize($matchedOrder, $data, $source);
         }
 
+        if ((int) ($matchedOrder->payment_status ?? 0) === PaymentFinalizer::PAYMENT_STATUS_PAID) {
+            $this->dispatchTicketsOnce($matchedOrder, (string) $legacyOrderId, $data, $correlationId);
+        }
+
         Log::info('[Monobank] webhook processed', [
             'correlation_id' => $correlationId,
             'invoiceId' => $invoiceId,
@@ -190,6 +196,55 @@ class MonobankWebhookHandler
             'legacy_order_id' => $legacyOrderId,
             'finalize_result' => $finalizeResult,
         ];
+    }
+
+    private function dispatchTicketsOnce(Order $order, string $legacyOrderId, array $paymentPayload, string $correlationId): void
+    {
+        $lockKey = 'tickets:sent:' . (int) $order->id;
+        $ttlSeconds = 86400;
+
+        if (!Cache::add($lockKey, 1, $ttlSeconds)) {
+            Log::info('[tickets] webhook dispatch skipped (lock exists)', [
+                'correlation_id' => $correlationId,
+                'order_id' => (int) $order->id,
+                'legacy_order_id' => $legacyOrderId,
+            ]);
+            return;
+        }
+
+        try {
+            /** @var TicketService $ticketService */
+            $ticketService = app(TicketService::class);
+
+            Log::info('[tickets] webhook dispatch start', [
+                'correlation_id' => $correlationId,
+                'order_id' => (int) $order->id,
+                'legacy_order_id' => $legacyOrderId,
+            ]);
+
+            $payload = array_merge($paymentPayload, [
+                'status' => $paymentPayload['status'] ?? 'success',
+                'payment_provider' => $paymentPayload['payment_provider'] ?? 'monobank',
+                'order_id' => $legacyOrderId,
+            ]);
+
+            $ticketService->processSuccessfulPayment($legacyOrderId, $payload, $correlationId);
+
+            Log::info('[tickets] webhook dispatch done', [
+                'correlation_id' => $correlationId,
+                'order_id' => (int) $order->id,
+                'legacy_order_id' => $legacyOrderId,
+            ]);
+        } catch (Throwable $e) {
+            Cache::forget($lockKey);
+
+            Log::error('[tickets] webhook dispatch failed', [
+                'correlation_id' => $correlationId,
+                'order_id' => (int) $order->id,
+                'legacy_order_id' => $legacyOrderId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function webhookCacheKey(int $orderId): string

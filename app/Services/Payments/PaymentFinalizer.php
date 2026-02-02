@@ -43,6 +43,22 @@ class PaymentFinalizer
         );
     }
 
+    public function finalize(Order $order, array $payload, string $source = 'webhook'): array
+    {
+        $legacyOrderId = (string) ($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));
+        $invoiceId = (string) ($payload['invoiceId'] ?? $order->mono_invoice_id ?? '');
+        $monoStatus = (string) ($payload['status'] ?? $order->mono_status ?? 'unknown');
+
+        return $this->finalizeMonobank(
+            (int) $order->id,
+            $legacyOrderId,
+            $invoiceId,
+            $monoStatus,
+            $source,
+            $payload
+        );
+    }
+
     /**
      * Финализация оплаты Monobank.
      *
