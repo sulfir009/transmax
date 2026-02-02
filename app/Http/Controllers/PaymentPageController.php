@@ -321,6 +321,17 @@ class PaymentPageController extends Controller
                 'mono_status' => (string) ($order->mono_status ?? ''),
             ]);
 
+            $paymentPayloadForTicket = [
+                'status' => 'success',
+                'payment_provider' => $paymentProvider,
+                'order_id' => $legacyOrderId,
+                'invoiceId' => (string) ($invoiceId ?? ''),
+                'paid_at' => $order->paid_at ?? null,
+                'payment_hint' => 'already_paid_poll',
+            ];
+
+            $this->dispatchTicketsOnce($order, $legacyOrderId, $paymentPayloadForTicket, $paymentCorrelationId);
+
             $response = response()->json([
                 'status' => 'ok',
                 'payment_status' => 2,
