@@ -808,37 +808,16 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                                        name="paymethod"
                                        hidden
                                        data-cardpay="true"
-                                       value="cardpay">
-                                <span class="pv2_radio"></span>
-
-                                <span class="pv2_method_name">
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_BANKIVSIKA_KARTKA']; ?>
-                                </span>
-
-                                <span class="pv2_method_logo">
-                                    <img src="<?php echo asset('images/legacy/common/bank_card.svg'); ?>" alt="bank card">
-                                </span>
-
-                                <span class="pv2_method_price">
-                                    <?php echo $totalPrice . ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
-                                </span>
-                            </label>
-
-                            <label class="pv2_method">
-                                <input type="radio"
-                                       name="paymethod"
-                                       hidden
-                                       data-cardpay="false"
-                                       value="cash"
+                                       value="cardpay"
                                        checked>
                                 <span class="pv2_radio"></span>
 
                                 <span class="pv2_method_name">
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GOTIVKOYU']; ?>
+                                    <?php echo $GLOBALS['dictionary']['PAYMENT_LIQPAY'] ?? __('dictionary.PAYMENT_LIQPAY'); ?>
                                 </span>
 
                                 <span class="pv2_method_logo">
-                                    <img src="<?php echo asset('images/legacy/common/cash.svg'); ?>" alt="cash">
+                                    <img src="<?php echo asset('images/legacy/common/bank_card.svg'); ?>" alt="bank card">
                                 </span>
 
                                 <span class="pv2_method_price">
@@ -855,11 +834,32 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                                 <span class="pv2_radio"></span>
 
                                 <span class="pv2_method_name">
-                                    monobank (mono)
+                                    <?php echo $GLOBALS['dictionary']['PAYMENT_MONOPAY'] ?? __('dictionary.PAYMENT_MONOPAY'); ?>
                                 </span>
 
                                 <span class="pv2_method_logo pv2_method_logo--mono" aria-hidden="true">
                                     <span class="mono_badge">mono</span>
+                                </span>
+
+                                <span class="pv2_method_price">
+                                    <?php echo $totalPrice . ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
+                                </span>
+                            </label>
+
+                            <label class="pv2_method">
+                                <input type="radio"
+                                       name="paymethod"
+                                       hidden
+                                       data-cardpay="false"
+                                       value="cash">
+                                <span class="pv2_radio"></span>
+
+                                <span class="pv2_method_name">
+                                    <?php echo $GLOBALS['dictionary']['PAYMENT_CASH'] ?? __('dictionary.PAYMENT_CASH'); ?>
+                                </span>
+
+                                <span class="pv2_method_logo">
+                                    <img src="<?php echo asset('images/legacy/common/cash.svg'); ?>" alt="cash">
                                 </span>
 
                                 <span class="pv2_method_price">

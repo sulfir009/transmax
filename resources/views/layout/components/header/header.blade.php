@@ -716,8 +716,8 @@
             <div class="mobile_menu_links">
                 <ul>
                     <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('main') }}" class="mobile_menu_link manrope {{ Route::is('main') ? 'active' : '' }}">@lang('pages_title_main')</a></li>
-                    <li><a href="{{ url('/regular_races') }}"
- data-open-popup-regular class="mobile_menu_link manrope {{ Route::is('regular_races') ? 'active' : '' }}">@lang('pages_title_regular_races')</a></li>
+                    <li><a href="#"
+ data-open-popup-regular onclick="return false;" class="mobile_menu_link manrope {{ Route::is('regular_races') ? 'active' : '' }}">@lang('pages_title_regular_races')</a></li>
                     <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}" class="mobile_menu_link manrope {{ Route::is('schedule') ? 'active' : '' }}">@lang('pages_menu_title_schedule')</a></li>
                     <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('avtopark') }}" class="mobile_menu_link manrope {{ Route::is('avtopark') ? 'active' : '' }}">@lang('pages_menu_title_avtopark')</a></li>
                     <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('about.us') }}" class="mobile_menu_link manrope {{ Route::is('about.us') ? 'active' : '' }}">@lang('pages_menu_title_about_us')</a></li>

@@ -32,12 +32,12 @@
                 <div class="mob_pin_bus_block_m">
                     <img src="{{ asset('images/legacy/mob_pin.png') }}" alt="tpb">
                 </div>
-                <h1 class="element" style="margin-top: 55px;">@lang('way_schedule')</h1>
+                <h1 class="element" style="margin-top: 55px;">@lang('dictionary.ROUTE_AND_SCHEDULE')</h1>
                 <div class="container-fluid schedule">
                     <div class="custom-select-schedule-container">
                         <div class="custom-schedule-select-wrapper">
                             <select class="custom-schedule-styled-select" id="stationSelect" data-tour="{{ $tour }}">
-                                <option value="0">@lang('choose_first_station_regular_races')</option>
+                                <option value="0">@lang('dictionary.ALL_ROUTES')</option>
                                 @foreach($regularRaces as $alias => $races)
                                     @foreach($races as $race)
                                         <option
@@ -59,6 +59,23 @@
             </div>
         </section>
         <section class="section_table">
+            @php
+                $priceRoutes = [];
+                $defaultRaceId = null;
+
+                foreach ($regularRaces as $races) {
+                    foreach ($races as $race) {
+                        $defaultRaceId = $defaultRaceId ?? $race->id;
+                        $priceRoutes[$race->id] = [
+                            'label' => trim(($race->departure ?? '') . ' — ' . ($race->arrive ?? '')),
+                            'html' => view('regular-races.partials.price-table', [
+                                'race' => $race,
+                                'tourStopPrices' => $tourStopPrices,
+                            ])->render(),
+                        ];
+                    }
+                }
+            @endphp
             <div class="container">
                 <div class="section_table_line">
                     <img src="{{ asset('images/legacy/line_table_section.png') }}" alt="lts">
@@ -79,41 +96,40 @@
                     <img src="{{ asset('images/legacy/pin_bus.png') }}" alt="tpb">
                 </div>
                 <h1>@lang('road_price')</h1>
-                @foreach($regularRaces as $alias => $races)
-                    @unless(empty($races))
-                        @foreach($races as $race)
-                            <h3 class="overlay-image-up"
-                                style="display: block; position: relative;">{{ \Illuminate\Support\Carbon::createFromFormat('H:i:s', $race->depTime)->format('G:i') }}
-                                [{{ $race->departure }} - {{$race->arrive }}]</h3>
-                            <div class="table_container custom-scrollbar">
-                                <table class="custom-table">
-                                    <thead>
-                                    <tr>
-                                        <th></th>
-                                        @foreach($race->stops as $stop)
-                                            <th>{!! $stop->stopCity . ' ' . $stop->stopTitle !!}</th>
-                                        @endforeach
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    @foreach($race->stops as $stopFirst)
-                                        <tr>
-                                            <td class="left-column">{!! $stopFirst->stopCity . ' ' . $stopFirst->stopTitle !!}</td>
-                                            @foreach($race->stops as $stopSecond)
-                                                <td>
-                                                    {{ $tourStopPrices[$race->id][$stopFirst->stop_id][$stopSecond->stop_id]['price'] ?? '' }}
-                                                </td>
-                                            @endforeach
-                                        </tr>
-                                    @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @endforeach
-                    @endunless
-                @endforeach
+                <div class="custom-select-schedule-container price-select-container">
+                    <div class="custom-schedule-select-wrapper">
+                        <select class="custom-schedule-styled-select" id="priceDirectionSelect">
+                            @foreach($priceRoutes as $raceId => $priceRoute)
+                                <option value="{{ $raceId }}" {{ $raceId === $defaultRaceId ? 'selected' : '' }}>
+                                    {{ $priceRoute['label'] }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <div id="priceTableContainer">
+                    {!! $defaultRaceId ? ($priceRoutes[$defaultRaceId]['html'] ?? '') : '' !!}
+                </div>
             </div>
         </section>
+        @if(!empty($priceRoutes))
+            <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    const select = document.getElementById('priceDirectionSelect');
+                    const container = document.getElementById('priceTableContainer');
+                    const tables = @json($priceRoutes);
+
+                    if (!select || !container) return;
+
+                    select.addEventListener('change', function () {
+                        const selected = select.value;
+                        if (tables[selected] && tables[selected].html) {
+                            container.innerHTML = tables[selected].html;
+                        }
+                    });
+                });
+            </script>
+        @endif
         <section class="addition_section">
             <h1>@lang('reg_race_additional_services')</h1>
             <div class="addition_back">

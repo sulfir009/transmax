@@ -93,6 +93,19 @@
         $src = asset($icoPublicPath . '/' . $file);
         return '<img class="'.e($class).'" src="'.e($src).'" alt="'.e($alt).'" loading="lazy">';
     };
+
+    $countryCodeMap = [
+        'ukraine' => 'ua',
+        'romania' => 'ro',
+        'greece' => 'gr',
+        'moldova' => 'md',
+        'bulgaria' => 'bg',
+    ];
+
+    $flagCode = function(?string $countryName) use ($countryCodeMap) {
+        $key = strtolower(trim((string) $countryName));
+        return $countryCodeMap[$key] ?? '';
+    };
 @endphp
 
 @once
@@ -248,6 +261,9 @@
     background:
       linear-gradient(#0D5EAF 0 11%, #fff 11% 22%, #0D5EAF 22% 33%, #fff 33% 44%, #0D5EAF 44% 55%, #fff 55% 66%, #0D5EAF 66% 77%, #fff 77% 88%, #0D5EAF 88% 100%);
 }
+.rr3_flag.ro{ background:linear-gradient(90deg, #002B7F 0 33.33%, #FCD116 33.33% 66.66%, #CE1126 66.66% 100%); }
+.rr3_flag.md{ background:linear-gradient(90deg, #0033A0 0 33.33%, #FFD100 33.33% 66.66%, #D52B1E 66.66% 100%); }
+.rr3_flag.bg{ background:linear-gradient(#FFFFFF 0 33.33%, #00966E 33.33% 66.66%, #D62612 66.66% 100%); }
 
 /* MID */
 .rr3_mid{
@@ -358,7 +374,7 @@
     box-sizing:border-box;
     cursor:pointer;
     width:100%;
-    background:#6E7172;
+    background:rgba(110,113,114,0.55);
     color:#fff;
     border-radius:100px;
     padding:20px 20px;
@@ -371,6 +387,7 @@
     align-items:center;
     gap:12px;
 }
+.rr3_card.is-open .rr3_details_btn{ background:#6E7172; }
 
 .rr3_chev{
     width:10px; height:10px;
@@ -862,11 +879,6 @@ document.addEventListener('click', function(e){
                 @continue
             @endif
 
-            <div class="rr3_group_title">
-                <img src="{{ asset('images/legacy/' . $alias . '.png') }}" alt="light">
-                <h2>@lang('reqular_race_' . $alias)</h2>
-            </div>
-
             @foreach($races as $race)
                 @if($stopId > 0 && $race->stops->first()->stop_id != $stopId)
                     @continue
@@ -881,6 +893,8 @@ document.addEventListener('click', function(e){
 
                     $depStation = $rr3Decode($firstStop->stopTitle ?? '');
                     $arrStation = $rr3Decode($lastStop->stopTitle ?? '');
+                    $depCountryCode = $flagCode($firstStop->stopCountryEn ?? null);
+                    $arrCountryCode = $flagCode($lastStop->stopCountryEn ?? null);
 
                     if ($lang === 'en') {
                         $daysText = collect($race)->get('days_en', '');
@@ -894,7 +908,7 @@ document.addEventListener('click', function(e){
                     $durationText = '11 год. 30 хв в дорозі';
                 @endphp
 
-                <article class="rr3_card is-open">
+                <article class="rr3_card">
 
                     <div class="rr3_badge">{{ $routeTitle }}</div>
 
@@ -913,7 +927,7 @@ document.addEventListener('click', function(e){
                                 <div class="rr3_place">
                                     <div class="rr3_cityline">
                                         <div class="rr3_city">м. {{ $race->departure }}</div>
-                                        <span class="rr3_flag ua" aria-hidden="true"></span>
+                                        <span class="rr3_flag {{ $depCountryCode }}" aria-hidden="true"></span>
                                     </div>
                                     <div class="rr3_station">{{ $depStation }}</div>
                                 </div>
@@ -940,7 +954,7 @@ document.addEventListener('click', function(e){
                                 <div class="rr3_place">
                                     <div class="rr3_cityline">
                                         <div class="rr3_city">м. {{ $race->arrive }}</div>
-                                        <span class="rr3_flag gr" aria-hidden="true"></span>
+                                        <span class="rr3_flag {{ $arrCountryCode }}" aria-hidden="true"></span>
                                     </div>
                                     <div class="rr3_station">{{ $arrStation }}</div>
                                 </div>
@@ -965,12 +979,12 @@ document.addEventListener('click', function(e){
                         </div>
 
                         {{-- Details button --}}
-                        <button class="rr3_details_btn" type="button" data-rr3-details-btn aria-expanded="true">
+                        <button class="rr3_details_btn" type="button" data-rr3-details-btn aria-expanded="false">
                             Детали маршрута <span class="rr3_chev" aria-hidden="true"></span>
                         </button>
 
                         {{-- Details body --}}
-                        <div class="rr3_details_body" data-rr3-details-body>
+                        <div class="rr3_details_body" data-rr3-details-body hidden>
                             <div class="rr3_stops_wrap">
 
                                 <div class="rr3_stops">
