@@ -30,4 +30,3 @@ php artisan bonuses:grant-initial --chunk=1000
 - **Предпросчёт списания и сохранение выбора**:
   - Страница оплаты: `resources/views/booking/payment_page.php` (checkbox + пересчёт суммы).
   - AJAX сохранение: `legacy/public/pages/ajax.php` (`request=bonus_preview`).
-

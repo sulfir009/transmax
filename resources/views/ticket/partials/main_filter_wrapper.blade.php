@@ -41,8 +41,8 @@
                 <div class="mf__form_shell">
                     @include('layout.components.filter.filter', [
                         'cities' => $cities ?? [],
-                        'filterDeparture' => $filterDeparture ?? null,
-                        'filterArrival' => $filterArrival ?? null,
+                        'filterDeparture' => $filterDeparture ?? null ,
+                        'filterArrival' => $filterArrival ?? null ,
                         'filterDate' => $filterDate ?? date('Y-m-d'),
                         'filterAdults' => $adults ?? 1,
                         'filterKids' => $kids ?? 0,

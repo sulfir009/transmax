@@ -1606,7 +1606,7 @@ window.__dbgPassengers = {
 
             var totalEl = document.getElementById('js_total_price');
             if (totalEl) totalEl.textContent = formatMoney(total);
-
+            
             if (typeof window.updateBonusPreview === 'function') {
                 window.updateBonusPreview(total);
             }

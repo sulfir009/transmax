@@ -11,8 +11,8 @@
     <div class="content">
         @include('ticket.partials.main_filter_wrapper', [
     'cities' => $cities ?? [],
-    'filterDeparture' => $filterDeparture ?? null,
-    'filterArrival' => $filterArrival ?? null,
+    ' filterDeparture ' => $ filterDeparture ?? null,
+    ' filterArrival ' => $ filterArrival ?? null,
     'filterDate' => $filterDate ?? date('Y-m-d'),
     'adults' => $adults ?? 1,
     'kids' => $kids ?? 0,

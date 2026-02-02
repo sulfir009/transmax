@@ -58,8 +58,8 @@ class Client extends Model
     {
         return $this->hasMany(ClientCard::class, 'client_id', 'id');
     }
-
-    public function bonusTransactions()
+    
+        public function bonusTransactions()
     {
         return $this->hasMany(BonusTransaction::class, 'client_id', 'id');
     }

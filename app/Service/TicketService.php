@@ -2,13 +2,13 @@
 
 namespace App\Service;
 
-use App\Models\BonusTransaction;
-use App\Models\Client;
-use App\Services\BonusService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use App\Models\BonusTransaction;
+use App\Models\Client;
+use App\Services\BonusService;
 use Mpdf\Mpdf;
 use Throwable;
 
@@ -181,7 +181,7 @@ class TicketService
                 'correlation_id' => $correlationId,
                 'count'          => $passengers->count(),
             ]);
-
+            
             $this->applyBonusOperations($orderInfo, $ticketInfo, $passengersCount, $paymentData, $correlationId);
 
             /**
@@ -553,7 +553,8 @@ class TicketService
         $depTime  = isset($ticketInfo->departure_time) ? substr((string)$ticketInfo->departure_time, 0, 5) : '';
         $tourDate = (string)($orderInfo->tour_date ?? '');
         $price    = (string)($ticketInfo->price ?? '');
-        $bonusRedeemedCents = (int)($orderInfo->bonus_redeemed_cents ?? 0);
+        
+                $bonusRedeemedCents = (int)($orderInfo->bonus_redeemed_cents ?? 0);
         $bonusCashbackCents = (int)($orderInfo->bonus_cashback_cents ?? 0);
         $bonusHtml = '';
 
@@ -643,7 +644,8 @@ class TicketService
               <td><b>Всього, грн<br>Total, UAH</b><div>' . htmlspecialchars($price, ENT_QUOTES, 'UTF-8') . '</div></td>
             </tr>
           </table>
-          ' . ($bonusHtml !== '' ? '<div style="margin-top:10px;">' . $bonusHtml . '</div>' : '') . '
+          
+                    ' . ($bonusHtml !== '' ? '<div style="margin-top:10px;">' . $bonusHtml . '</div>' : '') . '
 
           <table>
             <tr class="tr_border_top" style="padding-top:30px; border-top:1px solid;">
@@ -732,7 +734,7 @@ class TicketService
                 'toStop' => (string)($toStop->title_uk ?? ''),
                 'paymentMethodLabel' => $this->detectPaymentLabel($paymentData),
                 'totalPrice' => (float)($ticketInfo->price ?? 0) * $this->getPassengersCountFromOrder($orderInfo),
-                'bonusRedeemedCents' => (int)($orderInfo->bonus_redeemed_cents ?? 0),
+                                'bonusRedeemedCents' => (int)($orderInfo->bonus_redeemed_cents ?? 0),
                 'bonusCashbackCents' => (int)($orderInfo->bonus_cashback_cents ?? 0),
             ];
 
@@ -770,8 +772,8 @@ class TicketService
             return false;
         }
     }
-
-    private function applyBonusOperations($orderInfo, $ticketInfo, int $passengersCount, array $paymentData, string $correlationId): void
+    
+        private function applyBonusOperations($orderInfo, $ticketInfo, int $passengersCount, array $paymentData, string $correlationId): void
     {
         $orderId = (int)($orderInfo->id ?? 0);
         $clientId = (int)($orderInfo->client_id ?? 0);
@@ -861,6 +863,7 @@ class TicketService
             }
         }
     }
+
 
     private function sendEmailToClient(array $data, array $pdfFiles): bool
     {
@@ -1051,8 +1054,8 @@ class TicketService
                 <tr><td style='font-weight:bold;'>E-mail</td><td>{$e($orderInfo->client_email ?? '')}</td></tr>
                 <tr><td style='font-weight:bold;'>Ціна квитка</td><td>{$e($ticketInfo->price ?? '')}</td></tr>";
         }
-
-        $bonusRedeemedCents = (int)($data['bonusRedeemedCents'] ?? 0);
+        
+                $bonusRedeemedCents = (int)($data['bonusRedeemedCents'] ?? 0);
         $bonusCashbackCents = (int)($data['bonusCashbackCents'] ?? 0);
 
         $bonusRows = '';
@@ -1062,6 +1065,7 @@ class TicketService
         if ($bonusCashbackCents > 0) {
             $bonusRows .= "<tr><td style='font-weight:bold;'>Нараховано кешбеком</td><td>{$e(number_format($bonusCashbackCents / 100, 2, '.', ''))}</td></tr>";
         }
+
 
         $html .= "
                 <tr><td style='font-weight:bold;'>Сумма замовлення</td><td>{$e($data['totalPrice'])}</td></tr>
@@ -1129,8 +1133,8 @@ class TicketService
                 <tr><td style='font-weight:bold;'>E-mail</td><td>{$e($orderInfo->client_email ?? '')}</td></tr>
                 <tr><td style='font-weight:bold;'>Ціна</td><td>{$e($ticketInfo->price ?? '')}</td></tr>";
         }
-
-        $bonusRedeemedCents = (int)($data['bonusRedeemedCents'] ?? 0);
+        
+                $bonusRedeemedCents = (int)($data['bonusRedeemedCents'] ?? 0);
         $bonusCashbackCents = (int)($data['bonusCashbackCents'] ?? 0);
 
         $bonusRows = '';
@@ -1140,6 +1144,7 @@ class TicketService
         if ($bonusCashbackCents > 0) {
             $bonusRows .= "<tr><td style='font-weight:bold;'>Нараховано кешбеком</td><td>{$e(number_format($bonusCashbackCents / 100, 2, '.', ''))}</td></tr>";
         }
+
 
         $html .= "
             <tr><td style='font-weight:bold;'>Сумма замовлення</td><td>{$e($data['totalPrice'])}</td></tr>

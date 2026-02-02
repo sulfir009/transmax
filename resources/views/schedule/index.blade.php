@@ -133,6 +133,11 @@
         .mt_schedule_scope .mt_schedule_popular_list {
             display: grid;
             gap: 6px;
+
+            /* ✅ чтобы "все маршруты" не делали карточку бесконечной */
+            max-height: 320px;
+            overflow: auto;
+            padding-right: 6px;
         }
 
         .mt_schedule_scope .mt_schedule_popular_item {
@@ -146,6 +151,10 @@
         .mt_schedule_scope .mt_schedule_popular_item a {
             color: #ff7a00;
             text-decoration: none;
+        }
+
+        .mt_schedule_scope .mt_schedule_popular_item a:hover {
+            text-decoration: underline;
         }
 
         .mt_schedule_scope .mt_schedule_popular_price {
@@ -175,6 +184,13 @@
         .mt_schedule_scope .mt_schedule_routes {
             display: grid;
             gap: 16px;
+        }
+
+        /* ✅ на больших экранах 3 колонки удобнее */
+        @media (min-width: 1200px) {
+            .mt_schedule_scope .mt_schedule_popular_grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
         }
 
         @media (max-width: 768px) {
@@ -209,35 +225,15 @@
         'popular' => 'ПОПУЛЯРНІСТЬ',
     ];
 
-    $routesCollection = $routes->getCollection();
-    $flatRoutes = is_array($routesCollection->first())
-        ? $routesCollection->flatten(1)
-        : $routesCollection;
-
-    $popularRoutes = $flatRoutes
-        ->groupBy('departure_city')
-        ->take(4)
-        ->map(function ($group, $departureCity) {
-            return [
-                'title' => 'З МІСТА ' . mb_strtoupper($departureCity, 'UTF-8'),
-                'items' => $group->take(5)->map(function ($route) {
-                    $price = $route->ticket_price ? number_format($route->ticket_price, 0, '.', ' ') . ' грн' : '—';
-                    $date = $route->nearest_departure_date ?? now()->format('Y-m-d');
-                    return [
-                        'label' => $route->departure_city . ' → ' . $route->arrival_city,
-                        'price' => $price,
-                        'url' => route('tickets.index', [
-                            'departure' => $route->departure,
-                            'arrival' => $route->arrival,
-                            'date' => $date,
-                            'adults' => 1,
-                            'kids' => 0,
-                        ]),
-                    ];
-                })->values(),
-            ];
-        })
-        ->values();
+    /**
+     * ✅ ВАЖНО:
+     * $popularRoutes теперь приходит из контроллера.
+     * Тут только страховка, чтобы Blade не упал, если переменную не передали.
+     */
+    $popularRoutes = $popularRoutes ?? collect();
+    if (is_array($popularRoutes)) {
+        $popularRoutes = collect($popularRoutes);
+    }
 @endphp
 
 <div class="content mt_schedule_scope">
@@ -287,18 +283,24 @@
         <section class="mt_schedule_popular">
             <div class="container">
                 <div class="mt_schedule_popular_title">ПОПУЛЯРНІ РЕЙСИ</div>
+
                 @if($popularRoutes->isEmpty())
                     <p class="mt_schedule_intro">@lang('dictionary.MSG_MSG_SCHEDULE_NET_MARSHRUTOV')</p>
                 @else
                     <div class="mt_schedule_popular_grid">
                         @foreach($popularRoutes as $popular)
+                            @php
+                                $items = collect($popular['items'] ?? []);
+                            @endphp
+
                             <div class="mt_schedule_popular_card">
-                                <div class="mt_schedule_popular_card_title">{{ $popular['title'] }}</div>
+                                <div class="mt_schedule_popular_card_title">{{ $popular['title'] ?? '' }}</div>
+
                                 <div class="mt_schedule_popular_list">
-                                    @foreach($popular['items'] as $item)
+                                    @foreach($items as $item)
                                         <div class="mt_schedule_popular_item">
-                                            <a href="{{ $item['url'] }}">{{ $item['label'] }}</a>
-                                            <span class="mt_schedule_popular_price">{{ $item['price'] }}</span>
+                                            <a href="{{ $item['url'] ?? '#' }}">{{ $item['label'] ?? '' }}</a>
+                                            <span class="mt_schedule_popular_price">{{ $item['price'] ?? '—' }}</span>
                                         </div>
                                     @endforeach
                                 </div>
@@ -361,21 +363,15 @@
                         <div class="route_list_block">
                             <div class="route_list_title h3_title">@lang('dictionary.MSG_ALL_MIZHNARODNI')</div>
                             <div class="route_list">
-                                @php
-                                    $printedRoutes = [];
-                                @endphp
+                                @php $printedRoutes = []; @endphp
                                 @foreach($internationalRoutes as $route)
-                                    @php
-                                        $routeString = $route->departure_city_id . '_' . $route->arrival_city_id;
-                                    @endphp
+                                    @php $routeString = $route->departure_city_id . '_' . $route->arrival_city_id; @endphp
                                     @if(!in_array($routeString, $printedRoutes))
                                         <div>
                                             <a href="{{ route('schedule') }}?departure={{ $route->departure_city_id }}&arrival={{ $route->arrival_city_id }}"
                                                class="shedule_link">{{ $route->departure_city }} → {{ $route->arrival_city }}</a>
                                         </div>
-                                        @php
-                                            $printedRoutes[] = $routeString;
-                                        @endphp
+                                        @php $printedRoutes[] = $routeString; @endphp
                                     @endif
                                 @endforeach
                             </div>
@@ -384,21 +380,15 @@
                         <div class="route_list_block">
                             <div class="route_list_title h3_title">@lang('dictionary.MSG_ALL_VNUTRISHNI')</div>
                             <div class="route_list">
-                                @php
-                                    $printedRoutes = [];
-                                @endphp
+                                @php $printedRoutes = []; @endphp
                                 @foreach($domesticRoutes as $route)
-                                    @php
-                                        $routeString = $route->departure_city_id . '_' . $route->arrival_city_id;
-                                    @endphp
+                                    @php $routeString = $route->departure_city_id . '_' . $route->arrival_city_id; @endphp
                                     @if(!in_array($routeString, $printedRoutes))
                                         <div>
                                             <a href="{{ route('schedule') }}?departure={{ $route->departure_city_id }}&arrival={{ $route->arrival_city_id }}"
                                                class="shedule_link">{{ $route->departure_city }} → {{ $route->arrival_city }}</a>
                                         </div>
-                                        @php
-                                            $printedRoutes[] = $routeString;
-                                        @endphp
+                                        @php $printedRoutes[] = $routeString; @endphp
                                     @endif
                                 @endforeach
                             </div>
@@ -409,5 +399,4 @@
         </section>
     </div>
 </div>
-
 @endsection

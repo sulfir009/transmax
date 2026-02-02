@@ -635,6 +635,7 @@
     font-size: 22px;
     line-height: 26px;
     margin-top: 12px;
+            margin-right: 32px;
   }
   .rr3_city{
     font-size: 18px;

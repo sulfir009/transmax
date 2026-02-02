@@ -3020,7 +3020,7 @@ function order_route(): void
         if ($hasCol($ordersCols, 'client_id') && isset($User->id)) {
             $orderInsert['client_id'] = (int)$User->id;
         }
-
+        
         // бонусы (если колонки есть)
         if ($hasCol($ordersCols, 'bonus_use_requested')) {
             $orderInsert['bonus_use_requested'] = (int)($_SESSION['order']['use_bonus'] ?? 0);

@@ -5,17 +5,22 @@
             <span>&times;</span>
         </button>
     </div>
-    
+
     <div class="route_prices_body">
         @if(isset($prices['tour']) && $prices['tour'])
+            @php
+                $tour = $prices['tour'];
+                $locale = app()->getLocale();
+            @endphp
+
             <div class="route_info">
                 <div class="route_title">
                     <strong>@lang('dictionary.MSG_MSG_SCHEDULE_MARSHRUT'):</strong>
-                    {{ $prices['tour']->departureCityRelation->getTitle(app()->getLocale()) }} - 
-                    {{ $prices['tour']->arrivalCityRelation->getTitle(app()->getLocale()) }}
+                    {{ optional($tour->departureCityRelation)->getTitle($locale) ?? '' }} -
+                    {{ optional($tour->arrivalCityRelation)->getTitle($locale) ?? '' }}
                 </div>
             </div>
-            
+
             @if(isset($prices['prices']) && $prices['prices']->count() > 0)
                 <div class="prices_list">
                     <h4>@lang('dictionary.MSG_MSG_SCHEDULE_CENY_NA_BILETY')</h4>
@@ -29,10 +34,17 @@
                         </thead>
                         <tbody>
                             @foreach($prices['prices'] as $price)
-                                <tr @if($price->from_stop == $prices['departureId'] && $price->to_stop == $prices['arrivalId']) class="highlighted" @endif>
-                                    <td>{{ $price->fromStop->getTitle(app()->getLocale()) ?? '' }}</td>
-                                    <td>{{ $price->toStop->getTitle(app()->getLocale()) ?? '' }}</td>
-                                    <td>{{ number_format($price->price, 2) }} @lang('dictionary.MSG_MSG_SCHEDULE_CURRENCY')</td>
+                                @php
+                                    $isHighlighted = (
+                                        ($price->from_stop ?? null) == ($prices['departureId'] ?? null)
+                                        && ($price->to_stop ?? null) == ($prices['arrivalId'] ?? null)
+                                    );
+                                @endphp
+
+                                <tr class="{{ $isHighlighted ? 'highlighted' : '' }}">
+                                    <td>{{ optional($price->fromStop)->getTitle($locale) ?? '' }}</td>
+                                    <td>{{ optional($price->toStop)->getTitle($locale) ?? '' }}</td>
+                                    <td>{{ number_format((float)$price->price, 2, '.', ' ') }} @lang('dictionary.MSG_MSG_SCHEDULE_CURRENCY')</td>
                                 </tr>
                             @endforeach
                         </tbody>

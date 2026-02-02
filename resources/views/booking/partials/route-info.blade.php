@@ -140,8 +140,8 @@
             <span id="js_currency">{{ $currency }}</span>
         </span>
     </div>
-
-    @if(!empty($bonusEligible))
+    
+        @if(!empty($bonusEligible))
         <div class="b2_divider"></div>
         <div class="b2_bonus_block" data-bonus-balance-cents="{{ $bonusBalanceCents ?? 0 }}">
             <div class="b2_row">
@@ -158,6 +158,7 @@
             </div>
         </div>
     @endif
+
 
     {{-- СКРЫТЫЕ ДАННЫЕ ДЛЯ JS-ПЕРЕСЧЁТА --}}
     <div id="js_price_meta"
@@ -231,8 +232,8 @@
     .booking_v2 .b2_route_side.right{
         text-align: right;
     }
-
-    .booking_v2 .b2_bonus_block{
+    
+        .booking_v2 .b2_bonus_block{
         display:flex;
         flex-direction:column;
         gap:6px;
@@ -256,6 +257,7 @@
     .booking_v2 .b2_bonus_row strong{
         font-weight:700;
     }
+
 
     .booking_v2 .b2_route_time{
         font-weight: 800;

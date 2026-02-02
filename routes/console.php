@@ -78,6 +78,7 @@ Artisan::command('monobank:test-webhook {invoiceId?} {--status=success} {--order
     $this->line('Result: ' . json_encode($result, JSON_UNESCAPED_UNICODE));
 })->purpose('Simulate Monobank webhook handling (non-production only).');
 
+
 Artisan::command('bonuses:grant-initial {--dry-run} {--chunk=1000}', function () {
     $chunk = (int) $this->option('chunk') ?: 1000;
     $dryRun = (bool) $this->option('dry-run');

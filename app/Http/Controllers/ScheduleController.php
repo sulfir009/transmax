@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Repository\Schedule\ScheduleRepository;
 use App\Service\Schedule\ScheduleService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use App\Service\Site;
 
 class ScheduleController extends Controller
@@ -17,13 +18,11 @@ class ScheduleController extends Controller
 
     /**
      * Display the schedule page
-     *
-     * @param Request $request
-     * @return \Illuminate\View\View
      */
     public function index(Request $request)
     {
-                if ($request->filled(['departure', 'arrival'])) {
+        // 1) SEO-редирект: если пришли с id-шками — пробуем собрать красивый URL.
+        if ($request->filled(['departure', 'arrival'])) {
             $redirectUrl = $this->scheduleService->buildRouteRedirectUrl(
                 (int) $request->get('departure'),
                 (int) $request->get('arrival'),
@@ -36,30 +35,33 @@ class ScheduleController extends Controller
 
             abort(404);
         }
-        // Получаем параметры фильтрации
+
+        // 2) Фильтры страницы (это влияет ТОЛЬКО на основной список расписания)
         $filters = [
             'departure' => $request->get('departure'),
-            'arrival' => $request->get('arrival'),
-            'country' => $request->get('country'),
-            'city' => $request->get('city'),
+            'arrival'   => $request->get('arrival'),
+            'country'   => $request->get('country'),
+            'city'      => $request->get('city'),
         ];
 
-        // Получаем данные расписания с пагинацией
-        $perPage = 16;
-        $currentPage = $request->get('page', 1);
-        
-        // Получаем отфильтрованные маршруты
+        // 3) Пагинация основного списка
+        $perPage     = 16;
+        $currentPage = (int) $request->get('page', 1);
+
         $routes = $this->scheduleService->getFilteredRoutes($filters, $currentPage, $perPage);
         $routes = $this->applySort($routes, $request->get('sort'));
-        
-        // Получаем данные для блока "Наши направления"
-        $countries = $this->scheduleRepository->getCountriesForHome();
-        $cities = $this->scheduleRepository->getPopularCities(10);
+
+        // 4) “Наші напрямки”
+        $countries           = $this->scheduleRepository->getCountriesForHome();
+        $cities              = $this->scheduleRepository->getPopularCities(10);
         $internationalRoutes = $this->scheduleRepository->getInternationalRoutes();
-        $domesticRoutes = $this->scheduleRepository->getDomesticRoutes();
-        
-        // Подготавливаем данные для заголовка
+        $domesticRoutes      = $this->scheduleRepository->getDomesticRoutes();
+
         $pageTitle = $this->scheduleService->getPageTitle($filters, $routes);
+
+        // ✅ 5) Самое важное: популярные рейсы должны быть НЕ из $routes (пагинации),
+        // а из полного списка направлений.
+        $popularRoutes = $this->buildPopularRoutesForView(Site::lang());
 
         return view('schedule.index', compact(
             'routes',
@@ -68,53 +70,215 @@ class ScheduleController extends Controller
             'cities',
             'internationalRoutes',
             'domesticRoutes',
-            'pageTitle'
+            'pageTitle',
+            'popularRoutes'
         ));
     }
-    
-        public function route(string $from, string $to, Request $request)
-    {
-        $cities = $this->scheduleService->getCitiesBySlugs($from, $to, Site::lang());
 
-        if (!$cities) {
+    public function route(string $from, string $to, Request $request)
+    {
+        // ⚠️ чтобы не путать с $citiesList, называем по-другому
+        $citiesBySlug = $this->scheduleService->getCitiesBySlugs($from, $to, Site::lang());
+
+        if (!$citiesBySlug) {
             abort(404);
         }
 
         $filters = [
-            'departure' => $cities['departure']->id,
-            'arrival' => $cities['arrival']->id,
-            'country' => $request->get('country'),
-            'city' => $request->get('city'),
+            'departure' => $citiesBySlug['departure']->id,
+            'arrival'   => $citiesBySlug['arrival']->id,
+            'country'   => $request->get('country'),
+            'city'      => $request->get('city'),
         ];
 
-        $perPage = 16;
-        $currentPage = $request->get('page', 1);
+        $perPage     = 16;
+        $currentPage = (int) $request->get('page', 1);
+
         $routes = $this->scheduleService->getFilteredRoutes($filters, $currentPage, $perPage);
         $routes = $this->applySort($routes, $request->get('sort'));
 
-        $countries = $this->scheduleRepository->getCountriesForHome();
-        $citiesList = $this->scheduleRepository->getPopularCities(10);
+        $countries           = $this->scheduleRepository->getCountriesForHome();
+        $citiesList          = $this->scheduleRepository->getPopularCities(10);
         $internationalRoutes = $this->scheduleRepository->getInternationalRoutes();
-        $domesticRoutes = $this->scheduleRepository->getDomesticRoutes();
-        $pageTitle = $this->scheduleService->getPageTitle($filters, $routes);
+        $domesticRoutes      = $this->scheduleRepository->getDomesticRoutes();
+        $pageTitle           = $this->scheduleService->getPageTitle($filters, $routes);
+
+        // ✅ то же самое — популярные берём отдельно, не из $routes
+        $popularRoutes = $this->buildPopularRoutesForView(Site::lang());
 
         return view('schedule.index', [
-            'routes' => $routes,
-            'filters' => $filters,
-            'countries' => $countries,
-            'cities' => $citiesList,
+            'routes'              => $routes,
+            'filters'             => $filters,
+            'countries'           => $countries,
+            'cities'              => $citiesList,
             'internationalRoutes' => $internationalRoutes,
-            'domesticRoutes' => $domesticRoutes,
-            'pageTitle' => $pageTitle,
+            'domesticRoutes'      => $domesticRoutes,
+            'pageTitle'           => $pageTitle,
+            'popularRoutes'       => $popularRoutes,
         ]);
     }
 
     /**
-     * Get route details for popup
+     * Собираем "ПОПУЛЯРНІ РЕЙСИ" как:
+     * - все уникальные пары departure+arrival
+     * - цена = минимальная (от ...)
+     * - дата для ссылки = ближайшая (если есть)
      *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * Почему так:
+     * - $routes это пагинация и не содержит все маршруты
+     * - здесь мы собираем полный список и кэшируем, чтобы не убивать сервер
      */
+    private function buildPopularRoutesForView(string $lang)
+    {
+        // ключ кэша на язык, чтобы не мешать uk/ru/en
+        $cacheKey = "schedule:popular_routes_cards:v1:{$lang}";
+
+        // моё мнение: 30-60 минут идеальный TTL.
+        // Цены/рейсы меняются не каждую минуту, а нагрузку срезаем сильно.
+        $ttlSeconds = 60 * 30;
+
+        return Cache::remember($cacheKey, $ttlSeconds, function () {
+            // Берём все маршруты через тот же сервис, но без фильтров.
+            // Это важно: мы не привязываемся к таблицам/SQL — используем вашу текущую логику.
+            $filtersAll = [
+                'departure' => null,
+                'arrival'   => null,
+                'country'   => null,
+                'city'      => null,
+            ];
+
+            // Чтобы не было 1000 запросов, берём крупными страницами.
+            // Если станет тяжело — уменьшай до 100.
+            $perPage = 200;
+
+            $page          = 1;
+            $maxPagesSafe  = 300; // защита от бесконечного цикла, если что-то пойдёт не так
+            $allRoutesFlat = collect();
+
+            while ($page <= $maxPagesSafe) {
+                $paginator = $this->scheduleService->getFilteredRoutes($filtersAll, $page, $perPage);
+
+                // Важно: getFilteredRoutes возвращает пагинатор (ты уже используешь getCollection/setCollection),
+                // значит getCollection() есть.
+                $collection = method_exists($paginator, 'getCollection')
+                    ? $paginator->getCollection()
+                    : collect($paginator);
+
+                if ($collection->isEmpty()) {
+                    break;
+                }
+
+                // У тебя в Blade уже есть логика: коллекция может быть массивом групп.
+                $flat = is_array($collection->first())
+                    ? $collection->flatten(1)
+                    : $collection;
+
+                $allRoutesFlat = $allRoutesFlat->merge($flat);
+
+                // Если пагинатор знает lastPage — останавливаемся корректно.
+                if (method_exists($paginator, 'lastPage')) {
+                    $last = (int) $paginator->lastPage();
+                    if ($page >= $last) {
+                        break;
+                    }
+                }
+
+                $page++;
+            }
+
+            // 1) Аггрегируем по паре departure+arrival
+            // 2) Считаем min_price
+            $pairs = [];
+
+            foreach ($allRoutesFlat as $route) {
+                $depId = data_get($route, 'departure');
+                $arrId = data_get($route, 'arrival');
+
+                // без id-шек маршрут бессмысленный для ссылки
+                if (!$depId || !$arrId) {
+                    continue;
+                }
+
+                $depCity = (string) data_get($route, 'departure_city', '');
+                $arrCity = (string) data_get($route, 'arrival_city', '');
+
+                if ($depCity === '' || $arrCity === '') {
+                    continue;
+                }
+
+                $key = $depId . '_' . $arrId;
+
+                $priceRaw = data_get($route, 'ticket_price', null);
+                $price    = is_numeric($priceRaw) ? (float) $priceRaw : null;
+
+                $date = data_get($route, 'nearest_departure_date', null);
+                $date = $date ?: null;
+
+                if (!isset($pairs[$key])) {
+                    $pairs[$key] = [
+                        'departure'              => (int) $depId,
+                        'arrival'                => (int) $arrId,
+                        'departure_city'         => $depCity,
+                        'arrival_city'           => $arrCity,
+                        'min_price'              => $price,
+                        'nearest_departure_date' => $date,
+                    ];
+                } else {
+                    // min price
+                    if ($price !== null) {
+                        $prev = $pairs[$key]['min_price'];
+                        $pairs[$key]['min_price'] = ($prev === null) ? $price : min($prev, $price);
+                    }
+
+                    // дата: берём самую раннюю (если обе есть)
+                    $prevDate = $pairs[$key]['nearest_departure_date'];
+                    if ($prevDate === null && $date !== null) {
+                        $pairs[$key]['nearest_departure_date'] = $date;
+                    } elseif ($prevDate !== null && $date !== null) {
+                        $pairs[$key]['nearest_departure_date'] = min($prevDate, $date);
+                    }
+                }
+            }
+
+            $pairsCollection = collect(array_values($pairs))
+                ->sortBy(fn ($r) => $r['departure_city'] . '|' . $r['arrival_city'])
+                ->values();
+
+            // Группируем по городу отправления → карточки
+            return $pairsCollection
+                ->groupBy('departure_city')
+                ->map(function ($group, $departureCity) {
+                    return [
+                        'title' => 'З МІСТА ' . mb_strtoupper($departureCity, 'UTF-8'),
+                        'items' => $group->map(function ($r) {
+                            $price = $r['min_price'] !== null
+                                ? number_format((float) $r['min_price'], 0, '.', ' ') . ' грн'
+                                : '—';
+
+                            $date = $r['nearest_departure_date'] ?: now()->format('Y-m-d');
+
+                            return [
+                                'label' => $r['departure_city'] . ' → ' . $r['arrival_city'],
+                                'price' => $price,
+                                'url'   => route('tickets.index', [
+                                    'departure' => $r['departure'],
+                                    'arrival'   => $r['arrival'],
+                                    'date'      => $date,
+                                    'adults'    => 1,
+                                    'kids'      => 0,
+                                ]),
+                            ];
+                        })->values(),
+                    ];
+                })
+                ->values();
+        });
+    }
+
+    // ---------------------------------------------------------------------
+    // Остальное без изменений
+    // ---------------------------------------------------------------------
+
     public function getRouteDetails(Request $request)
     {
         $tourId = $request->input('id');
@@ -132,12 +296,6 @@ class ScheduleController extends Controller
         ]);
     }
 
-    /**
-     * Get route prices for popup
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
     public function getRoutePrices(Request $request)
     {
         $tourId = $request->input('id');
@@ -155,12 +313,6 @@ class ScheduleController extends Controller
         ]);
     }
 
-    /**
-     * Remember ticket for booking
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
     public function rememberTicket(Request $request)
     {
         $tourId = $request->input('id');

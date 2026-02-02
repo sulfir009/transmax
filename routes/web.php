@@ -6,6 +6,7 @@ use App\Http\Controllers\Debug\PaymentDebugController;
 use App\Http\Controllers\Payments\MonobankPaymentController;
 use App\Http\Controllers\Payments\MonobankWebhookController;
 use App\Http\Middleware\VerifyCsrfToken;
+use App\Http\Controllers\BookingController;
 
 if (!function_exists('schedulePathForLocale')) {
     function schedulePathForLocale(?string $locale): string
@@ -160,7 +161,7 @@ Route::get('/debug/session', [\App\Http\Controllers\DebugController::class, 'ses
         Route::get('/tickets/payment', '\App\Http\Controllers\TicketController@payment')->name('tickets.payment');
 
         // Альтернативный маршрут для бронирования
-        Route::any('/bronyuvannya-kvitka', 'App\HttpControllersBookingController@index')->name('booking.index');
+        Route::any('/bronyuvannya-kvitka', [BookingController::class, 'index'])->name('booking.index');
 
         // Payment routes (временно без авторизации для тестирования)
         Route::get('/payment', [\App\Http\Controllers\PaymentController::class, 'index'])->name('payment.index');
