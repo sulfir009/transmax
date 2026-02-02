@@ -2,6 +2,9 @@
 
 namespace App\Service;
 
+use App\Models\BonusTransaction;
+use App\Models\Client;
+use App\Services\BonusService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -178,6 +181,8 @@ class TicketService
                 'correlation_id' => $correlationId,
                 'count'          => $passengers->count(),
             ]);
+
+            $this->applyBonusOperations($orderInfo, $ticketInfo, $passengersCount, $paymentData, $correlationId);
 
             /**
              * 5) PDF
@@ -548,6 +553,16 @@ class TicketService
         $depTime  = isset($ticketInfo->departure_time) ? substr((string)$ticketInfo->departure_time, 0, 5) : '';
         $tourDate = (string)($orderInfo->tour_date ?? '');
         $price    = (string)($ticketInfo->price ?? '');
+        $bonusRedeemedCents = (int)($orderInfo->bonus_redeemed_cents ?? 0);
+        $bonusCashbackCents = (int)($orderInfo->bonus_cashback_cents ?? 0);
+        $bonusHtml = '';
+
+        if ($bonusRedeemedCents > 0) {
+            $bonusHtml .= '<div><b>Списано бонусами</b>: ' . htmlspecialchars(number_format($bonusRedeemedCents / 100, 2, '.', ''), ENT_QUOTES, 'UTF-8') . ' грн</div>';
+        }
+        if ($bonusCashbackCents > 0) {
+            $bonusHtml .= '<div><b>Нараховано кешбеком</b>: ' . htmlspecialchars(number_format($bonusCashbackCents / 100, 2, '.', ''), ENT_QUOTES, 'UTF-8') . ' грн</div>';
+        }
 
         return '
 <!DOCTYPE html>
@@ -628,6 +643,7 @@ class TicketService
               <td><b>Всього, грн<br>Total, UAH</b><div>' . htmlspecialchars($price, ENT_QUOTES, 'UTF-8') . '</div></td>
             </tr>
           </table>
+          ' . ($bonusHtml !== '' ? '<div style="margin-top:10px;">' . $bonusHtml . '</div>' : '') . '
 
           <table>
             <tr class="tr_border_top" style="padding-top:30px; border-top:1px solid;">
@@ -716,6 +732,8 @@ class TicketService
                 'toStop' => (string)($toStop->title_uk ?? ''),
                 'paymentMethodLabel' => $this->detectPaymentLabel($paymentData),
                 'totalPrice' => (float)($ticketInfo->price ?? 0) * $this->getPassengersCountFromOrder($orderInfo),
+                'bonusRedeemedCents' => (int)($orderInfo->bonus_redeemed_cents ?? 0),
+                'bonusCashbackCents' => (int)($orderInfo->bonus_cashback_cents ?? 0),
             ];
 
             // Клиент
@@ -750,6 +768,97 @@ class TicketService
                 'error' => $e->getMessage(),
             ]);
             return false;
+        }
+    }
+
+    private function applyBonusOperations($orderInfo, $ticketInfo, int $passengersCount, array $paymentData, string $correlationId): void
+    {
+        $orderId = (int)($orderInfo->id ?? 0);
+        $clientId = (int)($orderInfo->client_id ?? 0);
+
+        if ($orderId <= 0 || $clientId <= 0) {
+            return;
+        }
+
+        if (!isset($orderInfo->bonus_use_requested) || (int)$orderInfo->bonus_use_requested !== 1) {
+            $useBonus = false;
+        } else {
+            $useBonus = true;
+        }
+
+        $pricePer = (float)($ticketInfo->price ?? 0);
+        $payableCents = (int)round($pricePer * max(1, $passengersCount) * 100);
+
+        $bonusService = app(BonusService::class);
+        $client = Client::find($clientId);
+
+        if (!$client || $payableCents <= 0) {
+            return;
+        }
+
+        $redeemCents = (int)($orderInfo->bonus_redeemed_cents ?? 0);
+
+        if ($useBonus) {
+            $alreadyRedeemed = $bonusService->hasTransaction($clientId, 'redeem', $orderId);
+
+            if (!$alreadyRedeemed) {
+                $balanceCents = $bonusService->getBalanceCents($client->fresh());
+                $redeemCents = $bonusService->calculateMaxRedeemCents($balanceCents, $payableCents);
+
+                if ($redeemCents > 0) {
+                    try {
+                        $bonusService->debit($client, $redeemCents, 'redeem', [
+                            'payment_source' => $this->detectPaymentProvider($paymentData),
+                        ], $orderId);
+
+                        DB::table($this->dbPrefix . '_orders')
+                            ->where('id', $orderId)
+                            ->update([
+                                'bonus_redeemed_cents' => $redeemCents,
+                            ]);
+                    } catch (Throwable $e) {
+                        Log::channel('payment')->warning('Bonus redeem failed', [
+                            'correlation_id' => $correlationId,
+                            'order_id' => $orderId,
+                            'client_id' => $clientId,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            } else {
+                $redeemSum = BonusTransaction::where('order_id', $orderId)
+                    ->where('type', 'redeem')
+                    ->sum('amount_cents');
+                $redeemCents = abs((int)$redeemSum);
+            }
+        }
+
+        $alreadyCashback = $bonusService->hasTransaction($clientId, 'cashback', $orderId);
+
+        if (!$alreadyCashback) {
+            $cashbackBaseCents = max($payableCents - $redeemCents, 0);
+            $cashbackCents = (int)round($cashbackBaseCents * 0.05);
+
+            if ($cashbackCents > 0) {
+                try {
+                    $bonusService->credit($client, $cashbackCents, 'cashback', [
+                        'payment_source' => $this->detectPaymentProvider($paymentData),
+                    ], $orderId);
+
+                    DB::table($this->dbPrefix . '_orders')
+                        ->where('id', $orderId)
+                        ->update([
+                            'bonus_cashback_cents' => $cashbackCents,
+                        ]);
+                } catch (Throwable $e) {
+                    Log::channel('payment')->warning('Bonus cashback failed', [
+                        'correlation_id' => $correlationId,
+                        'order_id' => $orderId,
+                        'client_id' => $clientId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
         }
     }
 
@@ -943,8 +1052,20 @@ class TicketService
                 <tr><td style='font-weight:bold;'>Ціна квитка</td><td>{$e($ticketInfo->price ?? '')}</td></tr>";
         }
 
+        $bonusRedeemedCents = (int)($data['bonusRedeemedCents'] ?? 0);
+        $bonusCashbackCents = (int)($data['bonusCashbackCents'] ?? 0);
+
+        $bonusRows = '';
+        if ($bonusRedeemedCents > 0) {
+            $bonusRows .= "<tr><td style='font-weight:bold;'>Списано бонусами</td><td>{$e(number_format($bonusRedeemedCents / 100, 2, '.', ''))}</td></tr>";
+        }
+        if ($bonusCashbackCents > 0) {
+            $bonusRows .= "<tr><td style='font-weight:bold;'>Нараховано кешбеком</td><td>{$e(number_format($bonusCashbackCents / 100, 2, '.', ''))}</td></tr>";
+        }
+
         $html .= "
                 <tr><td style='font-weight:bold;'>Сумма замовлення</td><td>{$e($data['totalPrice'])}</td></tr>
+                {$bonusRows}
             </table>
             <p>У вартість квитка включено перевезення одного місця багажу вагою до 25 кг.</p>
             <p>Перевізник: Maks Trans LTD</p>
@@ -1009,8 +1130,20 @@ class TicketService
                 <tr><td style='font-weight:bold;'>Ціна</td><td>{$e($ticketInfo->price ?? '')}</td></tr>";
         }
 
+        $bonusRedeemedCents = (int)($data['bonusRedeemedCents'] ?? 0);
+        $bonusCashbackCents = (int)($data['bonusCashbackCents'] ?? 0);
+
+        $bonusRows = '';
+        if ($bonusRedeemedCents > 0) {
+            $bonusRows .= "<tr><td style='font-weight:bold;'>Списано бонусами</td><td>{$e(number_format($bonusRedeemedCents / 100, 2, '.', ''))}</td></tr>";
+        }
+        if ($bonusCashbackCents > 0) {
+            $bonusRows .= "<tr><td style='font-weight:bold;'>Нараховано кешбеком</td><td>{$e(number_format($bonusCashbackCents / 100, 2, '.', ''))}</td></tr>";
+        }
+
         $html .= "
             <tr><td style='font-weight:bold;'>Сумма замовлення</td><td>{$e($data['totalPrice'])}</td></tr>
+            {$bonusRows}
             <tr><td style='font-weight:bold;'>Спосіб оплати</td><td>{$e($data['paymentMethodLabel'] ?? 'Онлайн')}</td></tr>
         </table>
         <p>Перевізник: Maks Trans LTD</p>

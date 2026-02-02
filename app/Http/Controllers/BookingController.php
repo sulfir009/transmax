@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Repository\ClientRepository;
 use App\Repository\BusRepository;
 use App\Repository\PhoneCodeRepository;
+use App\Models\Client;
+use App\Services\BonusService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +21,7 @@ class BookingController extends Controller
     protected $clientRepository;
     protected $busRepository;
     protected $phoneCodeRepository;
+    protected $bonusService;
 
     // Массив для хранения логов, которые улетят в браузер
     protected $debugLog = [];
@@ -26,7 +29,8 @@ class BookingController extends Controller
     public function __construct(
         ClientRepository $clientRepository = null,
         BusRepository $busRepository = null,
-        PhoneCodeRepository $phoneCodeRepository = null
+        PhoneCodeRepository $phoneCodeRepository = null,
+        BonusService $bonusService = null
     ) {
         if (!defined('DB_PREFIX')) {
             define('DB_PREFIX', 'mt');
@@ -40,6 +44,7 @@ class BookingController extends Controller
         $this->clientRepository = $clientRepository ?: new ClientRepository();
         $this->busRepository = $busRepository ?: new BusRepository();
         $this->phoneCodeRepository = $phoneCodeRepository ?: new PhoneCodeRepository();
+        $this->bonusService = $bonusService ?: app(BonusService::class);
     }
 
     // Вспомогательная функция для записи логов
@@ -61,8 +66,17 @@ class BookingController extends Controller
         $ticketInfo = $this->getTicketInfo($_SESSION['order']['tour_id'], $_SESSION['order']['from'], $_SESSION['order']['to']);
 
         $clientInfo = [];
+        $bonusBalanceCents = 0;
+        $bonusBalanceFormatted = null;
+        $bonusEligible = false;
         if ($this->user && $this->user->id) {
             $clientInfo = $this->clientRepository->getClientInfo($this->user->id);
+            $clientModel = Client::find((int) $this->user->id);
+            if ($clientModel) {
+                $bonusEligible = true;
+                $bonusBalanceCents = (int) $clientModel->bonus_balance_cents;
+                $bonusBalanceFormatted = $this->bonusService->formatToUah($bonusBalanceCents);
+            }
         }
 
         $phoneCodes = $this->phoneCodeRepository->getActiveCodes();
@@ -87,6 +101,9 @@ class BookingController extends Controller
             'order' => $_SESSION['order'],
             'tourDate' => $tourDate,
             'formattedDate' => $formattedDate,
+            'bonusBalanceCents' => $bonusBalanceCents,
+            'bonusBalanceFormatted' => $bonusBalanceFormatted,
+            'bonusEligible' => $bonusEligible,
             'Router' => $this->router,
             'lang' => $lang
         ];

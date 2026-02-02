@@ -202,6 +202,25 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
             gap:10px;
             margin-top: 10px;
         }
+        .payment_v2 .payment_v2__bonus{
+            display:flex;
+            flex-direction:column;
+            gap:8px;
+            padding:12px 14px;
+            border:1px solid #E6EEF4;
+            border-radius:10px;
+            background:#F8FBFF;
+            margin: 12px 0 16px;
+        }
+        .payment_v2 .payment_v2__bonus_row{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            font-size:14px;
+        }
+        .payment_v2 .payment_v2__bonus_check{
+            margin:0;
+        }
 
         .payment_v2 .pv2_check{
             display:flex;
@@ -728,6 +747,25 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                     // -----------------------------
                     $unitPrice  = (int)($ticketInfo['price'] ?? 0);
                     $totalPrice = (int)($_SESSION['order']['passengers'] ?? 1) * $unitPrice;
+
+                    $bonusEligible = false;
+                    $bonusBalanceCents = 0;
+                    $bonusUseRequested = (int)($_SESSION['order']['use_bonus'] ?? 0);
+                    $bonusRedeemCents = 0;
+
+                    if (isset($User->id) && (int)$User->id > 0) {
+                        $bonusEligible = true;
+                        $bonusRow = $Db->getOne("SELECT bonus_balance_cents FROM `" . DB_PREFIX . "_clients` WHERE id = '" . (int)$User->id . "'");
+                        $bonusBalanceCents = (int)($bonusRow['bonus_balance_cents'] ?? 0);
+                    }
+
+                    $payableCents = $totalPrice * 100;
+                    if ($bonusEligible && $bonusUseRequested && $payableCents > 0) {
+                        $bonusService = app(\App\Services\BonusService::class);
+                        $bonusRedeemCents = $bonusService->calculateMaxRedeemCents($bonusBalanceCents, $payableCents);
+                    }
+                    $payableAfterBonusCents = max(0, $payableCents - $bonusRedeemCents);
+                    $displayTotalPrice = $bonusUseRequested ? ($payableAfterBonusCents / 100) : $totalPrice;
                     ?>
 
                     <div class="payment_v2__card shadow_block">
@@ -757,8 +795,8 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                                     <img src="<?php echo asset('images/legacy/common/bank_card.svg'); ?>" alt="bank card">
                                 </span>
 
-                                <span class="pv2_method_price">
-                                    <?php echo $totalPrice . ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
+                                <span class="pv2_method_price" data-role="payable-price">
+                                    <?php echo $displayTotalPrice . ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
                                 </span>
                             </label>
 
@@ -779,8 +817,8 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                                     <img src="<?php echo asset('images/legacy/common/cash.svg'); ?>" alt="cash">
                                 </span>
 
-                                <span class="pv2_method_price">
-                                    <?php echo $totalPrice . ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
+                                <span class="pv2_method_price" data-role="payable-price">
+                                    <?php echo $displayTotalPrice . ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
                                 </span>
                             </label>
 
@@ -791,6 +829,28 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                             <img src="<?php echo asset('images/legacy/common/maestro.svg'); ?>" alt="maestro">
                             <img src="<?php echo asset('images/legacy/common/visa.svg'); ?>" alt="visa">
                         </div>
+
+                        <?php if ($bonusEligible) { ?>
+                            <div class="payment_v2__bonus" data-bonus-balance-cents="<?php echo $bonusBalanceCents; ?>">
+                                <div class="payment_v2__bonus_row">
+                                    <span>Бонусный баланс:</span>
+                                    <strong><?php echo number_format($bonusBalanceCents / 100, 2, '.', ''); ?> грн</strong>
+                                </div>
+                                <label class="pv2_check payment_v2__bonus_check">
+                                    <input type="checkbox" hidden id="use_bonus" <?php echo $bonusUseRequested ? 'checked' : ''; ?>>
+                                    <span class="pv2_box"></span>
+                                    <span class="pv2_check_text">Рассчитаться бонусами (до 20% от оплаты)</span>
+                                </label>
+                                <div class="payment_v2__bonus_row">
+                                    <span>Списано бонусами:</span>
+                                    <strong><span id="bonus_redeem_amount"><?php echo number_format($bonusRedeemCents / 100, 2, '.', ''); ?></span> грн</strong>
+                                </div>
+                                <div class="payment_v2__bonus_row">
+                                    <span>К оплате с бонусами:</span>
+                                    <strong><span id="bonus_payable_amount"><?php echo number_format($payableAfterBonusCents / 100, 2, '.', ''); ?></span> грн</strong>
+                                </div>
+                            </div>
+                        <?php } ?>
 
                         <div class="payment_v2__checks">
                             <label class="pv2_check">
@@ -864,7 +924,63 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
         var ticketInfo = <?php echo json_encode($ticketInfo); ?>;
         // ВАЖНО: order сериализуем ПОСЛЕ нормализации passengers в PHP выше
         var order = <?php echo json_encode($_SESSION['order']); ?>;
-        var totalPrice = <?php echo (int)$totalPrice; ?>;
+        var payableCents = <?php echo (int)$payableCents; ?>;
+        var bonusBalanceCents = <?php echo (int)$bonusBalanceCents; ?>;
+        var bonusRedeemCents = <?php echo (int)$bonusRedeemCents; ?>;
+        var bonusUseRequested = <?php echo $bonusUseRequested ? 'true' : 'false'; ?>;
+        var totalPrice = <?php echo (float)$displayTotalPrice; ?>;
+
+        function calculateMaxRedeemCents(balance, payable) {
+            return Math.min(balance, payable, Math.floor(payable * 0.2));
+        }
+
+        function formatUah(cents) {
+            var value = (cents / 100);
+            var formatted = value.toFixed(2);
+            return formatted.replace(/\.00$/, '');
+        }
+
+        function updatePayableUi(redeemCents) {
+            var payableAfterCents = Math.max(payableCents - redeemCents, 0);
+            totalPrice = payableAfterCents / 100;
+
+            $('.pv2_method_price[data-role="payable-price"]').text(totalPrice + ' <?php echo $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>');
+            $('#bonus_redeem_amount').text(formatUah(redeemCents));
+            $('#bonus_payable_amount').text(formatUah(payableAfterCents));
+        }
+
+        function syncBonusSession(useBonus) {
+            return $.ajax({
+                type: 'post',
+                url: '/ajax/ru',
+                data: {
+                    'request': 'bonus_preview',
+                    'use_bonus': useBonus ? 1 : 0,
+                    'payable_cents': payableCents
+                }
+            });
+        }
+
+        if (bonusUseRequested && bonusBalanceCents > 0) {
+            updatePayableUi(bonusRedeemCents);
+        }
+
+        $('#use_bonus').on('change', function () {
+            var useBonus = $(this).is(':checked');
+            if (!useBonus) {
+                updatePayableUi(0);
+                syncBonusSession(false);
+                return;
+            }
+
+            var calculated = calculateMaxRedeemCents(bonusBalanceCents, payableCents);
+            syncBonusSession(true).done(function (response) {
+                var redeemCents = parseInt(response && response.redeem_cents ? response.redeem_cents : calculated, 10);
+                updatePayableUi(redeemCents);
+            }).fail(function () {
+                updatePayableUi(0);
+            });
+        });
 
         $('#orderTicket').click(function (){
             let card_number = $.trim($('#card_number').val());
