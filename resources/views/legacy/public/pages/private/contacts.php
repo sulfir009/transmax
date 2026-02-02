@@ -34,16 +34,11 @@
                             <?php echo $Router->writetitle(79)?>
                         </a>
                     </div>
-                    <!--div class="private_link_wrapper">
-                        <a href="<?php echo $Router->writelink(82)?>" class="private_tab h4_title">
-                            <?php echo $Router->writetitle(82)?>
-                        </a>
-                    </div>
                     <div class="private_link_wrapper">
                         <a href="<?php echo $Router->writelink(81)?>" class="private_tab h4_title">
                             <?php echo $Router->writetitle(81)?>
                         </a>
-                    </div-->
+                    </div>
                 </div>
             </div>
             <div class="container hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm">
@@ -94,24 +89,7 @@
                         </a>
 
                     </div>
-                    <!--div class="private_link_wrapper">
-                        <a href="<?php echo $Router->writelink(82)?>" class="private_tab h4_title">
-                            <div class="hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm private_link_icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26" fill="none">
-                                    <g clip-path="url(#clip0_421_17510)">
-                                        <path d="M23.0712 4.49023H3.42829C2.44207 4.49023 1.64258 5.28973 1.64258 6.27595V19.6688C1.64258 20.655 2.44207 21.4545 3.42829 21.4545H23.0712C24.0574 21.4545 24.8569 20.655 24.8569 19.6688V6.27595C24.8569 5.28973 24.0574 4.49023 23.0712 4.49023Z" stroke="#40A6FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        <path d="M1.64258 10.7402H24.8569M17.714 16.9902H20.3926" stroke="#40A6FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </g>
-                                    <defs>
-                                        <clipPath id="clip0_421_17510">
-                                            <rect width="25" height="25" fill="white" transform="translate(0.75 0.472656)"/>
-                                        </clipPath>
-                                    </defs>
-                                </svg>
-                            </div>
-                        </a>
-                    </div>
-                    <div-- class="private_link_wrapper">
+                    <div class="private_link_wrapper">
                         <a href="<?php echo $Router->writelink(81)?>" class="private_tab h4_title">
                             <div class="hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm private_link_icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="47" height="18" viewBox="0 0 47 18" fill="none">
@@ -119,7 +97,7 @@
                                 </svg>
                             </div>
                         </a>
-                    </div-->
+                    </div>
                 </div>
             </div>
         </div>
