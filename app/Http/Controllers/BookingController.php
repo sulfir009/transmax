@@ -12,6 +12,7 @@ use App\Models\Client;
 use App\Services\BonusService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
+use App\Models\Order;
 
 class BookingController extends Controller
 {
@@ -110,6 +111,50 @@ class BookingController extends Controller
         ];
 
         return view('booking.index', $viewData);
+    }
+
+    public function applyBonuses(Request $request, Order $order): JsonResponse
+    {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
+        if (!$this->user || !$this->user->id) {
+            return response()->json(['error' => 'unauthorized'], 403);
+        }
+
+        if ((int) $order->client_id !== (int) $this->user->id) {
+            return response()->json(['error' => 'forbidden'], 403);
+        }
+
+        $data = $request->validate([
+            'use_bonus' => 'nullable|boolean',
+            'payable_cents' => 'required|integer|min:0',
+        ]);
+
+        $useBonus = !empty($data['use_bonus']);
+        $payableCents = (int) ($data['payable_cents'] ?? 0);
+
+        $client = Client::find((int) $order->client_id);
+        if (!$client) {
+            return response()->json(['error' => 'client_not_found'], 404);
+        }
+
+        $balanceCents = (int) $client->bonus_balance_cents;
+        $redeemCents = $useBonus ? $this->bonusService->calculateMaxRedeemCents($balanceCents, $payableCents) : 0;
+
+        $order->bonus_use_requested = $useBonus ? 1 : 0;
+        $order->bonus_redeemed_cents = $redeemCents;
+        $order->save();
+
+        $_SESSION['order']['use_bonus'] = $useBonus ? 1 : 0;
+        $_SESSION['order']['bonus_redeem_cents_preview'] = $redeemCents;
+
+        return response()->json([
+            'redeem_cents' => $redeemCents,
+            'pay_cents' => max($payableCents - $redeemCents, 0),
+            'balance_cents' => $balanceCents,
+        ]);
     }
 
 public function ajax(Request $request, string $lang = 'ru'): JsonResponse

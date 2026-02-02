@@ -98,10 +98,7 @@ class BonusService
         if ($balanceCents <= 0 || $payableCents <= 0) {
             return 0;
         }
-
-        $limitCents = intdiv($payableCents * 20, 100);
-
-        return max(0, min($balanceCents, $payableCents, $limitCents));
+        return max(0, min($balanceCents, $payableCents));
     }
 
     public function formatToUah(int $amountCents): string

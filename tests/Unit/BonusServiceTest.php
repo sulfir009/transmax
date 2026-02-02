@@ -50,7 +50,7 @@ class BonusServiceTest extends TestCase
         $service = new BonusService();
 
         $this->assertSame(10000, $service->calculateMaxRedeemCents(10000, 100000));
-        $this->assertSame(3000, $service->calculateMaxRedeemCents(50000, 15000));
+        $this->assertSame(15000, $service->calculateMaxRedeemCents(50000, 15000));
         $this->assertSame(1000, $service->calculateMaxRedeemCents(1000, 10000));
     }
 
@@ -59,7 +59,7 @@ class BonusServiceTest extends TestCase
         $client = Client::create(['bonus_balance_cents' => 0]);
         $service = new BonusService();
 
-        $service->credit($client, 10000, 'initial_grant');
+        $service->credit($client, 10000, 'grant_initial');
         $client->refresh();
         $this->assertSame(10000, $client->bonus_balance_cents);
 
@@ -83,8 +83,8 @@ class BonusServiceTest extends TestCase
         $client = Client::create(['bonus_balance_cents' => 0]);
         $service = new BonusService();
 
-        $service->credit($client, 10000, 'initial_grant');
-        $this->assertTrue($service->hasTransaction($client->id, 'initial_grant'));
+        $service->credit($client, 10000, 'grant_initial');
+        $this->assertTrue($service->hasTransaction($client->id, 'grant_initial'));
     }
 
     public function testCashbackIdempotencyCheck(): void

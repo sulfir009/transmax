@@ -775,11 +775,15 @@ class TicketService
     private function applyBonusOperations($orderInfo, $ticketInfo, int $passengersCount, array $paymentData, string $correlationId): void
     {
         $orderId = (int)($orderInfo->id ?? 0);
-        $clientId = (int)($orderInfo->client_id ?? 0);
-
-        if ($orderId <= 0 || $clientId <= 0) {
+        if ($orderId <= 0) {
             return;
         }
+
+        $client = $this->resolveClientForBonus($orderInfo, $correlationId);
+        if (!$client) {
+            return;
+        }
+        $clientId = (int) $client->id;
 
         $useBonus = isset($orderInfo->bonus_use_requested) && (int)$orderInfo->bonus_use_requested === 1;
 
@@ -787,35 +791,80 @@ class TicketService
         $payableCents = (int)round($pricePer * max(1, $passengersCount) * 100);
 
         $bonusService = app(BonusService::class);
-        $client = Client::find($clientId);
 
         if (!$client || $payableCents <= 0) {
             return;
         }
+        DB::transaction(function () use (
+            $bonusService,
+            $client,
+            $clientId,
+            $orderId,
+            $orderInfo,
+            $useBonus,
+            $payableCents,
+            $paymentData,
+            $correlationId
+        ) {
+            $redeemCents = (int)($orderInfo->bonus_redeemed_cents ?? 0);
 
-        $redeemCents = (int)($orderInfo->bonus_redeemed_cents ?? 0);
+            $alreadyRedeemed = false;
+            if ($useBonus) {
+                $alreadyRedeemed = $bonusService->hasTransaction($clientId, 'redeem', $orderId);
 
-        $alreadyRedeemed = false;
-        if ($useBonus) {
-            $alreadyRedeemed = $bonusService->hasTransaction($clientId, 'redeem', $orderId);
+                if (!$alreadyRedeemed) {
+                    $balanceCents = $bonusService->getBalanceCents($client->fresh());
+                    $redeemCents = $bonusService->calculateMaxRedeemCents($balanceCents, $payableCents);
 
-            if (!$alreadyRedeemed) {
-                $balanceCents = $bonusService->getBalanceCents($client->fresh());
-                $redeemCents = $bonusService->calculateMaxRedeemCents($balanceCents, $payableCents);
+                    if ($redeemCents > 0) {
+                        try {
+                            $bonusService->debit($client, $redeemCents, 'redeem', [
+                                'payment_source' => $this->detectPaymentProvider($paymentData),
+                            ], $orderId);
 
-                if ($redeemCents > 0) {
+                            DB::table($this->dbPrefix . '_orders')
+                                ->where('id', $orderId)
+                                ->update([
+                                    'bonus_redeemed_cents' => $redeemCents,
+                                    'bonus_use_requested' => 1,
+                                ]);
+                        } catch (Throwable $e) {
+                            Log::channel('payment')->warning('Bonus redeem failed', [
+                                'correlation_id' => $correlationId,
+                                'order_id' => $orderId,
+                                'client_id' => $clientId,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                } else {
+                    $redeemSum = BonusTransaction::where('order_id', $orderId)
+                        ->where('type', 'redeem')
+                        ->sum('amount_cents');
+                    $redeemCents = abs((int)$redeemSum);
+                }
+            }
+
+            $alreadyCashback = $bonusService->hasTransaction($clientId, 'cashback', $orderId);
+            $cashbackCents = (int)($orderInfo->bonus_cashback_cents ?? 0);
+
+            if (!$alreadyCashback) {
+                $cashbackBaseCents = max($payableCents - $redeemCents, 0);
+                $cashbackCents = (int)round($cashbackBaseCents * 0.05);
+
+                if ($cashbackCents > 0) {
                     try {
-                        $bonusService->debit($client, $redeemCents, 'redeem', [
+                        $bonusService->credit($client, $cashbackCents, 'cashback', [
                             'payment_source' => $this->detectPaymentProvider($paymentData),
                         ], $orderId);
 
                         DB::table($this->dbPrefix . '_orders')
                             ->where('id', $orderId)
                             ->update([
-                                'bonus_redeemed_cents' => $redeemCents,
+                                'bonus_cashback_cents' => $cashbackCents,
                             ]);
                     } catch (Throwable $e) {
-                        Log::channel('payment')->warning('Bonus redeem failed', [
+                        Log::channel('payment')->warning('Bonus cashback failed', [
                             'correlation_id' => $correlationId,
                             'order_id' => $orderId,
                             'client_id' => $clientId,
@@ -823,55 +872,67 @@ class TicketService
                         ]);
                     }
                 }
-            } else {
-                $redeemSum = BonusTransaction::where('order_id', $orderId)
-                    ->where('type', 'redeem')
-                    ->sum('amount_cents');
-                $redeemCents = abs((int)$redeemSum);
             }
+
+            Log::channel('payment')->info('Bonus operations summary', [
+                'correlation_id' => $correlationId,
+                'order_id' => $orderId,
+                'client_id' => $clientId,
+                'use_bonus' => $useBonus ? 1 : 0,
+                'payable_cents' => $payableCents,
+                'redeem_cents' => $redeemCents,
+                'cashback_cents' => $cashbackCents,
+                'already_redeemed' => $alreadyRedeemed ? 1 : 0,
+                'already_cashback' => $alreadyCashback ? 1 : 0,
+                'balance_cents' => $bonusService->getBalanceCents($client->fresh()),
+            ]);
+        });
+    }
+
+    private function resolveClientForBonus($orderInfo, string $correlationId): ?Client
+    {
+        $orderId = (int)($orderInfo->id ?? 0);
+        $clientId = (int)($orderInfo->client_id ?? 0);
+
+        if ($clientId > 0) {
+            return Client::find($clientId);
         }
 
-        $alreadyCashback = $bonusService->hasTransaction($clientId, 'cashback', $orderId);
-        $cashbackCents = (int)($orderInfo->bonus_cashback_cents ?? 0);
-
-        if (!$alreadyCashback) {
-            $cashbackBaseCents = max($payableCents - $redeemCents, 0);
-            $cashbackCents = (int)round($cashbackBaseCents * 0.05);
-
-            if ($cashbackCents > 0) {
-                try {
-                    $bonusService->credit($client, $cashbackCents, 'cashback', [
-                        'payment_source' => $this->detectPaymentProvider($paymentData),
-                    ], $orderId);
-
-                    DB::table($this->dbPrefix . '_orders')
-                        ->where('id', $orderId)
-                        ->update([
-                            'bonus_cashback_cents' => $cashbackCents,
-                        ]);
-                } catch (Throwable $e) {
-                    Log::channel('payment')->warning('Bonus cashback failed', [
-                        'correlation_id' => $correlationId,
-                        'order_id' => $orderId,
-                        'client_id' => $clientId,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
+        $email = trim((string)($orderInfo->client_email ?? ''));
+        if ($email === '') {
+            Log::channel('payment')->warning('Bonus skipped: order has no client_id and no email', [
+                'correlation_id' => $correlationId,
+                'order_id' => $orderId,
+            ]);
+            return null;
         }
 
-        Log::channel('payment')->info('Bonus operations summary', [
+        $client = Client::where('email', $email)->first();
+        if (!$client) {
+            Log::channel('payment')->warning('Bonus skipped: client not found by email', [
+                'correlation_id' => $correlationId,
+                'order_id' => $orderId,
+                'client_email' => $email,
+            ]);
+            return null;
+        }
+
+        $updated = DB::table($this->dbPrefix . '_orders')
+            ->where('id', $orderId)
+            ->where(function ($query) {
+                $query->whereNull('client_id')->orWhere('client_id', 0);
+            })
+            ->update(['client_id' => $client->id]);
+
+        Log::channel('payment')->info('Order client bound by email for bonuses', [
             'correlation_id' => $correlationId,
             'order_id' => $orderId,
-            'client_id' => $clientId,
-            'use_bonus' => $useBonus ? 1 : 0,
-            'payable_cents' => $payableCents,
-            'redeem_cents' => $redeemCents,
-            'cashback_cents' => $cashbackCents,
-            'already_redeemed' => $alreadyRedeemed ? 1 : 0,
-            'already_cashback' => $alreadyCashback ? 1 : 0,
-            'balance_cents' => $bonusService->getBalanceCents($client->fresh()),
+            'client_id' => $client->id,
+            'client_email' => $email,
+            'updated_rows' => $updated,
         ]);
+
+        return $client;
     }
 
 

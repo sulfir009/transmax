@@ -116,7 +116,7 @@ Artisan::command('bonuses:grant-initial {--dry-run} {--chunk=1000}', function ()
 
                 $processed++;
 
-                $alreadyGranted = $bonusService->hasTransaction($clientId, 'initial_grant');
+                $alreadyGranted = $bonusService->hasTransaction($clientId, 'grant_initial');
 
                 if ($alreadyGranted) {
                     $skipped++;
@@ -134,7 +134,7 @@ Artisan::command('bonuses:grant-initial {--dry-run} {--chunk=1000}', function ()
                     continue;
                 }
 
-                $bonusService->credit($client, $amountCents, 'initial_grant', [
+                $bonusService->credit($client, $amountCents, 'grant_initial', [
                     'note' => 'initial campaign',
                 ]);
 

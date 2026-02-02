@@ -7,6 +7,7 @@ use App\Http\Controllers\Payments\MonobankPaymentController;
 use App\Http\Controllers\Payments\MonobankWebhookController;
 use App\Http\Middleware\VerifyCsrfToken;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\Admin\BonusController;
 
 if (!function_exists('schedulePathForLocale')) {
     function schedulePathForLocale(?string $locale): string
@@ -52,6 +53,9 @@ Route::match(['GET', 'POST'], '/payment/monobank/webhook', [MonobankWebhookContr
     Route::get('/cabinet', function() {
         return redirect('/');
     })->name('auth');
+
+    Route::get('/admin/bonuses', [BonusController::class, 'index'])->name('admin.bonuses.index');
+    Route::post('/admin/bonuses/credit', [BonusController::class, 'credit'])->name('admin.bonuses.credit');
 
     // Debug route for session testing
 Route::get('/debug/session', [\App\Http\Controllers\DebugController::class, 'sessionDebug']);
@@ -162,6 +166,8 @@ Route::get('/debug/session', [\App\Http\Controllers\DebugController::class, 'ses
 
         // Альтернативный маршрут для бронирования
         Route::any('/bronyuvannya-kvitka', [BookingController::class, 'index'])->name('booking.index');
+        Route::post('/booking/{order}/apply-bonuses', [BookingController::class, 'applyBonuses'])
+            ->name('booking.apply-bonuses');
 
         // Payment routes (временно без авторизации для тестирования)
         Route::get('/payment', [\App\Http\Controllers\PaymentController::class, 'index'])->name('payment.index');
@@ -200,5 +206,3 @@ foreach ($supportedLocales as $locale) {
             });
     }
 }
-
-

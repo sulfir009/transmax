@@ -752,6 +752,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                     $bonusBalanceCents = 0;
                     $bonusUseRequested = (int)($_SESSION['order']['use_bonus'] ?? 0);
                     $bonusRedeemCents = 0;
+                    $orderDbId = (int)($_SESSION['order']['order_db_id'] ?? 0);
 
                     if (isset($User->id) && (int)$User->id > 0) {
                         $bonusEligible = true;
@@ -839,7 +840,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                                 <label class="pv2_check payment_v2__bonus_check">
                                     <input type="checkbox" hidden id="use_bonus" <?php echo $bonusUseRequested ? 'checked' : ''; ?>>
                                     <span class="pv2_box"></span>
-                                    <span class="pv2_check_text">Рассчитаться бонусами (до 20% от оплаты)</span>
+                                    <span class="pv2_check_text">Рассчитаться бонусами</span>
                                 </label>
                                 <div class="payment_v2__bonus_row">
                                     <span>Списано бонусами:</span>
@@ -928,10 +929,11 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
         var bonusBalanceCents = <?php echo (int)$bonusBalanceCents; ?>;
         var bonusRedeemCents = <?php echo (int)$bonusRedeemCents; ?>;
         var bonusUseRequested = <?php echo $bonusUseRequested ? 'true' : 'false'; ?>;
+        var orderId = <?php echo (int)$orderDbId; ?>;
         var totalPrice = <?php echo (float)$displayTotalPrice; ?>;
 
         function calculateMaxRedeemCents(balance, payable) {
-            return Math.min(balance, payable, Math.floor(payable * 0.2));
+            return Math.min(balance, payable);
         }
 
         function formatUah(cents) {
@@ -950,6 +952,20 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
         }
 
         function syncBonusSession(useBonus) {
+            if (orderId > 0) {
+                return $.ajax({
+                    type: 'post',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    url: '/booking/' + orderId + '/apply-bonuses',
+                    data: {
+                        'use_bonus': useBonus ? 1 : 0,
+                        'payable_cents': payableCents
+                    }
+                });
+            }
+
             return $.ajax({
                 type: 'post',
                 url: '/ajax/ru',
