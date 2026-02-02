@@ -772,8 +772,7 @@ class TicketService
             return false;
         }
     }
-    
-        private function applyBonusOperations($orderInfo, $ticketInfo, int $passengersCount, array $paymentData, string $correlationId): void
+    private function applyBonusOperations($orderInfo, $ticketInfo, int $passengersCount, array $paymentData, string $correlationId): void
     {
         $orderId = (int)($orderInfo->id ?? 0);
         $clientId = (int)($orderInfo->client_id ?? 0);
@@ -782,11 +781,7 @@ class TicketService
             return;
         }
 
-        if (!isset($orderInfo->bonus_use_requested) || (int)$orderInfo->bonus_use_requested !== 1) {
-            $useBonus = false;
-        } else {
-            $useBonus = true;
-        }
+        $useBonus = isset($orderInfo->bonus_use_requested) && (int)$orderInfo->bonus_use_requested === 1;
 
         $pricePer = (float)($ticketInfo->price ?? 0);
         $payableCents = (int)round($pricePer * max(1, $passengersCount) * 100);
@@ -800,6 +795,7 @@ class TicketService
 
         $redeemCents = (int)($orderInfo->bonus_redeemed_cents ?? 0);
 
+        $alreadyRedeemed = false;
         if ($useBonus) {
             $alreadyRedeemed = $bonusService->hasTransaction($clientId, 'redeem', $orderId);
 
@@ -836,6 +832,7 @@ class TicketService
         }
 
         $alreadyCashback = $bonusService->hasTransaction($clientId, 'cashback', $orderId);
+        $cashbackCents = (int)($orderInfo->bonus_cashback_cents ?? 0);
 
         if (!$alreadyCashback) {
             $cashbackBaseCents = max($payableCents - $redeemCents, 0);
@@ -862,6 +859,19 @@ class TicketService
                 }
             }
         }
+
+        Log::channel('payment')->info('Bonus operations summary', [
+            'correlation_id' => $correlationId,
+            'order_id' => $orderId,
+            'client_id' => $clientId,
+            'use_bonus' => $useBonus ? 1 : 0,
+            'payable_cents' => $payableCents,
+            'redeem_cents' => $redeemCents,
+            'cashback_cents' => $cashbackCents,
+            'already_redeemed' => $alreadyRedeemed ? 1 : 0,
+            'already_cashback' => $alreadyCashback ? 1 : 0,
+            'balance_cents' => $bonusService->getBalanceCents($client->fresh()),
+        ]);
     }
 
 

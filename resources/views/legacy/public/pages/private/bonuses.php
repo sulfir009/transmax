@@ -124,119 +124,117 @@
             </div>
         </div>
         <div class="page_content_wrapper">
-            <div class="container">
-                <?php $getBonuses = $Db->getOne("SELECT miles FROM `".DB_PREFIX."_clients` WHERE id = '".$User->id."' ");
-                if ((int)$getBonuses['miles'] < (int)$GLOBALS['site_settings']['FIRST_BONUS']){?>
-                    <div class="private_empty_block">
-                        <div class="private_empry_block_title h2_title">
-                            <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_U_VAS_POKI_NEMA_BONUSIV']?>
+            <?php $getBonuses = $Db->getOne("SELECT miles, bonus_balance_cents FROM `".DB_PREFIX."_clients` WHERE id = '".$User->id."' ");
+            $bonusMiles = (int)($getBonuses['miles'] ?? 0);
+            $bonusBalanceCents = (int)($getBonuses['bonus_balance_cents'] ?? 0);
+            $bonusBalanceUah = number_format($bonusBalanceCents / 100, 2, '.', '');?>
+            <div class="container" data-bonus-user="<?php echo (int)$User->id; ?>" data-bonus-miles="<?php echo $bonusMiles; ?>" data-bonus-balance-cents="<?php echo $bonusBalanceCents; ?>">
+                <div class="current_bonuses_wrapper">
+                    <div class="current_bonuses_txt">
+                        <div class="current_bonuses_title h2_title">
+                            <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VASHI_BONUSI']?>
                         </div>
-                        <div class="private_empry_block_subtitle">
+                        <div class="current_bonuses_subtitle par">
                             <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZA_KOZHEN_KUPLENIJ_KVITOK']?>
                         </div>
+                        <div class="current_bonuses_subtitle par">
+                            <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VASHI_BONUSI']?>: <?php echo $bonusBalanceUah; ?> грн
+                        </div>
+                        <div class="current_bonuses_subtitle par">
+                            <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_KM']?>: <?php echo $bonusMiles; ?>
+                        </div>
                     </div>
-                <?php }else{?>
-                    <div class="current_bonuses_wrapper">
-                        <div class="current_bonuses_txt">
-                            <div class="current_bonuses_title h2_title">
-                                <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VASHI_BONUSI']?>
+                    <div class="current_bonuses_path_wrapper">
+                        <div class="current_bonuses_path">
+                            <div class="bonus_checkpoint_wrapper">
+                                <div class="bonus_checkpoint active">
+                                    <img src="<?php echo  asset('images/legacy/common/maxtrans_logo.svg'); ?>" alt="" class="fit_img">
+                                </div>
                             </div>
-                            <div class="current_bonuses_subtitle par">
-                                <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZA_KOZHEN_KUPLENIJ_KVITOK']?>
+                            <div class="progress_wrapper">
+                                <div class="bonuses_progressbar"></div>
+                                <div class="progress active" style="width: 35%"></div>
+                                <div class="progress_percentage par">
+                                    35%
+                                </div>
+                            </div>
+                            <div class="bonus_checkpoint_wrapper">
+                                <div class="bonus_checkpoint">
+                                    <img src="<?php echo  asset('images/legacy/common/maxtrans_logo.svg'); ?>" alt="" class="fit_img">
+                                </div>
+                            </div>
+                            <div class="progress_wrapper">
+                                <div class="bonuses_progressbar"></div>
+                                <div class="progress"></div>
+                            </div>
+                            <div class="bonus_checkpoint_wrapper">
+                                <div class="bonus_checkpoint">
+                                    <img src="<?php echo  asset('images/legacy/common/maxtrans_logo.svg'); ?>" alt="" class="fit_img">
+                                </div>
                             </div>
                         </div>
-                        <div class="current_bonuses_path_wrapper">
-                            <div class="current_bonuses_path">
-                                <div class="bonus_checkpoint_wrapper">
-                                    <div class="bonus_checkpoint active">
-                                        <img src="<?php echo  asset('images/legacy/common/maxtrans_logo.svg'); ?>" alt="" class="fit_img">
-                                    </div>
-                                </div>
-                                <div class="progress_wrapper">
-                                    <div class="bonuses_progressbar"></div>
-                                    <div class="progress active" style="width: 35%"></div>
-                                    <div class="progress_percentage par">
-                                        35%
-                                    </div>
-                                </div>
-                                <div class="bonus_checkpoint_wrapper">
-                                    <div class="bonus_checkpoint">
-                                        <img src="<?php echo  asset('images/legacy/common/maxtrans_logo.svg'); ?>" alt="" class="fit_img">
-                                    </div>
-                                </div>
-                                <div class="progress_wrapper">
-                                    <div class="bonuses_progressbar"></div>
-                                    <div class="progress"></div>
-                                </div>
-                                <div class="bonus_checkpoint_wrapper">
-                                    <div class="bonus_checkpoint">
-                                        <img src="<?php echo  asset('images/legacy/common/maxtrans_logo.svg'); ?>" alt="" class="fit_img">
-                                    </div>
-                                </div>
+                        <div class="bonuses_checkpoints_titles">
+                            <div class="bonus_checkpoint_title par">
+                                <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VI_DOSYAGLI_PERSHOGO_BONUSU']?>
+                                <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VITAEMO_ZNIZHKA'].' '.$GLOBALS['site_settings']['FIRST_BONUS_DISCOUNT']?>%
                             </div>
-                            <div class="bonuses_checkpoints_titles">
-                                <div class="bonus_checkpoint_title par">
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VI_DOSYAGLI_PERSHOGO_BONUSU']?>
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VITAEMO_ZNIZHKA'].' '.$GLOBALS['site_settings']['FIRST_BONUS_DISCOUNT']?>%
-                                </div>
-                                <div class="bonus_checkpoint_title par hidden-xs">
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VI_DOSYAGLI_DRUGOGO_BONUSU']?>
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VITAEMO_ZNIZHKA'].' '.$GLOBALS['site_settings']['SECOND_BONUS_DISCOUNT']?>%
-                                </div>
-                                <div class="bonus_checkpoint_title par hidden-xs">
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VI_DOSYAGLI_TRETIOGO_BONUSU']?>
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VITAEMO_ZNIZHKA'].' '.$GLOBALS['site_settings']['THIRD_BONUS_DISCOUNT']?>%
-                                </div>
+                            <div class="bonus_checkpoint_title par hidden-xs">
+                                <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VI_DOSYAGLI_DRUGOGO_BONUSU']?>
+                                <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VITAEMO_ZNIZHKA'].' '.$GLOBALS['site_settings']['SECOND_BONUS_DISCOUNT']?>%
+                            </div>
+                            <div class="bonus_checkpoint_title par hidden-xs">
+                                <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VI_DOSYAGLI_TRETIOGO_BONUSU']?>
+                                <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VITAEMO_ZNIZHKA'].' '.$GLOBALS['site_settings']['THIRD_BONUS_DISCOUNT']?>%
                             </div>
                         </div>
                     </div>
-                    <div class="bonuses_wrapper">
-                        <div class="bonuses_block_title par">
-                            <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VI_MATIMETE_MOZHLIVISTI']?>
+                </div>
+                <div class="bonuses_wrapper">
+                    <div class="bonuses_block_title par">
+                        <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VI_MATIMETE_MOZHLIVISTI']?>
+                    </div>
+                    <div class="flex-row gap-30">
+                        <div class="col-xl-4">
+                            <div class="bonus">
+                                <div class="bonus_for h4_title">
+                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_BONUS_ZA']?>
+                                </div>
+                                <div class="bonus_mileage h1_title">
+                                    <?php echo $GLOBALS['site_settings']['FIRST_BONUS'].' '.$GLOBALS['dictionary']['MSG_MSG_BONUSES_KM']?>
+                                </div>
+                                <div class="bonus_value par">
+                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZNIZHKA_NA_BILETI'].' '.$GLOBALS['site_settings']['FIRST_BONUS_DISCOUNT']?>%
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex-row gap-30">
-                            <div class="col-xl-4">
-                                <div class="bonus">
-                                    <div class="bonus_for h4_title">
-                                        <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_BONUS_ZA']?>
-                                    </div>
-                                    <div class="bonus_mileage h1_title">
-                                        <?php echo $GLOBALS['site_settings']['FIRST_BONUS'].' '.$GLOBALS['dictionary']['MSG_MSG_BONUSES_KM']?>
-                                    </div>
-                                    <div class="bonus_value par">
-                                        <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZNIZHKA_NA_BILETI'].' '.$GLOBALS['site_settings']['FIRST_BONUS_DISCOUNT']?>%
-                                    </div>
+                        <div class="col-xl-4">
+                            <div class="bonus">
+                                <div class="bonus_for h4_title">
+                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_BONUS_ZA']?>
+                                </div>
+                                <div class="bonus_mileage h1_title">
+                                    <?php echo $GLOBALS['site_settings']['SECOND_BONUS'].' '.$GLOBALS['dictionary']['MSG_MSG_BONUSES_KM']?>
+                                </div>
+                                <div class="bonus_value par">
+                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZNIZHKA_NA_BILETI'].' '.$GLOBALS['site_settings']['SECOND_BONUS_DISCOUNT']?>%
                                 </div>
                             </div>
-                            <div class="col-xl-4">
-                                <div class="bonus">
-                                    <div class="bonus_for h4_title">
-                                        <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_BONUS_ZA']?>
-                                    </div>
-                                    <div class="bonus_mileage h1_title">
-                                        <?php echo $GLOBALS['site_settings']['SECOND_BONUS'].' '.$GLOBALS['dictionary']['MSG_MSG_BONUSES_KM']?>
-                                    </div>
-                                    <div class="bonus_value par">
-                                        <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZNIZHKA_NA_BILETI'].' '.$GLOBALS['site_settings']['SECOND_BONUS_DISCOUNT']?>%
-                                    </div>
+                        </div>
+                        <div class="col-xl-4">
+                            <div class="bonus">
+                                <div class="bonus_for h4_title">
+                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_BONUS_ZA']?>
                                 </div>
-                            </div>
-                            <div class="col-xl-4">
-                                <div class="bonus">
-                                    <div class="bonus_for h4_title">
-                                        <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_BONUS_ZA']?>
-                                    </div>
-                                    <div class="bonus_mileage h1_title">
-                                        <?php echo $GLOBALS['site_settings']['THIRD_BONUS'].' '.$GLOBALS['dictionary']['MSG_MSG_BONUSES_KM']?>
-                                    </div>
-                                    <div class="bonus_value par">
-                                        <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZNIZHKA_NA_BILETI'].' '.$GLOBALS['site_settings']['THIRD_BONUS_DISCOUNT']?>%
-                                    </div>
+                                <div class="bonus_mileage h1_title">
+                                    <?php echo $GLOBALS['site_settings']['THIRD_BONUS'].' '.$GLOBALS['dictionary']['MSG_MSG_BONUSES_KM']?>
+                                </div>
+                                <div class="bonus_value par">
+                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZNIZHKA_NA_BILETI'].' '.$GLOBALS['site_settings']['THIRD_BONUS_DISCOUNT']?>%
                                 </div>
                             </div>
                         </div>
                     </div>
-                <?php }?>
+                </div>
             </div>
             <div class="main_filter_wrapper">
                 <div class="container">
