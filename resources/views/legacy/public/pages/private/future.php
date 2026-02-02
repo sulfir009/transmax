@@ -146,7 +146,8 @@
             LEFT JOIN `" . DB_PREFIX . "_cities` arrival_city ON arrival_city.id = arrival_station.section_id
             LEFT JOIN `" . DB_PREFIX . "_tours_stops_prices` tsp ON tsp.from_stop = o.from_stop AND tsp.to_stop = o.to_stop AND tsp.tour_id = t.id
             LEFT JOIN `" . DB_PREFIX . "_buses` bus ON bus.id = t.bus
-            WHERE o.client_email = '" . $User->email . "'
+            WHERE (o.client_id = '" . $User->id . "' OR o.client_email = '" . $User->email . "')
+            AND o.payment_status = 2
             AND o.tour_date >= CURDATE()
             AND o.ticket_return = 0 GROUP BY o.id ORDER BY o.tour_date ASC ");
             foreach ($getFutureRides AS $k=>$potencialFutureRide){
@@ -154,8 +155,6 @@
                     $futureRidesArray[] = $potencialFutureRide;
                 }
             }?>
-            <div class="d_none"><?php echo out($getFutureRides)?></div>
-
             <?
             if (count($futureRidesArray) > 0 ) {?>
                 <div class="container">

@@ -103,8 +103,7 @@
         </div>
         <div class="page_content_wrapper">
             <div class="container">
-                <?php $pastRidesArray = [];
-                $getHistory = $Db->getAll("SELECT
+                <?php $getHistory = $Db->getAll("SELECT
                 o.id,
                 o.tour_id,
                 o.from_stop,
@@ -131,13 +130,11 @@
                 LEFT JOIN `" . DB_PREFIX . "_tours_stops_prices` tsp ON tsp.from_stop = o.from_stop AND tsp.to_stop = o.to_stop AND tsp.tour_id = t.id
                 LEFT JOIN `" . DB_PREFIX . "_buses` bus ON bus.id = t.bus
                 WHERE o.client_id = '" . $User->id . "'
-                AND o.tour_date <= CURDATE()
-                AND o.ticket_return = 0 GROUP BY o.id ORDER BY o.tour_date ASC ");
-                /*foreach ($getHistory as $potencialFutureRide) {
-                    if (strtotime($potencialFutureRide['tour_date'].' '.$potencialFutureRide['departure_time']) < time()) {
-                        $pastRidesArray[] = $potencialFutureRide;
-                    }
-                }*/
+                AND o.payment_status = 2
+                AND o.ticket_return = 0
+                AND (o.tour_date < CURDATE() OR (o.tour_date = CURDATE() AND dt.departure_time <= CURTIME()))
+                GROUP BY o.id ORDER BY o.tour_date ASC ");
+                $pastRidesArray = $getHistory;
                 if (count($pastRidesArray) > 0){ ?>
                     <div class="private_tickets_wrapper">
                         <div class="flex-row gap-30">
