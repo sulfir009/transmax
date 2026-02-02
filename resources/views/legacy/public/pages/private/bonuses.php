@@ -281,5 +281,17 @@
         }
     });
 </script>
+<script>
+    (function () {
+        const bonusSnapshot = <?php echo json_encode([
+            'client_id' => (int) $User->id,
+            'bonus_balance_cents' => $bonusBalanceCents ?? 0,
+            'bonus_balance_uah' => $bonusBalanceUah ?? '0.00',
+            'miles' => $bonusMiles ?? 0,
+            'first_bonus_threshold' => (int) ($GLOBALS['site_settings']['FIRST_BONUS'] ?? 0),
+        ]); ?>;
+        console.log('[BONUSES PAGE] bonus snapshot', bonusSnapshot);
+    })();
+</script>
 </body>
 </html>
