@@ -1281,6 +1281,56 @@ if (!function_exists('ajax_json')) {
     }
 }
 
+if ($cleanPost['request'] === 'bonus_preview') {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+
+    $useBonus = !empty($cleanPost['use_bonus']);
+    $payableCents = (int)($cleanPost['payable_cents'] ?? 0);
+
+    if (!isset($_SESSION['order']) || !is_array($_SESSION['order'])) {
+        $_SESSION['order'] = [];
+    }
+
+    if (!isset($User->id) || (int)$User->id <= 0) {
+        $_SESSION['order']['use_bonus'] = 0;
+        $_SESSION['order']['bonus_redeem_cents_preview'] = 0;
+
+        ajax_json([
+            'data' => 'guest',
+            'redeem_cents' => 0,
+        ]);
+    }
+
+    $clientId = (int)$User->id;
+    $bonusBalanceCents = 0;
+
+    try {
+        $client = \App\Models\Client::find($clientId);
+        if ($client) {
+            $bonusBalanceCents = (int)($client->bonus_balance_cents ?? 0);
+        }
+    } catch (Throwable $e) {
+        $bonusBalanceCents = 0;
+    }
+
+    $maxRedeemCents = 0;
+    if ($useBonus && $payableCents > 0) {
+        $bonusService = app(\App\Services\BonusService::class);
+        $maxRedeemCents = $bonusService->calculateMaxRedeemCents($bonusBalanceCents, $payableCents);
+    }
+
+    $_SESSION['order']['use_bonus'] = $useBonus ? 1 : 0;
+    $_SESSION['order']['bonus_redeem_cents_preview'] = $maxRedeemCents;
+
+    ajax_json([
+        'data' => 'ok',
+        'redeem_cents' => $maxRedeemCents,
+        'balance_cents' => $bonusBalanceCents,
+    ]);
+}
+
 if ($request === 'order_route') {
     try {
         order_route(); // внутри уже есть свои ajax_json(), но если что-то упадёт — поймаем тут
@@ -2969,6 +3019,14 @@ function order_route(): void
         // user id (если есть колонка)
         if ($hasCol($ordersCols, 'client_id') && isset($User->id)) {
             $orderInsert['client_id'] = (int)$User->id;
+        }
+
+        // бонусы (если колонки есть)
+        if ($hasCol($ordersCols, 'bonus_use_requested')) {
+            $orderInsert['bonus_use_requested'] = (int)($_SESSION['order']['use_bonus'] ?? 0);
+        }
+        if ($hasCol($ordersCols, 'bonus_redeemed_cents')) {
+            $orderInsert['bonus_redeemed_cents'] = (int)($_SESSION['order']['bonus_redeem_cents_preview'] ?? 0);
         }
 
         // 11.3) INSERT orders

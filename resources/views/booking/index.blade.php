@@ -1606,6 +1606,10 @@ window.__dbgPassengers = {
 
             var totalEl = document.getElementById('js_total_price');
             if (totalEl) totalEl.textContent = formatMoney(total);
+
+            if (typeof window.updateBonusPreview === 'function') {
+                window.updateBonusPreview(total);
+            }
         }
     }
 
@@ -1664,6 +1668,93 @@ window.__dbgPassengers = {
         updatePassengersUi();
     });
 
+})();
+</script>
+
+<script>
+(function () {
+    var bonusBlock = document.querySelector('.b2_bonus_block');
+    if (!bonusBlock) {
+        return;
+    }
+
+    var balanceCents = parseInt(bonusBlock.getAttribute('data-bonus-balance-cents') || '0', 10);
+    var useBonusCheckbox = document.getElementById('js_use_bonus');
+    var redeemEl = document.getElementById('js_bonus_redeem');
+    var totalEl = document.getElementById('js_total_price');
+    var currencyEl = document.getElementById('js_currency');
+    var lastPayableCents = 0;
+
+    function formatUah(cents) {
+        var value = (cents / 100);
+        var formatted = value.toFixed(2);
+        return formatted.replace(/\.00$/, '');
+    }
+
+    function calculateMaxRedeemCents(balance, payable) {
+        return Math.min(balance, payable, Math.floor(payable * 0.2));
+    }
+
+    function syncBonusSession(useBonus, payableCents) {
+        return $.ajax({
+            type: 'post',
+            url: '/ajax/{{ $lang }}',
+            data: {
+                request: 'bonus_preview',
+                use_bonus: useBonus ? 1 : 0,
+                payable_cents: payableCents
+            }
+        });
+    }
+
+    function applyRedeem(redeemCents, payableCents) {
+        if (redeemEl) {
+            redeemEl.textContent = formatUah(redeemCents);
+        }
+
+        if (totalEl) {
+            totalEl.textContent = formatUah(Math.max(payableCents - redeemCents, 0));
+        }
+
+        if (currencyEl) {
+            currencyEl.textContent = 'грн';
+        }
+    }
+
+    window.updateBonusPreview = function (payableUah) {
+        var payableCents = Math.round(parseFloat(payableUah || 0) * 100);
+        lastPayableCents = payableCents;
+
+        if (!useBonusCheckbox || !useBonusCheckbox.checked) {
+            applyRedeem(0, payableCents);
+            return;
+        }
+
+        var maxRedeemCents = calculateMaxRedeemCents(balanceCents, payableCents);
+        applyRedeem(maxRedeemCents, payableCents);
+    };
+
+    if (useBonusCheckbox) {
+        useBonusCheckbox.addEventListener('change', function () {
+            var useBonus = useBonusCheckbox.checked;
+            var totalText = totalEl ? totalEl.textContent : '0';
+            var payableCents = lastPayableCents || Math.round(parseFloat(totalText || '0') * 100);
+
+            syncBonusSession(useBonus, payableCents)
+                .done(function (response) {
+                    var redeemCentsRaw = response && response.redeem_cents ? response.redeem_cents : 0;
+                    var redeemCents = parseInt(redeemCentsRaw || 0, 10);
+                    applyRedeem(useBonus ? redeemCents : 0, payableCents);
+                })
+                .fail(function () {
+                    applyRedeem(0, payableCents);
+                });
+        });
+    }
+
+    if (totalEl) {
+        window.updateBonusPreview(parseFloat(totalEl.textContent || '0'));
+    }
 })();
 </script>
 

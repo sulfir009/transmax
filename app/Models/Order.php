@@ -25,7 +25,10 @@ class Order extends Model
         'client_email',
         'client_phone',
         'uniqid',
-        'payment_status'
+        'payment_status',
+        'bonus_redeemed_cents',
+        'bonus_cashback_cents',
+        'bonus_use_requested'
     ];
 
     protected $casts = [
@@ -33,7 +36,10 @@ class Order extends Model
         'date' => 'datetime',
         'return_date' => 'datetime',
         'active' => 'boolean',
-        'ticket_return' => 'boolean'
+        'ticket_return' => 'boolean',
+        'bonus_redeemed_cents' => 'int',
+        'bonus_cashback_cents' => 'int',
+        'bonus_use_requested' => 'boolean'
     ];
 
     public $timestamps = false; // В существующей таблице нет timestamps

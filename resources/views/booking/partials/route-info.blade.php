@@ -141,6 +141,24 @@
         </span>
     </div>
 
+    @if(!empty($bonusEligible))
+        <div class="b2_divider"></div>
+        <div class="b2_bonus_block" data-bonus-balance-cents="{{ $bonusBalanceCents ?? 0 }}">
+            <div class="b2_row">
+                <span>Бонусный баланс:</span>
+                <strong>{{ $bonusBalanceFormatted ?? '0' }} грн</strong>
+            </div>
+            <label class="b2_bonus_checkbox">
+                <input type="checkbox" id="js_use_bonus" />
+                <span>Рассчитаться бонусами (до 20% от оплаты)</span>
+            </label>
+            <div class="b2_row b2_bonus_row">
+                <span>Будет списано бонусами:</span>
+                <strong><span id="js_bonus_redeem">0</span> грн</strong>
+            </div>
+        </div>
+    @endif
+
     {{-- СКРЫТЫЕ ДАННЫЕ ДЛЯ JS-ПЕРЕСЧЁТА --}}
     <div id="js_price_meta"
          data-price-per-passenger="{{ $pricePerPassengerForJs }}"
@@ -212,6 +230,31 @@
     }
     .booking_v2 .b2_route_side.right{
         text-align: right;
+    }
+
+    .booking_v2 .b2_bonus_block{
+        display:flex;
+        flex-direction:column;
+        gap:6px;
+        font-size:14px;
+        color:#303233;
+    }
+
+    .booking_v2 .b2_bonus_checkbox{
+        display:flex;
+        align-items:center;
+        gap:8px;
+        font-size:14px;
+        cursor:pointer;
+    }
+
+    .booking_v2 .b2_bonus_checkbox input{
+        width:16px;
+        height:16px;
+    }
+
+    .booking_v2 .b2_bonus_row strong{
+        font-weight:700;
     }
 
     .booking_v2 .b2_route_time{
