@@ -7,6 +7,7 @@ use App\Repository\BusRepository;
 use App\Repository\Order\OrderRepository;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Models\Client;
 use App\Service\LiqPayService;
 use App\Service\TicketService;
 use App\Services\Payments\MonobankAcquiringService;
@@ -296,6 +297,17 @@ class PaymentPageController extends Controller
             }
         }
 
+        $bonusDebug = null;
+        if ($debugEnabled && $order->client_id) {
+            $client = Client::find((int) $order->client_id);
+            if ($client) {
+                $bonusDebug = [
+                    'client_id' => (int) $client->id,
+                    'bonus_balance_cents' => (int) $client->bonus_balance_cents,
+                ];
+            }
+        }
+
         $debugInfo = [
             'request_correlation_id' => $requestCorrelationId,
             'payment_correlation_id' => $paymentCorrelationId,
@@ -309,6 +321,12 @@ class PaymentPageController extends Controller
             'invoice_linked_from_payment' => $invoiceLinkedFromPayment,
             'payment_status_db' => (int) ($order->payment_status ?? 0),
             'mono_status_db' => (string) ($order->mono_status ?? ''),
+            'order_bonus' => [
+                'bonus_redeemed_cents' => (int) ($order->bonus_redeemed_cents ?? 0),
+                'bonus_cashback_cents' => (int) ($order->bonus_cashback_cents ?? 0),
+                'bonus_use_requested' => (int) ($order->bonus_use_requested ?? 0),
+            ],
+            'client_bonus' => $bonusDebug,
         ];
 
         // Если уже оплачено — просто ok (не шлем тикеты повторно, чтобы не задублировать)
