@@ -4,6 +4,9 @@
 <div class="routes_subtitle par">
     @lang('MSG__BEZLICH_VARIANTIV_AVTOBUSNIH_POZDOK_DLYA_VASHIH_PODOROZHEJ_U_BUDI-YAKOMU_NAPRYAMKU')
 </div>
+@php
+    $todayKyiv = \Carbon\Carbon::now('Europe/Kyiv')->toDateString();
+@endphp
 
 <div class="routes_lists_wrapper">
     {{-- Країни --}}
@@ -48,7 +51,7 @@
         <div class="route_list">
             @foreach($internationalTours as $tour)
                 <div>
-<a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule.route', ['from' => $tour['departure_city_slug'], 'to' => $tour['arrival_city_slug']]) }}"
+<a href="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') . '?' . http_build_query(['departure' => $tour['departure_city_id'], 'arrival' => $tour['arrival_city_id'], 'date' => $todayKyiv]) }}"
                        class="shedule_link">
                         {{ $tour['departure_city'] }} → {{ $tour['arrival_city'] }}
                     </a>
@@ -65,7 +68,7 @@
         <div class="route_list">
             @foreach($homeTours as $tour)
                 <div>
-<a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule.route', ['from' => $tour['departure_city_slug'], 'to' => $tour['arrival_city_slug']]) }}"
+<a href="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') . '?' . http_build_query(['departure' => $tour['departure_city_id'], 'arrival' => $tour['arrival_city_id'], 'date' => $todayKyiv]) }}"
                        class="shedule_link">
                         {{ $tour['departure_city'] }} → {{ $tour['arrival_city'] }}
                     </a>

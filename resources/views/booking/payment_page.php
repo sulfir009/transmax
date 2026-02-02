@@ -171,6 +171,25 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
             object-fit:contain;
             opacity:.95;
         }
+        .payment_v2 .pv2_method_logo--mono{
+            display:flex;
+            align-items:center;
+            justify-content:center;
+        }
+        .payment_v2 .mono_badge{
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            min-width:44px;
+            height:28px;
+            padding:0 10px;
+            border-radius:999px;
+            background:#000;
+            color:#fff;
+            font-weight:600;
+            font-size:12px;
+            letter-spacing:.5px;
+        }
 
         .payment_v2 .pv2_method_price{
             font-family: Montserrat,system-ui;
@@ -785,11 +804,12 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                                        name="paymethod"
                                        hidden
                                        data-cardpay="true"
-                                       value="cardpay">
+                                       value="cardpay"
+                                       checked>
                                 <span class="pv2_radio"></span>
 
                                 <span class="pv2_method_name">
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_BANKIVSIKA_KARTKA']; ?>
+                                    <?php echo $GLOBALS['dictionary']['PAYMENT_LIQPAY'] ?? __('dictionary.PAYMENT_LIQPAY'); ?>
                                 </span>
 
                                 <span class="pv2_method_logo">
@@ -806,12 +826,32 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                                        name="paymethod"
                                        hidden
                                        data-cardpay="false"
-                                       value="cash"
-                                       checked>
+                                       value="monobank">
                                 <span class="pv2_radio"></span>
 
                                 <span class="pv2_method_name">
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GOTIVKOYU']; ?>
+                                    <?php echo $GLOBALS['dictionary']['PAYMENT_MONOPAY'] ?? __('dictionary.PAYMENT_MONOPAY'); ?>
+                                </span>
+
+                                <span class="pv2_method_logo pv2_method_logo--mono" aria-hidden="true">
+                                    <span class="mono_badge">mono</span>
+                                </span>
+
+                                <span class="pv2_method_price" data-role="payable-price">
+                                    <?php echo $displayTotalPrice . ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
+                                </span>
+                            </label>
+
+                            <label class="pv2_method">
+                                <input type="radio"
+                                       name="paymethod"
+                                       hidden
+                                       data-cardpay="false"
+                                       value="cash">
+                                <span class="pv2_radio"></span>
+
+                                <span class="pv2_method_name">
+                                    <?php echo $GLOBALS['dictionary']['PAYMENT_CASH'] ?? __('dictionary.PAYMENT_CASH'); ?>
                                 </span>
 
                                 <span class="pv2_method_logo">

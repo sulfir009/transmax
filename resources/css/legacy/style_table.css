@@ -295,6 +295,13 @@
     text-overflow: ellipsis;
 }
 
+.custom-schedule-styled-select:hover,
+.custom-schedule-styled-select:focus {
+    border-color: #40A6FF;
+    box-shadow: 0 0 0 3px rgba(64, 166, 255, 0.15);
+    outline: none;
+}
+
 .custom-schedule-select-wrapper::after {
     content: "";
     position: absolute;
@@ -307,6 +314,17 @@
     background-repeat: no-repeat;
     background-size: contain;
     pointer-events: none;
+}
+
+.price-select-container {
+    position: static;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 24px;
+}
+
+.price-select-container .custom-schedule-select-wrapper {
+    max-width: 520px;
 }
 
 .form-group select {
