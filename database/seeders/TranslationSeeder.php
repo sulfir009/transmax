@@ -281,14 +281,16 @@ class TranslationSeeder extends Seeder
         ];
 
         foreach ($translations as $translation) {
+            $payload = array_merge($translation, [
+                'section_id' => 1,
+                'edit_by_user' => 1,
+            ]);
+
+            $payload = $this->withTimestampsIfAvailable('mt_dictionary', $payload);
+
             DB::table('mt_dictionary')->updateOrInsert(
                 ['code' => $translation['code']],
-                array_merge($translation, [
-                    'section_id' => 1,
-                    'edit_by_user' => 1,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ])
+                $payload
             );
         }
     }
@@ -335,12 +337,11 @@ class TranslationSeeder extends Seeder
         ];
 
         foreach ($settings as $setting) {
+            $payload = $this->withTimestampsIfAvailable('mt_settings', $setting);
+
             DB::table('mt_settings')->updateOrInsert(
                 ['code' => $setting['code']],
-                array_merge($setting, [
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ])
+                $payload
             );
         }
     }
@@ -444,5 +445,15 @@ class TranslationSeeder extends Seeder
                 );
             }
         }
+    }
+
+    private function withTimestampsIfAvailable(string $table, array $payload): array
+    {
+        if (Schema::hasColumn($table, 'created_at') && Schema::hasColumn($table, 'updated_at')) {
+            $payload['created_at'] = now();
+            $payload['updated_at'] = now();
+        }
+
+        return $payload;
     }
 }
