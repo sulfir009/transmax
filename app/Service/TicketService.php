@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Schema;
 use App\Models\BonusTransaction;
 use App\Models\Client;
 use App\Services\BonusService;
+use App\Support\Money;
 use Mpdf\Mpdf;
 use Throwable;
 
@@ -559,10 +560,10 @@ class TicketService
         $bonusHtml = '';
 
         if ($bonusRedeemedCents > 0) {
-            $bonusHtml .= '<div><b>Списано бонусами</b>: ' . htmlspecialchars(number_format($bonusRedeemedCents / 100, 2, '.', ''), ENT_QUOTES, 'UTF-8') . ' грн</div>';
+            $bonusHtml .= '<div><b>Списано бонусами</b>: ' . htmlspecialchars(Money::kopeksToUahString($bonusRedeemedCents), ENT_QUOTES, 'UTF-8') . ' грн</div>';
         }
         if ($bonusCashbackCents > 0) {
-            $bonusHtml .= '<div><b>Нараховано кешбеком</b>: ' . htmlspecialchars(number_format($bonusCashbackCents / 100, 2, '.', ''), ENT_QUOTES, 'UTF-8') . ' грн</div>';
+            $bonusHtml .= '<div><b>Нараховано кешбеком</b>: ' . htmlspecialchars(Money::kopeksToUahString($bonusCashbackCents), ENT_QUOTES, 'UTF-8') . ' грн</div>';
         }
 
         return '
@@ -724,6 +725,9 @@ class TicketService
             $fromCity = $fromStop ? DB::table($this->dbPrefix . '_cities')->where('id', (int)$fromStop->section_id)->first() : null;
             $toCity   = $toStop ? DB::table($this->dbPrefix . '_cities')->where('id', (int)$toStop->section_id)->first() : null;
 
+            $totalPriceCents = Money::priceToKopeksFromDb($ticketInfo->price ?? 0)
+                * $this->getPassengersCountFromOrder($orderInfo);
+
             $emailData = [
                 'orderInfo' => $orderInfo,
                 'ticketInfo' => $ticketInfo,
@@ -733,8 +737,8 @@ class TicketService
                 'fromStop' => (string)($fromStop->title_uk ?? ''),
                 'toStop' => (string)($toStop->title_uk ?? ''),
                 'paymentMethodLabel' => $this->detectPaymentLabel($paymentData),
-                'totalPrice' => (float)($ticketInfo->price ?? 0) * $this->getPassengersCountFromOrder($orderInfo),
-                                'bonusRedeemedCents' => (int)($orderInfo->bonus_redeemed_cents ?? 0),
+                'totalPrice' => Money::kopeksToUahString($totalPriceCents),
+                'bonusRedeemedCents' => (int)($orderInfo->bonus_redeemed_cents ?? 0),
                 'bonusCashbackCents' => (int)($orderInfo->bonus_cashback_cents ?? 0),
             ];
 
@@ -787,8 +791,8 @@ class TicketService
 
         $useBonus = isset($orderInfo->bonus_use_requested) && (int)$orderInfo->bonus_use_requested === 1;
 
-        $pricePer = (float)($ticketInfo->price ?? 0);
-        $payableCents = (int)round($pricePer * max(1, $passengersCount) * 100);
+        $pricePerCents = Money::priceToKopeksFromDb($ticketInfo->price ?? 0);
+        $payableCents = $pricePerCents * max(1, $passengersCount);
 
         $bonusService = app(BonusService::class);
 
@@ -850,7 +854,7 @@ class TicketService
 
             if (!$alreadyCashback) {
                 $cashbackBaseCents = max($payableCents - $redeemCents, 0);
-                $cashbackCents = (int)round($cashbackBaseCents * 0.05);
+                $cashbackCents = (int) floor((($cashbackBaseCents * 5) + 50) / 100);
 
                 if ($cashbackCents > 0) {
                     try {
@@ -1131,10 +1135,10 @@ class TicketService
 
         $bonusRows = '';
         if ($bonusRedeemedCents > 0) {
-            $bonusRows .= "<tr><td style='font-weight:bold;'>Списано бонусами</td><td>{$e(number_format($bonusRedeemedCents / 100, 2, '.', ''))}</td></tr>";
+            $bonusRows .= "<tr><td style='font-weight:bold;'>Списано бонусами</td><td>{$e(Money::kopeksToUahString($bonusRedeemedCents))}</td></tr>";
         }
         if ($bonusCashbackCents > 0) {
-            $bonusRows .= "<tr><td style='font-weight:bold;'>Нараховано кешбеком</td><td>{$e(number_format($bonusCashbackCents / 100, 2, '.', ''))}</td></tr>";
+            $bonusRows .= "<tr><td style='font-weight:bold;'>Нараховано кешбеком</td><td>{$e(Money::kopeksToUahString($bonusCashbackCents))}</td></tr>";
         }
 
 
@@ -1210,10 +1214,10 @@ class TicketService
 
         $bonusRows = '';
         if ($bonusRedeemedCents > 0) {
-            $bonusRows .= "<tr><td style='font-weight:bold;'>Списано бонусами</td><td>{$e(number_format($bonusRedeemedCents / 100, 2, '.', ''))}</td></tr>";
+            $bonusRows .= "<tr><td style='font-weight:bold;'>Списано бонусами</td><td>{$e(Money::kopeksToUahString($bonusRedeemedCents))}</td></tr>";
         }
         if ($bonusCashbackCents > 0) {
-            $bonusRows .= "<tr><td style='font-weight:bold;'>Нараховано кешбеком</td><td>{$e(number_format($bonusCashbackCents / 100, 2, '.', ''))}</td></tr>";
+            $bonusRows .= "<tr><td style='font-weight:bold;'>Нараховано кешбеком</td><td>{$e(Money::kopeksToUahString($bonusCashbackCents))}</td></tr>";
         }
 
 

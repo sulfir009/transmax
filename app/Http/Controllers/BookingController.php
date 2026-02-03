@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\Client;
 use App\Services\BonusService;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
 use App\Models\Order;
@@ -86,7 +87,9 @@ class BookingController extends Controller
         $busOptions = $this->busRepository->getBusOptions($ticketInfo['bus_id'] ?? null);
 
         $passengers = $_SESSION['order']['passengers'] ?? 1;
-        $totalPrice = $passengers * ($ticketInfo['price'] ?? 0);
+        $pricePerPassengerCents = Money::priceToKopeksFromDb($ticketInfo['price'] ?? 0);
+        $totalPriceCents = $pricePerPassengerCents * (int) $passengers;
+        $totalPrice = Money::kopeksToUahString($totalPriceCents, true);
         $tourDate = $_SESSION['order']['date'] ?? date('Y-m-d');
         $formattedDate = $this->formatDateForDisplay($tourDate, $lang);
         $_SESSION['order']['departure_time'] = $ticketInfo['departure_time'] ?? '';
@@ -100,6 +103,8 @@ class BookingController extends Controller
             'busOptions' => $busOptions,
             'passengers' => $passengers,
             'totalPrice' => $totalPrice,
+            'totalPriceCents' => $totalPriceCents,
+            'pricePerPassengerCents' => $pricePerPassengerCents,
             'order' => $_SESSION['order'],
             'tourDate' => $tourDate,
             'formattedDate' => $formattedDate,

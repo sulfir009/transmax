@@ -5,6 +5,7 @@ namespace App\Services\Payments;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Support\Money;
 
 class MonobankAcquiringService
 {
@@ -258,19 +259,12 @@ class MonobankAcquiringService
             }
 
             // "0.95" / "0,95" => гривны -> копейки
-            $s = str_replace(["\xC2\xA0", ' '], '', $s);
-            $s = str_replace(',', '.', $s);
-
-            if (!is_numeric($s)) {
-                throw new \InvalidArgumentException("Invalid amount format: '{$raw}'");
-            }
-
-            return (int) round(((float) $s) * 100);
+            return Money::uahToKopeks($s);
         }
 
         if (is_float($raw)) {
-            // трактуем float как гривны
-            return (int) round($raw * 100);
+            // трактуем float как гривны, избегаем float-ошибок
+            return Money::uahToKopeks(number_format($raw, 2, '.', ''));
         }
 
         throw new \InvalidArgumentException('Invalid amount type: ' . gettype($raw));

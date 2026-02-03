@@ -28,7 +28,8 @@ class Order extends Model
         'payment_status',
         'bonus_redeemed_cents',
         'bonus_cashback_cents',
-        'bonus_use_requested'
+        'bonus_use_requested',
+        'mono_modified_at'
     ];
 
     protected $casts = [
@@ -39,7 +40,8 @@ class Order extends Model
         'ticket_return' => 'boolean',
         'bonus_redeemed_cents' => 'int',
         'bonus_cashback_cents' => 'int',
-        'bonus_use_requested' => 'boolean'
+        'bonus_use_requested' => 'boolean',
+        'mono_modified_at' => 'datetime'
     ];
 
     public $timestamps = false; // В существующей таблице нет timestamps

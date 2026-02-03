@@ -5,6 +5,7 @@ namespace App\Services\Payments;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Service\TicketService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -43,6 +44,8 @@ class MonobankWebhookHandler
         $needFinalize = false;
         $matchedOrder = null;
         $legacyOrderId = null;
+        $staleWebhook = false;
+        $incomingModifiedAt = $this->extractModifiedAt($data);
 
         DB::transaction(function () use (
             $invoiceId,
@@ -51,7 +54,9 @@ class MonobankWebhookHandler
             &$needFinalize,
             &$matchedOrder,
             &$legacyOrderId,
-            &$correlationId
+            &$correlationId,
+            &$staleWebhook,
+            $incomingModifiedAt
         ) {
             /** @var Order|null $order */
             $order = Order::where('mono_invoice_id', $invoiceId)->lockForUpdate()->first();
@@ -94,6 +99,23 @@ class MonobankWebhookHandler
             $correlationId = PaymentFinalizer::buildCorrelationId($order->id, $legacyOrderId, $invoiceId);
             $matchedOrder = $order;
 
+            if ($incomingModifiedAt && $order->mono_modified_at) {
+                $storedTimestamp = Carbon::parse($order->mono_modified_at)->getTimestamp();
+                $incomingTimestamp = $incomingModifiedAt->getTimestamp();
+
+                if ($incomingTimestamp <= $storedTimestamp) {
+                    Log::info('[Monobank] webhook ignored (stale modifiedDate)', [
+                        'correlation_id' => $correlationId,
+                        'invoiceId' => $invoiceId,
+                        'incoming_modified' => $incomingModifiedAt->toIso8601String(),
+                        'stored_modified' => Carbon::parse($order->mono_modified_at)->toIso8601String(),
+                    ]);
+
+                    $staleWebhook = true;
+                    return;
+                }
+            }
+
             Log::info('[Monobank] webhook matched order', [
                 'correlation_id' => $correlationId,
                 'invoiceId' => $invoiceId,
@@ -112,6 +134,9 @@ class MonobankWebhookHandler
             $alreadyPaid = ((int) ($order->payment_status ?? 0) === 2);
 
             $order->mono_status = $status ?: 'unknown';
+            if ($incomingModifiedAt) {
+                $order->mono_modified_at = $incomingModifiedAt->format('Y-m-d H:i:s');
+            }
 
             if (in_array($status, ['success', 'paid'], true)) {
                 if (!$alreadyPaid) {
@@ -162,6 +187,15 @@ class MonobankWebhookHandler
                 );
             }
         });
+
+        if ($staleWebhook) {
+            return [
+                'status' => 'ignored',
+                'reason' => 'stale_modified_date',
+                'correlation_id' => $correlationId,
+                'invoice_id' => $invoiceId,
+            ];
+        }
 
         if (!$matchedOrder) {
             return [
@@ -250,5 +284,19 @@ class MonobankWebhookHandler
     private function webhookCacheKey(int $orderId): string
     {
         return 'payment_debug:last_webhook:' . $orderId;
+    }
+
+    private function extractModifiedAt(array $data): ?Carbon
+    {
+        $modified = $data['modifiedDate'] ?? ($data['createdDate'] ?? null);
+        if (!$modified) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse((string) $modified)->utc();
+        } catch (Throwable $e) {
+            return null;
+        }
     }
 }
