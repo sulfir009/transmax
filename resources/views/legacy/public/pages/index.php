@@ -149,7 +149,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                         <div class="route_list_title h3_title"><?php echo $GLOBALS['dictionary']['MSG_ALL_MIZHNARODNI']?></div>
                         <div class="route_list">
                             <?php $getInternationalTours = $Db->getAll("SELECT t.id,t.departure,t.arrival,departure_city.title_".$Router->lang." AS departure_city, arrival_city.title_".$Router->lang." AS arrival_city,
-                            departure_city.id AS departure_city_id,arrival_city.id AS arrival_city_id
+                            departure_city.id AS departure_city_id,arrival_city.id AS arrival_city_id,
+                            departure_city.slug_".$Router->lang." AS departure_city_slug, arrival_city.slug_".$Router->lang." AS arrival_city_slug
                                 FROM `" . DB_PREFIX . "_tours` t
                                  JOIN `" . DB_PREFIX . "_cities` departure_city ON t.departure = departure_city.id
                                  JOIN `" . DB_PREFIX . "_cities` arrival_city ON t.arrival = arrival_city.id
@@ -161,7 +162,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             if (!in_array($routeString, $printedRoutes)) {
                                 ?>
                                 <div>
-                                    <a href="<?php echo  route('schedule') ?>?departure=<?php echo  $internationalTour['departure_city_id'] ?>&arrival=<?php echo  $internationalTour['arrival_city_id'] ?>"
+                                    <a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('schedule.route', ['from' => $internationalTour['departure_city_slug'], 'to' => $internationalTour['arrival_city_slug']]) ?>"
                                        class="shedule_link"><?php echo  $internationalTour['departure_city'] ?>
                                         → <?php echo  $internationalTour['arrival_city'] ?></a>
                                 </div>
@@ -174,7 +175,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                     <div class="route_list_title h3_title"><?php echo  $GLOBALS['dictionary']['MSG_ALL_VNUTRISHNI'] ?></div>
                     <div class="route_list">
                         <?php $getHomeTours = $Db->getAll("SELECT t.id,t.departure,t.arrival,departure_city.title_" . $Router->lang . " AS departure_city, arrival_city.title_" . $Router->lang . " AS arrival_city,
-                            departure_city.id AS departure_city_id,arrival_city.id AS arrival_city_id
+                            departure_city.id AS departure_city_id,arrival_city.id AS arrival_city_id,
+                            departure_city.slug_".$Router->lang." AS departure_city_slug, arrival_city.slug_".$Router->lang." AS arrival_city_slug
                                 FROM `" . DB_PREFIX . "_tours` t
                                  JOIN `" . DB_PREFIX . "_cities` departure_city ON t.departure = departure_city.id
                                  JOIN `" . DB_PREFIX . "_cities` arrival_city ON t.arrival = arrival_city.id
@@ -186,7 +188,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             if (!in_array($routeString, $printedRoutes)) {
                                 ?>
                                 <div>
-                                    <a href="<?php echo  route('schedule') ?>?departure=<?php echo  $homeTour['departure_city_id'] ?>&arrival=<?php echo  $homeTour['arrival_city_id'] ?>"
+                                    <a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('schedule.route', ['from' => $homeTour['departure_city_slug'], 'to' => $homeTour['arrival_city_slug']]) ?>"
                                        class="shedule_link"><?php echo  $homeTour['departure_city'] ?>
                                         → <?php echo  $homeTour['arrival_city'] ?></a>
                                 </div>
@@ -209,7 +211,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                             <img src="<?php echo  asset('images/legacy/calendar_option.svg'); ?>" alt="calendar">
                         </div>
                         <div class="index_option_description">
-                            <a href="<?php echo  route('schedule') ?>" class="index_option_title h3_title">
+                            <a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('schedule') ?>" class="index_option_title h3_title">
                                 <?php echo  $GLOBALS['dictionary']['MSG_ALL_ROZKLAD_AVTOBUSIV'] ?>
                             </a>
                             <div class="index_option_subtitle par">

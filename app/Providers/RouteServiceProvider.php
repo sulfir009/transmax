@@ -43,6 +43,9 @@ class RouteServiceProvider extends ServiceProvider
         });
 
         $this->routes(function () {
+                        Route::middleware('web')
+                ->get('/sitemap.xml', [\App\Http\Controllers\SitemapController::class, 'index'])
+                ->name('sitemap');
             // API маршруты (без языкового префикса)
             Route::middleware('api')
                 ->prefix('api')

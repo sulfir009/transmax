@@ -8,6 +8,7 @@ use App\Models\TourStop;
 use App\Models\TourStopPrice;
 use App\Service\Site;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ScheduleRepository
 {
@@ -180,8 +181,10 @@ class ScheduleRepository
                 't.arrival',
                 "departure_city.title_{$lang} as departure_city",
                 'departure_city.id as departure_city_id',
+                "departure_city.slug_{$lang} as departure_city_slug",
                 "arrival_city.title_{$lang} as arrival_city",
-                'arrival_city.id as arrival_city_id'
+                'arrival_city.id as arrival_city_id',
+                "arrival_city.slug_{$lang} as arrival_city_slug"
             ])
             ->distinct()
             ->get();
@@ -208,11 +211,41 @@ class ScheduleRepository
                 't.arrival',
                 "departure_city.title_{$lang} as departure_city",
                 'departure_city.id as departure_city_id',
+                "departure_city.slug_{$lang} as departure_city_slug",
                 "arrival_city.title_{$lang} as arrival_city",
-                'arrival_city.id as arrival_city_id'
+                'arrival_city.id as arrival_city_id',
+                "arrival_city.slug_{$lang} as arrival_city_slug"
             ])
             ->distinct()
             ->get();
+    }
+    
+    public function getMinPriceForRoute(int $departureId, int $arrivalId): ?float
+    {
+        $dbPrefix = env('DB_PREFIX', 'mt');
+
+        return DB::table("{$dbPrefix}_tours_stops_prices as tsp")
+            ->join("{$dbPrefix}_tours as t", 't.id', '=', 'tsp.tour_id')
+            ->where('t.active', '1')
+            ->where('tsp.from_stop', $departureId)
+            ->where('tsp.to_stop', $arrivalId)
+            ->min('tsp.price');
+    }
+
+    public function getCityById(int $cityId): ?City
+    {
+        return City::query()->find($cityId);
+    }
+
+    public function getCityBySlug(string $slug, string $lang): ?City
+    {
+        $column = 'slug_' . $lang;
+
+        if (!Schema::hasColumn(env('DB_PREFIX', 'mt') . '_cities', $column)) {
+            return null;
+        }
+
+        return City::query()->where($column, $slug)->first();
     }
 
     /**

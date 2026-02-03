@@ -5,24 +5,29 @@
             <span>&times;</span>
         </button>
     </div>
-    
+
     <div class="route_details_body">
         @if(isset($details['tour']) && $details['tour'])
+            @php
+                $tour = $details['tour'];
+                $locale = app()->getLocale();
+            @endphp
+
             <div class="route_info">
                 <div class="route_title">
                     <strong>@lang('dictionary.MSG_MSG_SCHEDULE_MARSHRUT'):</strong>
-                    {{ $details['tour']->departureCityRelation->getTitle(app()->getLocale()) }} - 
-                    {{ $details['tour']->arrivalCityRelation->getTitle(app()->getLocale()) }}
+                    {{ optional($tour->departureCityRelation)->getTitle($locale) ?? '' }} -
+                    {{ optional($tour->arrivalCityRelation)->getTitle($locale) ?? '' }}
                 </div>
-                
-                @if($details['tour']->busRelation)
+
+                @if($tour->busRelation)
                     <div class="bus_info">
                         <strong>@lang('dictionary.MSG_MSG_SCHEDULE_AVTOBUS'):</strong>
-                        {{ $details['tour']->busRelation->getTitle(app()->getLocale()) }}
+                        {{ optional($tour->busRelation)->getTitle($locale) ?? '' }}
                     </div>
                 @endif
             </div>
-            
+
             @if(isset($details['stops']) && $details['stops']->count() > 0)
                 <div class="stops_list">
                     <h4>@lang('dictionary.MSG_MSG_SCHEDULE_OSTANOVKI')</h4>
@@ -37,7 +42,7 @@
                         <tbody>
                             @foreach($details['stops'] as $stop)
                                 <tr>
-                                    <td>{{ optional($stop->stopCity)->getTitle(app()->getLocale()) ?? '' }}</td>
+                                    <td>{{ optional($stop->stopCity)->getTitle($locale) ?? '' }}</td>
                                     <td>{{ $stop->arrival_time ?? '-' }}</td>
                                     <td>{{ $stop->departure_time ?? '-' }}</td>
                                 </tr>

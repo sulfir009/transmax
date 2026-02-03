@@ -42,6 +42,21 @@ class CRouter
         $url = str_replace("%22", "", $url);
         $urlR = explode("?", $url);
         $url = $urlR[0];
+                $originalUrl = $url;
+        $forcedLocale = null;
+        $trimmedPath = trim($url, '/');
+        $segments = $trimmedPath === '' ? [] : explode('/', $trimmedPath);
+        if (!empty($segments) && in_array($segments[0], $this->langkeys, true)) {
+            $forcedLocale = $segments[0];
+            array_shift($segments);
+            $url = '/' . implode('/', $segments);
+            if ($url === '/' || $url === '') {
+                $url = '/';
+            } elseif (str_ends_with($originalUrl, '/')) {
+                $url .= '/';
+            }
+            \App\Service\Site::setLang($forcedLocale);
+        }
         /* Вариант со слэшем */
         if ($GLOBALS['last_slash']) {
             if ($this->LastSlash($url) !== "/" && false) {
@@ -94,8 +109,12 @@ class CRouter
                 );
             }
         }
-        $this->lang = $cpu['lang'];
-        $result = array("lang" => \App\Service\Site::lang(), "page" => $page_data['page'], "page_id" => $cpu['page_id'], "cpu" => $url, "elem_id" => $cpu['elem_id'], 'status' => 'ok');
+                $resolvedLang = $forcedLocale ?: ($cpu['lang'] ?? $this->mainLang);
+        if (!empty($resolvedLang)) {
+            \App\Service\Site::setLang($resolvedLang);
+        }
+        $this->lang = $resolvedLang;
+        $result = array("lang" => $this->lang, "page" => $page_data['page'], "page_id" => $cpu['page_id'], "cpu" => $url, "elem_id" => $cpu['elem_id'], 'status' => 'ok');
         return $result;
     }
 

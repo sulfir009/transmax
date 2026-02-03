@@ -23,6 +23,7 @@ class TourStopsRepository
                     DB::raw('MIN(c.section_id) as section_id'),
                     DB::raw('MIN(c.title_' . $lang . ') as stopTitle'),
                     DB::raw('MIN(stopC.title_' . $lang . ') as stopCity'),
+                    DB::raw('MIN(country.title_en) as stopCountryEn'),
                     DB::raw('MIN(p.price) as price'),
                     DB::raw('MIN(tt.stop_num) as stop_num'),
                 ]
@@ -38,6 +39,13 @@ class TourStopsRepository
                 first: 'stopC.id',
                 operator: '=',
                 second: 'c.section_id',
+                type: 'left'
+            )
+            ->join(
+                table: self::TABLE_CITY . ' as country',
+                first: 'country.id',
+                operator: '=',
+                second: 'stopC.section_id',
                 type: 'left'
             )
             ->join(

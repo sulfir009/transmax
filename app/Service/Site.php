@@ -3,11 +3,13 @@
 namespace App\Service;
 
 use Illuminate\Support\Facades\Session;
-if (session_status() === PHP_SESSION_NONE) {
+if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
+
 class Site
 {
+    
     static public function lang()
     {
         return $_SESSION['lang'] ?? 'ru';

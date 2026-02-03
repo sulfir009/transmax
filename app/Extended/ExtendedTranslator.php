@@ -8,24 +8,24 @@ use App\Service\Site;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Translation\Translator;
+use Illuminate\Support\Facades\Schema;
 
 class ExtendedTranslator extends Translator
 {
     public function get($key, array $replace = [], $locale = null, $fallback = true)
     {
         $lang = Site::lang();
-        $table = 'mt_';
         $locale = $locale ?? app()->getLocale();
-        $segments = explode('.', $key, 2);
-        $table .= count($segments) > 1 ? $segments[0] : 'dictionary';
-        $code = count($segments) > 1 ? $segments[1] : $segments[0];
+        [$table, $code] = $this->resolveTranslationTarget($key);
         $column = match ($table) {
-            'mt_settings' => 'value',
-            default => 'title_' . $lang . ' as value'
+            default => 'title_' . $lang . ' as value',
         };
 
         $result = '';
         try {
+            if (!Schema::hasTable($table)) {
+                return $key;
+            }
             $result = DB::table($table)
                 ->select($column)
                 ->where('code', $code)
@@ -49,5 +49,28 @@ class ExtendedTranslator extends Translator
     {
         $rep = new TranslationRepository();
         $rep->addEmptyTranslation($code);
+    }
+     private function resolveTranslationTarget(string $key): array
+    {
+        $segments = explode('.', $key, 2);
+        if (count($segments) > 1) {
+            return match ($segments[0]) {
+                'dictionary' => ['mt_dictionary', $segments[1]],
+                'settings' => ['mt_settings', $segments[1]],
+                'pages_title' => ['mt_pages_title', $segments[1]],
+                'pages_menu_title' => ['mt_pages_menu_title', $segments[1]],
+                default => ['mt_dictionary', $key],
+            };
+        }
+
+        if (str_starts_with($key, 'pages_title_')) {
+            return ['mt_pages_title', substr($key, strlen('pages_title_'))];
+        }
+
+        if (str_starts_with($key, 'pages_menu_title_')) {
+            return ['mt_pages_menu_title', substr($key, strlen('pages_menu_title_'))];
+        }
+
+        return ['mt_dictionary', $key];
     }
 }

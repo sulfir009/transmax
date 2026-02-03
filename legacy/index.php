@@ -12,7 +12,8 @@ if($Main->inject() ){
 }
 
 $pageData = $Router->GetCPU();
-$Router->lang = \App\Service\Site::lang();
+$Router->lang = $pageData['lang'] ?? \App\Service\Site::lang();
+app()->setLocale($Router->lang);
 //dd($_SESSION['last_lang']);
 $Db->setlang($Router->lang);
 
@@ -20,8 +21,9 @@ if($pageData['status']==='404'){
     abort(404);
 }
 
-$Main->lang = \App\Service\Site::lang();
+$Main->lang = $Router->lang;
 $_SESSION['≈'] = $Router->lang;
+app()->setLocale($Router->lang);
 
 
 /*dd((new \App\Repository\Site\TranslationRepository())->getTranslationDictionary(\App\Service\Site::lang()));*/

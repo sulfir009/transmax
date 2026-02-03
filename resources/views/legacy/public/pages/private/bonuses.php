@@ -124,119 +124,80 @@
             </div>
         </div>
         <div class="page_content_wrapper">
-            <div class="container">
-                <?php $getBonuses = $Db->getOne("SELECT miles FROM `".DB_PREFIX."_clients` WHERE id = '".$User->id."' ");
-                if ((int)$getBonuses['miles'] < (int)$GLOBALS['site_settings']['FIRST_BONUS']){?>
-                    <div class="private_empty_block">
-                        <div class="private_empry_block_title h2_title">
-                            <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_U_VAS_POKI_NEMA_BONUSIV']?>
+            <?php
+            $getBonuses = $Db->getOne("SELECT bonus_balance_cents FROM `" . DB_PREFIX . "_clients` WHERE id = '" . (int)$User->id . "' ");
+            $bonusBalanceCents = (int)($getBonuses['bonus_balance_cents'] ?? 0);
+            $bonusBalanceUah = number_format($bonusBalanceCents / 100, 2, '.', '');
+            $bonusTransactions = [];
+            try {
+                $bonusTransactions = \Illuminate\Support\Facades\DB::table(DB_PREFIX . '_bonus_transactions')
+                    ->where('client_id', (int)$User->id)
+                    ->orderByDesc('created_at')
+                    ->limit(20)
+                    ->get();
+            } catch (\Throwable $e) {
+                $bonusTransactions = [];
+            }
+            $bonusTypeLabels = [
+                'grant_initial' => 'Стартовый бонус',
+                'manual' => 'Начисление вручную',
+                'cashback' => 'Кешбек',
+                'redeem' => 'Списание бонусов',
+            ];
+            ?>
+            <div class="container" data-bonus-user="<?php echo (int)$User->id; ?>" data-bonus-balance-cents="<?php echo $bonusBalanceCents; ?>">
+                <div class="current_bonuses_wrapper">
+                    <div class="current_bonuses_txt">
+                        <div class="current_bonuses_title h2_title">
+                            <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VASHI_BONUSI']?>
                         </div>
-                        <div class="private_empry_block_subtitle">
-                            <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZA_KOZHEN_KUPLENIJ_KVITOK']?>
+                        <div class="current_bonuses_subtitle par">
+                            Нараховуємо 5% кешбеку за кожен оплачений квиток.
+                        </div>
+                        <div class="current_bonuses_subtitle par">
+                            Ваш бонусний баланс: <?php echo $bonusBalanceUah; ?> грн
+                        </div>
+                        <div class="current_bonuses_subtitle par">
+                            Щоб використати бонуси, на кроці 3 бронювання увімкніть «Розрахуватися бонусами» — сума до оплати зменшиться на доступний баланс.
                         </div>
                     </div>
-                <?php }else{?>
-                    <div class="current_bonuses_wrapper">
-                        <div class="current_bonuses_txt">
-                            <div class="current_bonuses_title h2_title">
-                                <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VASHI_BONUSI']?>
-                            </div>
-                            <div class="current_bonuses_subtitle par">
-                                <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZA_KOZHEN_KUPLENIJ_KVITOK']?>
-                            </div>
-                        </div>
+                    <?php if (!empty($bonusTransactions)) { ?>
                         <div class="current_bonuses_path_wrapper">
-                            <div class="current_bonuses_path">
-                                <div class="bonus_checkpoint_wrapper">
-                                    <div class="bonus_checkpoint active">
-                                        <img src="<?php echo  asset('images/legacy/common/maxtrans_logo.svg'); ?>" alt="" class="fit_img">
-                                    </div>
-                                </div>
-                                <div class="progress_wrapper">
-                                    <div class="bonuses_progressbar"></div>
-                                    <div class="progress active" style="width: 35%"></div>
-                                    <div class="progress_percentage par">
-                                        35%
-                                    </div>
-                                </div>
-                                <div class="bonus_checkpoint_wrapper">
-                                    <div class="bonus_checkpoint">
-                                        <img src="<?php echo  asset('images/legacy/common/maxtrans_logo.svg'); ?>" alt="" class="fit_img">
-                                    </div>
-                                </div>
-                                <div class="progress_wrapper">
-                                    <div class="bonuses_progressbar"></div>
-                                    <div class="progress"></div>
-                                </div>
-                                <div class="bonus_checkpoint_wrapper">
-                                    <div class="bonus_checkpoint">
-                                        <img src="<?php echo  asset('images/legacy/common/maxtrans_logo.svg'); ?>" alt="" class="fit_img">
-                                    </div>
-                                </div>
+                            <div class="bonuses_block_title par">
+                                Останні бонусні операції
                             </div>
-                            <div class="bonuses_checkpoints_titles">
-                                <div class="bonus_checkpoint_title par">
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VI_DOSYAGLI_PERSHOGO_BONUSU']?>
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VITAEMO_ZNIZHKA'].' '.$GLOBALS['site_settings']['FIRST_BONUS_DISCOUNT']?>%
-                                </div>
-                                <div class="bonus_checkpoint_title par hidden-xs">
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VI_DOSYAGLI_DRUGOGO_BONUSU']?>
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VITAEMO_ZNIZHKA'].' '.$GLOBALS['site_settings']['SECOND_BONUS_DISCOUNT']?>%
-                                </div>
-                                <div class="bonus_checkpoint_title par hidden-xs">
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VI_DOSYAGLI_TRETIOGO_BONUSU']?>
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VITAEMO_ZNIZHKA'].' '.$GLOBALS['site_settings']['THIRD_BONUS_DISCOUNT']?>%
-                                </div>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                    <tr>
+                                        <th>Дата</th>
+                                        <th>Тип</th>
+                                        <th>Сума</th>
+                                        <th>Замовлення</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <?php foreach ($bonusTransactions as $transaction) {
+                                        $amountCents = (int)($transaction->amount_cents ?? 0);
+                                        $sign = $amountCents < 0 ? '-' : '+';
+                                        $amountUah = number_format(abs($amountCents) / 100, 2, '.', '');
+                                        $typeLabel = $bonusTypeLabels[$transaction->type] ?? $transaction->type;
+                                        $orderId = $transaction->order_id ? (int)$transaction->order_id : '-';
+                                        $createdAt = $transaction->created_at ? date('d.m.Y H:i', strtotime($transaction->created_at)) : '-';
+                                        ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($createdAt, ENT_QUOTES, 'UTF-8'); ?></td>
+                                            <td><?php echo htmlspecialchars($typeLabel, ENT_QUOTES, 'UTF-8'); ?></td>
+                                            <td><?php echo $sign . $amountUah; ?> грн</td>
+                                            <td><?php echo htmlspecialchars((string)$orderId, ENT_QUOTES, 'UTF-8'); ?></td>
+                                        </tr>
+                                    <?php } ?>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-                    </div>
-                    <div class="bonuses_wrapper">
-                        <div class="bonuses_block_title par">
-                            <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VI_MATIMETE_MOZHLIVISTI']?>
-                        </div>
-                        <div class="flex-row gap-30">
-                            <div class="col-xl-4">
-                                <div class="bonus">
-                                    <div class="bonus_for h4_title">
-                                        <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_BONUS_ZA']?>
-                                    </div>
-                                    <div class="bonus_mileage h1_title">
-                                        <?php echo $GLOBALS['site_settings']['FIRST_BONUS'].' '.$GLOBALS['dictionary']['MSG_MSG_BONUSES_KM']?>
-                                    </div>
-                                    <div class="bonus_value par">
-                                        <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZNIZHKA_NA_BILETI'].' '.$GLOBALS['site_settings']['FIRST_BONUS_DISCOUNT']?>%
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-xl-4">
-                                <div class="bonus">
-                                    <div class="bonus_for h4_title">
-                                        <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_BONUS_ZA']?>
-                                    </div>
-                                    <div class="bonus_mileage h1_title">
-                                        <?php echo $GLOBALS['site_settings']['SECOND_BONUS'].' '.$GLOBALS['dictionary']['MSG_MSG_BONUSES_KM']?>
-                                    </div>
-                                    <div class="bonus_value par">
-                                        <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZNIZHKA_NA_BILETI'].' '.$GLOBALS['site_settings']['SECOND_BONUS_DISCOUNT']?>%
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-xl-4">
-                                <div class="bonus">
-                                    <div class="bonus_for h4_title">
-                                        <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_BONUS_ZA']?>
-                                    </div>
-                                    <div class="bonus_mileage h1_title">
-                                        <?php echo $GLOBALS['site_settings']['THIRD_BONUS'].' '.$GLOBALS['dictionary']['MSG_MSG_BONUSES_KM']?>
-                                    </div>
-                                    <div class="bonus_value par">
-                                        <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_ZNIZHKA_NA_BILETI'].' '.$GLOBALS['site_settings']['THIRD_BONUS_DISCOUNT']?>%
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                <?php }?>
+                    <?php } ?>
+                </div>
             </div>
             <div class="main_filter_wrapper">
                 <div class="container">
@@ -282,6 +243,16 @@
             $('.purchase_steps').slick('slickGoTo', 3, true)
         }
     });
+</script>
+<script>
+    (function () {
+        const bonusSnapshot = <?php echo json_encode([
+            'client_id' => (int) $User->id,
+            'bonus_balance_cents' => $bonusBalanceCents ?? 0,
+            'bonus_balance_uah' => $bonusBalanceUah ?? '0.00',
+        ]); ?>;
+        console.log('[BONUSES PAGE] bonus snapshot', bonusSnapshot);
+    })();
 </script>
 </body>
 </html>

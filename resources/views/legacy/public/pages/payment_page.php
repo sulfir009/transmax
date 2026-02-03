@@ -800,13 +800,17 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                     $month = $Db->getOne("SELECT title_" . $Router->lang . " AS title FROM `" . DB_PREFIX . "_months`WHERE id = '" . (int)explode('-', $_SESSION['order']['date'])[1] . "' ");
                     $paymentDateTime = (int)explode('-', $_SESSION['order']['date'])[2] . ' ' . $month['title'] . ' ' . date('H:i', strtotime($ticketInfo['departure_time']));
                     $totalPrice = $_SESSION['order']['passengers'] * $ticketInfo['price'];
-                    $bonusesAvailable = 0;
+                    $bonusesAvailable = 0.0;
                     if (isset($User) && !empty($User->id)) {
                         $bonusRow = $Db->getOne("SELECT miles FROM `" . DB_PREFIX . "_clients` WHERE id = '" . (int)$User->id . "' ");
-                        $bonusesAvailable = (int)($bonusRow['miles'] ?? 0);
+                        $bonusesAvailable = (float)($bonusRow['miles'] ?? 0);
                     }
                     $bonusToApply = min($totalPrice, $bonusesAvailable);
                     $totalPriceWithBonuses = max($totalPrice - $bonusToApply, 0);
+                    $formatBonusValue = function ($value) {
+                        $formatted = number_format((float)$value, 2, '.', '');
+                        return rtrim(rtrim($formatted, '0'), '.');
+                    };
                     ?>
 
                     <div class="payment_v2__card shadow_block">
@@ -900,11 +904,11 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                                     <?php echo $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_USE_BONUSES'] ?? 'Использовать бонусы'; ?>
                                     <span class="pv2_bonus_meta">
                                         <?php echo ($GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_BONUSES_AVAILABLE'] ?? 'Доступно бонусов') . ': '; ?>
-                                        <span id="bonuses_available_value"><?php echo $bonusesAvailable; ?></span>
+                                        <span id="bonuses_available_value"><?php echo $formatBonusValue($bonusesAvailable); ?></span>
                                     </span>
                                     <span class="pv2_bonus_meta">
                                         <?php echo ($GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_TOTAL_WITH_BONUSES'] ?? 'К оплате с бонусами') . ': '; ?>
-                                        <span id="bonuses_total_value"><?php echo $totalPriceWithBonuses; ?></span>
+                                         <span id="bonuses_total_value"><?php echo $formatBonusValue($totalPriceWithBonuses); ?></span>
                                         <?php echo ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
                                     </span>
                                 </span>
@@ -1287,6 +1291,13 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
             }
         }
         updatePayBtnUi();
+        
+             function formatMoney(value){
+            var num = parseFloat(value);
+            if (Number.isNaN(num)) return value;
+            return num.toFixed(2).replace(/\.?0+$/, '');
+        }
+
 
         function updateBonusUi(){
             var useBonuses = $('#use_bonuses').is(':checked') && bonusToApply > 0;
@@ -1296,11 +1307,11 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                 var basePrice = $(this).data('base-price');
                 var bonusPrice = $(this).data('bonus-price');
                 var price = useBonuses ? bonusPrice : basePrice;
-                $(this).text(price + ' ' + currencyLabel);
+                $(this).text(formatMoney(price) + ' ' + currencyLabel);
             });
 
-            $('#bonuses_total_value').text(totalPriceWithBonuses);
-            $('#bonuses_available_value').text(bonusesAvailable);
+            $('#bonuses_total_value').text(formatMoney(totalPriceWithBonuses));
+            $('#bonuses_available_value').text(formatMoney(bonusesAvailable));
         }
 
         updateBonusUi();

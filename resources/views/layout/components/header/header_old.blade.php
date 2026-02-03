@@ -71,37 +71,37 @@
             <div class="mobile_menu_links">
                 <ul>
                     <li>
-                        <a href="{{ route('main') }}"
+                        <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('main') }}"
                            class="mobile_menu_link manrope {{ Route::is('main') ? 'active' : '' }}">
                             @lang('pages_main')
                         </a>
                     </li>
                     <li>
-                        <a href="{{ route('about.us') }}"
+                        <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('about.us') }}"
                            class="mobile_menu_link manrope {{ Route::is('about.us') ? 'active' : '' }}">
                             @lang('pages_about_us')
                         </a>
                     </li>
                     <li>
-                        <a href="{{ route('avtopark') }}"
+                        <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('avtopark') }}"
                            class="mobile_menu_link manrope {{ Route::is('avtopark') ? 'active' : '' }} ">
                             @lang('pages_avtopark')
                         </a>
                     </li>
                     <li>
-                        <a href="{{ route('schedule') }}"
+                        <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}"
                            class="mobile_menu_link manrope {{ Route::is('schedule') ? 'active' : '' }}">
                             @lang('pages_rozklad')
                         </a>
                     </li>
                     <li>
-                        <a href="{{ route('faq') }}"
+                        <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('faq') }}"
                            class="mobile_menu_link manrope {{ Route::is('faq') ? 'active' : '' }}">
                             @lang('pages_faq')
                         </a>
                     </li>
                     <li>
-                        <a href="{{ route('kontakti') }}"
+                        <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('kontakti') }}"
                            class="mobile_menu_link manrope {{ Route::is('kontakti') ? 'active' : '' }}">
                             @lang('pages_kontakti')
                         </a>

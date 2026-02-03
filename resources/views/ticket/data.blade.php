@@ -3,10 +3,24 @@
 @section('page-styles')
     <link rel="stylesheet" href="{{ mix('css/legacy/style_table.css') }}">
     <link rel="stylesheet" href="{{ mix('css/responsive.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/ticket_filter_hero.css') }}?v=1">
+
 @endsection
 
 @section('content')
     <div class="content">
+        @include('ticket.partials.main_filter_wrapper', [
+    'cities' => $cities ?? [],
+    ' filterDeparture ' => $ filterDeparture ?? null,
+    ' filterArrival ' => $ filterArrival ?? null,
+    'filterDate' => $filterDate ?? date('Y-m-d'),
+    'adults' => $adults ?? 1,
+    'kids' => $kids ?? 0,
+    'dictionary' => $dictionary ?? [],
+    'lang' => $lang ?? 'uk',
+    'formAction' => route('tickets.index'),
+])
+
         <div class="purchase_steps_wrapper">
             <div class="tabs_links_container">
                 <div class="purchase_steps">

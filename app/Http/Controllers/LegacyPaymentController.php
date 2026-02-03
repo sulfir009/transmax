@@ -29,7 +29,10 @@ class LegacyPaymentController extends Controller
         
         try {
             // Получаем данные из сессии
-            session_start();
+            if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+
             
             Log::channel('payment')->info('Session status check', [
                 'session_id' => session_id(),
@@ -116,12 +119,21 @@ class LegacyPaymentController extends Controller
             ]);
 
             return response()->json([
-                'success' => true,
-                'payment_url' => 'https://www.liqpay.ua/api/3/checkout',
-                'data' => $paymentData['data'],
-                'signature' => $paymentData['signature'],
-                'order_id' => $orderId,
-            ]);
+    'success' => true,
+
+    // ✅ endpoint для POST
+    'action_url' => 'https://www.liqpay.ua/api/3/checkout',
+
+    // ✅ явные ключи, чтобы не путать с data:"ok" из других ответов
+    'liqpay_data' => $paymentData['data'],
+    'liqpay_signature' => $paymentData['signature'],
+
+    'order_id' => $orderId,
+
+    // (опционально) временная обратная совместимость:
+    // 'data' => $paymentData['data'],
+    // 'signature' => $paymentData['signature'],
+]);
 
         } catch (\Exception $e) {
             Log::channel('payment')->error('=== CREATE LEGACY PAYMENT ERROR ===', [

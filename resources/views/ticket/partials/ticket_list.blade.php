@@ -60,11 +60,8 @@
                                                 @lang('dictionary.MSG_MSG_TICKETS_VKAZANIJ_CHAS_NE_VRAHOVU_ZATRIMOK_NA_KORDONI')
                                             </div>
                                         </div>
-                                        <div class="ticket_ride_total_time_data">
-                                            <div class="ticket_ride_total_time par">
-                                                {{ (int)explode(':', $ticket['ride_time'])[0] }} @lang('dictionary.MSG_MSG_TICKETS_GOD')
-                                                {{ (int)explode(':', $ticket['ride_time'])[1] }} @lang('dictionary.MSG_MSG_TICKETS_HV_V_DOROZI')
-                                            </div>
+<div class="ticket_ride_total_time_data">
+                                            
                                             @if ($ticket['international'])
                                                 <div class="ticket_ride_status par">
                                                     @lang('dictionary.MSG_MSG_TICKETS_MIZHNARODNIJ')
@@ -119,12 +116,8 @@
                         <div class="mobile_ticket_ride_total_time_wrapper flex_ac">
                             <div class="ticket_ride_total_time_info flex_ac">
                                 <img src="{{ asset('images/legacy/common/info.svg') }}" alt="info">
-                                <div class="ticket_ride_total_time par">
-                                    {{ (int)explode(':', $ticket['ride_time'])[0] }} @lang('dictionary.MSG_MSG_TICKETS_GOD')
-                                    {{ (int)explode(':', $ticket['ride_time'])[1] }} @lang('dictionary.MSG_MSG_TICKETS_HV_V_DOROZI')
-                                </div>
+                                
                             </div>
-                            @if ($ticket['international'])
                                 <div class="ticket_ride_status par">
                                     @lang('dictionary.MSG_MSG_TICKETS_MIZHNARODNIJ')
                                 </div>

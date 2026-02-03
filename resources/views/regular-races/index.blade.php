@@ -14,114 +14,7 @@
 @endsection
 @section('content')
     <div class="content">
-        <div class="banner_first">
 
-            @isset($images)
-                @if($images->image_desc)
-                    <img src="{{ asset('images/pages/regular_races/' . $images->image_desc) }}" class="desk_banner" alt="banner">
-                @endif
-
-                @if($images->image_mob)
-                    <img src="{{ asset('images/pages/regular_races/' . $images->image_mob) }}" class="mob_banner" alt="banner_mob">
-                @endif
-            @endisset
-        </div>
-        <section class="first_section">
-            <div class="left_line_diag_sec">
-                <img src="{{ asset('images/legacy/left_line_diag_sec.png') }}" alt="ll">
-            </div>
-            <div class="pin_bus_left">
-                <img src="{{ asset('images/legacy/pin_bus.png') }}" alt="pb">
-            </div>
-            <div class="right_line_diag_sec">
-                <img src="{{ asset('images/legacy/right_line_diag_sec.png') }}" alt="ll">
-            </div>
-            <div class="pin_bus_right">
-                <img src="{{ asset('images/legacy/pin_bus.png') }}" alt="pb">
-            </div>
-            <div class="diagram-section">
-                <div class="diagram-title">
-                    <h3>@lang('title_page_regular_races')</h3>
-                </div>
-                <div class="container_diag">
-                    <div class="straight_diagram_line_top">
-                        <img src="{{ asset('images/legacy/straight-line.png') }}" alt="pb">
-                    </div>
-                    <div class="straight_diagram_line_bottom">
-                        <img src="{{ asset('images/legacy/straight-line.png') }}" alt="pb">
-                    </div>
-                    <div class="left_diagram_line">
-                        <img src="{{ asset('images/legacy/left_diagram_line.png') }}" alt="pb">
-                    </div>
-                    <div class="right_diagram_line">
-                        <img src="{{ asset('images/legacy/right_diagram_line.png') }}" alt="pb">
-                    </div>
-                    <div class="mob_straight_l_top">
-                        <img src="{{ asset('images/legacy/mob_straight_l.png') }}" alt="pb">
-                    </div>
-                    <div class="mob_straight_l_bottom">
-                        <img src="{{ asset('images/legacy/mob_straight_l.png') }}" alt="pb">
-                    </div>
-                    <div class="mob_right_l">
-                        <img src="{{ asset('images/legacy/mob_right_diag.png') }}" alt="pb">
-                    </div>
-                    <div class="mob_left_l">
-                        <img src="{{ asset('images/legacy/mob_left_diag.png') }}" alt="pb">
-                    </div>
-                    @php
-                        $i = 0;
-                        $firstStop = '';
-                        $lastStops = '';
-                        $secondsStops = [];
-                        foreach($regularRaces as $alias => $races) {
-                            foreach($races as $race) {
-
-                                if ($i == 0) {
-                                    $firstStop = $race->stops->first()->stopCity;
-                                    $lastStops = $race->stops->last()->stopCity;
-                                    ++$i;
-                                } else {
-                                    $secondsStops[] = $race->stops->first()->stopCity;
-                                }
-                                $secondsStops = array_unique($secondsStops);
-                            }
-                        }
-
-                        if (count($secondsStops) < 4 ) {
-                            foreach ($stops as $stop) {
-                                $secondsStops = array_unique($secondsStops);
-                                $has = collect($tourStopPrices)->first(function ($inner) use ($stop) {
-                                    return array_key_exists($stop->stop_id, $inner);
-                                });
-                                if($has && count($secondsStops) < 4 && $stop->stopCity != $firstStop && !in_array($stop->stopCity, $secondsStops)) {
-                                    $secondsStops[] = $stop->stopCity;
-                                }
-                            }
-                        }
-                        $currentStop = '';
-                    @endphp
-
-
-                    <button class="button_diag left-button btn">{!! $firstStop !!} </button>
-                    <div class="column_diag">
-                        @for($i = 0; $i < 4; $i++)
-                            @if (isset($secondsStops[$i]) && $i < 2 && $secondsStops[$i] != $firstStop && $secondsStops[$i] != $lastStops)
-                                @php
-                                    $currentStop = $secondsStops[$i] ?? '';
-                                @endphp
-                                <button class="button_diag top-button btn">{{ $currentStop }} </button>
-                            @endif
-                        @endfor
-                        <button class="button_diag right-button btn">{!! $lastStops !!} </button>
-                    </div>
-                    <button
-                        class="button_diag right-button btn">{!! last($secondsStops) !== $currentStop ? last($secondsStops) : '' !!}</button>
-
-
-                </div>
-            </div>
-
-        </section>
         <section class="section_blocks">
             <div class="container">
                 <div class="right_blocks_line">
@@ -139,12 +32,12 @@
                 <div class="mob_pin_bus_block_m">
                     <img src="{{ asset('images/legacy/mob_pin.png') }}" alt="tpb">
                 </div>
-                <h1 class="element">@lang('way_schedule')</h1>
+                <h1 class="element" style="margin-top: 55px;">@lang('dictionary.ROUTE_AND_SCHEDULE')</h1>
                 <div class="container-fluid schedule">
                     <div class="custom-select-schedule-container">
                         <div class="custom-schedule-select-wrapper">
                             <select class="custom-schedule-styled-select" id="stationSelect" data-tour="{{ $tour }}">
-                                <option value="0">@lang('choose_first_station_regular_races')</option>
+                                <option value="0">@lang('dictionary.ALL_ROUTES')</option>
                                 @foreach($regularRaces as $alias => $races)
                                     @foreach($races as $race)
                                         <option
@@ -166,6 +59,23 @@
             </div>
         </section>
         <section class="section_table">
+                        @php
+                $priceRoutes = [];
+                $defaultRaceId = null;
+
+                foreach ($regularRaces as $races) {
+                    foreach ($races as $race) {
+                        $defaultRaceId = $defaultRaceId ?? $race->id;
+                        $priceRoutes[$race->id] = [
+                            'label' => trim(($race->departure ?? '') . ' — ' . ($race->arrive ?? '')),
+                            'html' => view('regular-races.partials.price-table', [
+                                'race' => $race,
+                                'tourStopPrices' => $tourStopPrices,
+                            ])->render(),
+                        ];
+                    }
+                }
+            @endphp
             <div class="container">
                 <div class="section_table_line">
                     <img src="{{ asset('images/legacy/line_table_section.png') }}" alt="lts">
@@ -186,41 +96,40 @@
                     <img src="{{ asset('images/legacy/pin_bus.png') }}" alt="tpb">
                 </div>
                 <h1>@lang('road_price')</h1>
-                @foreach($regularRaces as $alias => $races)
-                    @unless(empty($races))
-                        @foreach($races as $race)
-                            <h3 class="overlay-image-up"
-                                style="display: block; position: relative;">{{ \Illuminate\Support\Carbon::createFromFormat('H:i:s', $race->depTime)->format('G:i') }}
-                                [{{ $race->departure }} - {{$race->arrive }}]</h3>
-                            <div class="table_container custom-scrollbar">
-                                <table class="custom-table">
-                                    <thead>
-                                    <tr>
-                                        <th></th>
-                                        @foreach($race->stops as $stop)
-                                            <th>{!! $stop->stopCity . ' ' . $stop->stopTitle !!}</th>
-                                        @endforeach
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    @foreach($race->stops as $stopFirst)
-                                        <tr>
-                                            <td class="left-column">{!! $stopFirst->stopCity . ' ' . $stopFirst->stopTitle !!}</td>
-                                            @foreach($race->stops as $stopSecond)
-                                                <td>
-                                                    {{ $tourStopPrices[$race->id][$stopFirst->stop_id][$stopSecond->stop_id]['price'] ?? '' }}
-                                                </td>
-                                            @endforeach
-                                        </tr>
-                                    @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        @endforeach
-                    @endunless
-                @endforeach
+                <div class="custom-select-schedule-container price-select-container">
+                    <div class="custom-schedule-select-wrapper">
+                        <select class="custom-schedule-styled-select" id="priceDirectionSelect">
+                            @foreach($priceRoutes as $raceId => $priceRoute)
+                                <option value="{{ $raceId }}" {{ $raceId === $defaultRaceId ? 'selected' : '' }}>
+                                    {{ $priceRoute['label'] }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <div id="priceTableContainer">
+                    {!! $defaultRaceId ? ($priceRoutes[$defaultRaceId]['html'] ?? '') : '' !!}
+                </div>
             </div>
         </section>
+        @if(!empty($priceRoutes))
+            <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    const select = document.getElementById('priceDirectionSelect');
+                    const container = document.getElementById('priceTableContainer');
+                    const tables = @json($priceRoutes);
+
+                    if (!select || !container) return;
+
+                    select.addEventListener('change', function () {
+                        const selected = select.value;
+                        if (tables[selected] && tables[selected].html) {
+                            container.innerHTML = tables[selected].html;
+                        }
+                    });
+                });
+            </script>
+        @endif
         <section class="addition_section">
             <h1>@lang('reg_race_additional_services')</h1>
             <div class="addition_back">
@@ -390,4 +299,94 @@
         background-color: #FFFFFF !important;
         cursor: pointer !important;
     }
+    /* =========================
+   CONTACT FORM — FIX overflow on mobile
+   ========================= */
+@media (max-width: 768px) {
+
+  /* 0) страховка: чтобы padding не раздувал ширину */
+  .contact_container,
+  .contact_container * {
+    box-sizing: border-box !important;
+  }
+
+  /* 1) сам контейнер — строго в экран */
+  .contact_container {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden; /* чтобы точно не было горизонтального скролла */
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* 2) внутренний контейнер формы тоже не должен иметь фиксированных ширин */
+  .contact_container .form-container,
+  .contact_container form {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 3) все form-group на всю ширину */
+  .contact_container .form-group,
+  .contact_container .contact_block {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* 4) блок телефона: разрешаем перенос и убираем min-width */
+  .contact_container .callback-group {
+    display: flex !important;
+    flex-wrap: wrap !important;     /* ключевое: перенос на новую строку */
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  /* иконка телефона */
+  .contact_container .callback-group .icon_input_phone {
+    flex: 0 0 34px; /* фикс ширина иконки */
+  }
+
+  /* код страны */
+  .contact_container #phone_code {
+    flex: 0 0 120px;
+    width: 120px !important;
+    max-width: 120px !important;
+  }
+
+  /* само поле телефона — растягивается, без min-width */
+  .contact_container #callback_phone {
+    flex: 1 1 auto;
+    min-width: 0 !important;        /* ключевое: убираем раздувание */
+    width: 1% !important;           /* трюк: заставляет flex нормально сжиматься */
+  }
+
+  /* 5) Кнопка отправки — 100% ширины (перебиваем твой inline style) */
+  .contact_container .send_request_btn {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+
+    padding: 16px 0 !important;     /* вместо 18px 218px */
+    display: block !important;
+    margin: 0 auto !important;
+  }
+
+  /* 6) textarea тоже на всю ширину */
+  .contact_container .textarea_block,
+  .contact_container .cb_text_area {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+.col-md-6 {
+    margin-bottom: 15px;
+}
+@media (max-width: 768px) {
+    .block_table_btn {
+        margin-top: 16px;
+        margin-left: 5px;
+        padding: 8px 13px;
+    }
+}
+
 </style>

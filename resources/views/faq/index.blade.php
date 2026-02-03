@@ -210,7 +210,7 @@
                 <div class="flex-row gap-30 faq_info_blocks">
                     <div class="col-xl-6">
                         <div class="faq_txt_block">
-                            <div class="faq_block_title h2_title">{{ $faqInfo['title'] }}</div>
+                            <h1 class="faq_block_title h2_title">{{ $faqInfo['title'] }}</h1>
                             <div class="faq_block_txt par">
                                 {!! $faqInfo['text'] !!}
                             </div>
