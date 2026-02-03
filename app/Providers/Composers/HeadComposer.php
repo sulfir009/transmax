@@ -7,7 +7,6 @@ use App\Repository\Site\ImageRepository;
 use App\Repository\Site\LanguagesRepository;
 use App\Service\DbRouter\Router;
 use App\Service\User;
-use App\Services\Seo\SeoService;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Session;
 use Illuminate\View\View;
@@ -18,7 +17,6 @@ readonly class HeadComposer
         private ImageRepository $ImageRepository,
         private RegularRacesRepository $regularRacesRepository,
         private LanguagesRepository $languagesRepository,
-        private SeoService $seoService,
     ){}
 
 
@@ -61,19 +59,8 @@ readonly class HeadComposer
             ->with('Router', $router)
             ->with('privateLink', $privateLink)
             ->with('logo', $logo)
-            ->with('pageData', $pageData);
-
-        $seoContext = $this->seoService->buildContext(request(), $view->getData());
-        $seoData = [
-            'title' => $this->seoService->getTitle($seoContext),
-            'description' => $this->seoService->getDescription($seoContext),
-            'canonical' => $this->seoService->getCanonicalUrl($seoContext),
-            'hreflangs' => $this->seoService->getHreflangs($seoContext),
-            'openGraph' => $this->seoService->getOpenGraph($seoContext),
-            'jsonLd' => $this->seoService->getJsonLd($seoContext),
-        ];
-
-        $view->with('seo', $seoData);
+            ->with('pageData', $pageData)
+        ;
     }
 
     private function getImages(array $logo, array $pageData): array

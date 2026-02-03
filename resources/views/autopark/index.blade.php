@@ -5,9 +5,9 @@
         <div class="page_content_wrapper">
             <div class="container">
                 {{-- Заголовок страницы --}}
-                <h1 class="our_buses_title h2_title">
+                <div class="our_buses_title h2_title">
                     {{ $pageTitle }}
-                </h1>
+                </div>
                 <div class="our_buses_subtitle par">
                     {!! $pageSubtitle !!}
                 </div>

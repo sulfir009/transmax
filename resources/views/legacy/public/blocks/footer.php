@@ -37,12 +37,12 @@
                 </div>
                 <div class="footer_links">
                     <ul class="h5_title footer_links_list">
-<li><a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('main')?>"><?php echo $Router->writetitle(1)?></a></li>
-                        <li><a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('about.us')?>"><?php echo $Router->writetitle(71)?></a></li>
+                        <li><a href="<?php echo route('main')?>"><?php echo $Router->writetitle(1)?></a></li>
+                        <li><a href="<?php echo route('about.us')?>"><?php echo $Router->writetitle(71)?></a></li>
                         <?/*<li><a href="#">Повернути квитки</a></li>*/?>
-                        <li><a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('schedule')?>"><?php echo $Router->writetitle(73)?></a></li>
-                        <li><a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('kontakti')?>"><?php echo $Router->writetitle(75)?></a></li>
-                        <li><a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('faq')?>"><?php echo $Router->writetitle(74)?></a></li>
+                        <li><a href="<?php echo route('schedule')?>"><?php echo $Router->writetitle(73)?></a></li>
+                        <li><a href="<?php echo route('kontakti')?>"><?php echo $Router->writetitle(75)?></a></li>
+                        <li><a href="<?php echo route('faq')?>"><?php echo $Router->writetitle(74)?></a></li>
                     </ul>
                 </div>
             </div>

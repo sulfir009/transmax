@@ -7,7 +7,6 @@ use App\Repository\Site\ImageRepository;
 use App\Repository\Site\LanguagesRepository;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
-use App\Services\Seo\SeoService;
 
 readonly class HeaderComposer
 {
@@ -15,7 +14,6 @@ readonly class HeaderComposer
         private ImageRepository $ImageRepository,
         private RegularRacesRepository $regularRacesRepository,
         private LanguagesRepository $languagesRepository,
-        private SeoService $seoService,
     ){}
 
     public function compose(View $view): void
@@ -68,12 +66,6 @@ readonly class HeaderComposer
             ->with('cabinet_logo', $cabinet_logo)
             ->with('class', $class)
             ->with('privateLink', \App\Service\User::isAuth() ? route('future_races') : route('auth'));
-            $seoContext = $this->seoService->buildContext(request(), $view->getData());
-        $seoData = [
-            'hreflangs' => $this->seoService->getHreflangs($seoContext),
-        ];
-
-        $view->with('seo', $seoData);
     }
 
     private function getImages(array $logo, array $pageData): array

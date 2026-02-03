@@ -55,6 +55,22 @@ Route::match(['GET', 'POST', 'PUT', 'DELETE'],
     'file'    => '.*\.php$',
 ]);
 
+Route::any('/ajax/{lang}', function(Request $request, $lang) {
+    $path = base_path('legacy/public/pages/ajax.php');
+
+    if (file_exists($path) && pathinfo($path, PATHINFO_EXTENSION) === 'php') {
+        ob_start();
+        include $path;
+        $output = ob_get_clean();
+
+        return response()->json([
+            'lang' => $lang,
+            'data' => $output
+        ]);
+    }
+
+    return response()->json(['error' => 'File not found'], 404);
+})->where('lang', '.*');
 
 Route::any('/public/pages/private/{file}', function(Request $request, $file) {
     $path = base_path('legacy/public/pages/private/' . $file);

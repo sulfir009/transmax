@@ -75,7 +75,9 @@
         flex-direction: column-reverse;
     }
 
-
+    .ticket_order_block {
+        margin-top: 40px;
+    }
 
 }
 
@@ -873,7 +875,7 @@
     }
 
     .logo {
-        width: 100%;
+        width: 35%;
     }
 
     .burger img {
@@ -1675,11 +1677,5 @@
         font-size: 4px;
         margin-bottom: 5px;
         border-radius: 60px;
-    }
-}
-
-@media (max-width: 1400px) {
-    .ticket_order_block {
-        margin-top: 0px;
     }
 }

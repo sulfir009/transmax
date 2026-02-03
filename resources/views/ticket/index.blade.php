@@ -2,127 +2,9 @@
 
 @section('page-styles')
     {{-- Flatpickr стили подключаются глобально в footer_scripts.blade.php, здесь не нужны --}}
-    <link rel="stylesheet" href="{{ asset('css/ticket_filter_hero.css') }}?v=1">
     <link rel="stylesheet" href="{{ mix('css/legacy/libs/jquery_ui_slider/jquery-ui.min.css') }}">
     <link rel="stylesheet" href="{{ mix('css/legacy/style_table.css') }}">
     <link rel="stylesheet" href="{{ mix('css/responsive.css') }}">
-
-    {{-- ✅ FIX: mobile UX — скрываем QR и увеличиваем кнопки --}}
-    <style>
-        @media (max-width: 768px) {
-
-            /* ===========================
-               1) УБРАТЬ QR НА МОБИЛКЕ
-               =========================== */
-
-            /* Частые классы для QR */
-            .qr,
-            .qr_code,
-            .qr-code,
-            .qrcode,
-            .qr_wrapper,
-            .qr-wrap,
-            .qr_code_wrapper,
-            .ticket_qr,
-            .ticket_qr_wrapper,
-            .ticket_qrcode,
-            .ticket_qrcode_wrapper,
-            .route_qr,
-            .route_qr_wrapper {
-                display: none !important;
-            }
-
-            /* На случай если QR приходит в попап деталей маршрута (AJAX) */
-            .route_details_popup .qr,
-            .route_details_popup .qr_code,
-            .route_details_popup .qr-code,
-            .route_details_popup .qrcode,
-            .route_details_popup .qr_wrapper,
-            .route_details_popup .qr_code_wrapper,
-            .route_details_popup .ticket_qr,
-            .route_details_popup .ticket_qr_wrapper {
-                display: none !important;
-            }
-
-            /* На случай если QR — это просто картинка/иконка с "qr" в пути */
-            img[src*="qr"],
-            img[src*="qrcode"],
-            img[src*="QR"],
-            img[src*="QRCode"] {
-                display: none !important;
-            }
-
-            /* ===========================
-               2) КНОПКИ ЧУТЬ БОЛЬШЕ (tap targets)
-               =========================== */
-
-            /* Кнопка "Купить билет" (и в моб. блоке и в десктопном — не вредно) */
-            .ticket_buy_btn {
-                min-height: 48px !important;
-                padding: 12px 16px !important;
-                font-size: 14px !important;
-                line-height: 1.1 !important;
-                border-radius: 14px !important;
-            }
-
-            /* Кнопка "Детальніше" */
-            .ticket_details_btn {
-                min-height: 44px !important;
-                padding: 10px 14px !important;
-                font-size: 14px !important;
-                line-height: 1.1 !important;
-                border-radius: 14px !important;
-            }
-
-            /* Блок снизу в моб. карточке — чтобы кнопки не были "зажаты" */
-            .mobile_ticket_totals {
-                gap: 12px !important;
-                align-items: stretch !important;
-            }
-
-            /* Чтобы “Купить” визуально был крупнее и не сжимался */
-            .mobile_ticket_totals .ticket_buy_btn {
-                flex: 0 0 auto !important;
-                width: auto !important;
-            }
-
-            /* “Детальніше” пусть тоже будет удобным */
-            .mobile_ticket_totals .ticket_details_btn {
-                width: 100% !important;
-                justify-content: center !important;
-            }
-
-            /* Кнопка фильтра (иконка справа в мобильной панели) */
-            .mobile_filter_btn {
-                width: 48px !important;
-                height: 48px !important;
-                border-radius: 14px !important;
-                display: inline-flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-            }
-
-            /* Select сортировки — чтобы был выше и проще нажимался */
-            .mobile_sort_filter .sort_select {
-                height: 48px !important;
-                padding-top: 10px !important;
-                padding-bottom: 10px !important;
-                font-size: 14px !important;
-                border-radius: 14px !important;
-            }
-
-            /* Рекомендованные даты — немного увеличить кликабельность */
-            .recommend_dates .reccomend_date a.tour_date_link {
-                display: inline-flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                min-height: 44px !important;
-                padding: 10px 14px !important;
-                font-size: 14px !important;
-            }
-        }
-        
-    </style>
 @endsection
 
 @section('content')
@@ -140,17 +22,21 @@
          data-route-next="{{ rtrim(url($Router->writelink(85)), '/') }}"
          data-csrf-token="{{ csrf_token() }}"
          data-msg-ticket-expired="{{ __('dictionary.MSG_MSG_TICKETS_ETOT_BILET_BOLISHE_KUPITI_NELIZYA_TK_ETOT_REJS_UZHE_UEHAL') }}">
-        @include('ticket.partials.main_filter_wrapper', [
-            'cities' => $cities ?? [],
-            'filterDeparture' => $filterDeparture ?? null ,
-            'filterArrival' => $filterArrival ?? null ,
-            'filterDate' => $filterDate ?? date('Y-m-d'),
-            'adults' => $adults ?? 1,
-            'kids' => $kids ?? 0,
-            'dictionary' => $dictionary ?? [],
-            'lang' => $lang ?? 'uk',
-            'formAction' => route('tickets.index'),
-        ])
+        <div class="main_filter_wrapper">
+            <div class="container">
+                @include('layout.components.filter.filter', [
+                    'cities' => $cities ?? [],
+                    'filterDeparture' => $filterDeparture ?? 0,
+                    'filterArrival' => $filterArrival ?? 0,
+                    'filterDate' => $filterDate ?? date('Y-m-d'),
+                    'filterAdults' => $adults ?? 1,
+                    'filterKids' => $kids ?? 0,
+                    'dictionary' => $dictionary ?? [],
+                    'lang' => $lang ?? 'uk',
+                    'formAction' => route('tickets.index')
+                ])
+            </div>
+        </div>
 
         <div class="purchase_steps_wrapper">
             <div class="tabs_links_container">
@@ -300,6 +186,10 @@
                                                                         </div>
                                                                     </div>
                                                                     <div class="ticket_ride_total_time_data">
+                                                                        <div class="ticket_ride_total_time par">
+                                                                            {{ (int)explode(':', $ticket['ride_time'])[0] }} @lang('dictionary.MSG_MSG_TICKETS_GOD')
+                                                                            {{ (int)explode(':', $ticket['ride_time'])[1] }} @lang('dictionary.MSG_MSG_TICKETS_HV_V_DOROZI')
+                                                                        </div>
                                                                         @if ($ticket['international'])
                                                                             <div class="ticket_ride_status par">
                                                                                 @lang('dictionary.MSG_MSG_TICKETS_MIZHNARODNIJ')
@@ -360,6 +250,10 @@
                                                     <div class="mobile_ticket_ride_total_time_wrapper flex_ac">
                                                         <div class="ticket_ride_total_time_info flex_ac">
                                                             <img src="{{ asset('images/legacy/common/info.svg') }}" alt="info">
+                                                            <div class="ticket_ride_total_time par">
+                                                                {{ (int)explode(':', $ticket['ride_time'])[0] }} @lang('dictionary.MSG_MSG_TICKETS_GOD')
+                                                                {{ (int)explode(':', $ticket['ride_time'])[1] }} @lang('dictionary.MSG_MSG_TICKETS_HV_V_DOROZI')
+                                                            </div>
                                                         </div>
                                                         @if ($ticket['international'])
                                                             <div class="ticket_ride_status par">

@@ -4,19 +4,23 @@
 
 <!-- End Google Tag Manager -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-@php
-    $seo = $seo ?? [];
-    $seoTitle = $seo['title']
-        ?? data_get($page_data ?? [], 'page_title')
-        ?? data_get($pageData ?? [], 'page_title')
-        ?? 'Page title';
-    $seoDescription = $seo['description']
-        ?? data_get($page_data ?? [], 'meta_d')
-        ?? data_get($pageData ?? [], 'meta_description')
-        ?? 'Page description';
-@endphp
-<title>{!! $seoTitle !!}</title>
-<meta name="description" content="{{ $seoDescription }}">
+<title>
+
+    @if (isset($page_data['page_title']))
+    {!!  $page_data['page_title'] !!}
+    @elseif ($pageData['page_title'])
+        {!! $pageData['page_title'] !!}
+    @else
+        {{ 'Page title' }}
+    @endif
+</title>
+<meta name="description" content="
+@if(isset($page_data['meta_d']))
+{{ $page_data['meta_d'] }}
+@else:
+{{ 'Page description' }}
+@endif
+">
 
 <meta name="keywords" content="
 
@@ -26,32 +30,6 @@
 {{ 'Page keywords'}}
 @endif
 ">
-
-@if(!empty($seo['canonical']))
-    <link rel="canonical" href="{{ $seo['canonical'] }}">
-@endif
-
-@if(!empty($seo['hreflangs']))
-    @foreach($seo['hreflangs'] as $langCode => $href)
-        <link rel="alternate" hreflang="{{ $langCode }}" href="{{ $href }}">
-    @endforeach
-@endif
-
-@if(!empty($seo['openGraph']))
-    <meta property="og:title" content="{{ $seo['openGraph']['title'] ?? '' }}">
-    <meta property="og:description" content="{{ $seo['openGraph']['description'] ?? '' }}">
-    <meta property="og:url" content="{{ $seo['openGraph']['url'] ?? '' }}">
-    <meta property="og:type" content="{{ $seo['openGraph']['type'] ?? 'website' }}">
-    <meta property="og:image" content="{{ $seo['openGraph']['image'] ?? '' }}">
-    <meta property="og:site_name" content="{{ $seo['openGraph']['site_name'] ?? 'MaxTrans' }}">
-@endif
-
-@if(!empty($seo['jsonLd']))
-    @foreach($seo['jsonLd'] as $schema)
-        <script type="application/ld+json">{!! json_encode($schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}</script>
-    @endforeach
-@endif
-
 
 <link rel="shortcut icon" type="image/png" href="<?php echo  asset('images/legacy/upload/logos/favicon.svg');?>"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">

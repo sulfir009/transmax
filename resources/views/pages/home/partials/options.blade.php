@@ -7,7 +7,7 @@
                         <img src="{{ asset('images/legacy/calendar_option.svg') }}" alt="calendar">
                     </div>
                     <div class="index_option_description">
-                        <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}" class="index_option_title h3_title">
+                        <a href="{{ url('/rozklad') }}" class="index_option_title h3_title">
                             @lang('MSG_ALL_ROZKLAD_AVTOBUSIV')
                         </a>
                         <div class="index_option_subtitle par">

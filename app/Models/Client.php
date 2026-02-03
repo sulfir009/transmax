@@ -21,7 +21,6 @@ class Client extends Model
         'registration_date',
         'uid',
         'miles',
-        'bonus_balance_cents',
         'code',
         'reset_token',
         'token_date'
@@ -32,7 +31,6 @@ class Client extends Model
         'last_auth_date' => 'datetime',
         'registration_date' => 'datetime',
         'token_date' => 'datetime',
-        'bonus_balance_cents' => 'int',
         'active' => 'boolean'
     ];
 
@@ -57,11 +55,6 @@ class Client extends Model
     public function cards()
     {
         return $this->hasMany(ClientCard::class, 'client_id', 'id');
-    }
-    
-        public function bonusTransactions()
-    {
-        return $this->hasMany(BonusTransaction::class, 'client_id', 'id');
     }
 
     /**

@@ -28,14 +28,6 @@ class LanguageMiddleware
     {
         $segment = $request->segment(1);
         
-                if ($segment === 'ua') {
-            $path = ltrim($request->path(), '/');
-            $path = substr($path, strlen('ua'));
-            $path = ltrim($path, '/');
-
-            return redirect('/uk' . ($path !== '' ? '/' . $path : ''), 301);
-        }
-        
         // Проверяем, есть ли языковой префикс в URL
         if (in_array($segment, $this->supportedLocales)) {
             $locale = $segment;

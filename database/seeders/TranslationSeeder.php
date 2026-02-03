@@ -141,18 +141,6 @@ class TranslationSeeder extends Seeder
                 'title_en' => 'Schedule',
             ],
             [
-                'code' => 'ROUTE_AND_SCHEDULE',
-                'title_uk' => 'Маршрут і розклад',
-                'title_ru' => 'Маршрут и расписание',
-                'title_en' => 'Route and schedule',
-            ],
-            [
-                'code' => 'ALL_ROUTES',
-                'title_uk' => 'Усі маршрути',
-                'title_ru' => 'Все маршруты',
-                'title_en' => 'All routes',
-            ],
-            [
                 'code' => 'MSG_ALL_MIZHNARODNI',
                 'title_uk' => 'Міжнародні',
                 'title_ru' => 'Международные',
@@ -163,24 +151,6 @@ class TranslationSeeder extends Seeder
                 'title_uk' => 'Внутрішні',
                 'title_ru' => 'Внутренние',
                 'title_en' => 'Domestic',
-            ],
-            [
-                'code' => 'PAYMENT_LIQPAY',
-                'title_uk' => 'Оплата карткою онлайн (LiqPay) Visa / Mastercard',
-                'title_ru' => 'Оплата картой онлайн (LiqPay) Visa / Mastercard',
-                'title_en' => 'Online card payment (LiqPay) Visa / Mastercard',
-            ],
-            [
-                'code' => 'PAYMENT_MONOPAY',
-                'title_uk' => 'Оплата через MonoPay Apple Pay / Google Pay / картка Monobank',
-                'title_ru' => 'Оплата через MonoPay Apple Pay / Google Pay / карта Monobank',
-                'title_en' => 'MonoPay payment Apple Pay / Google Pay / Monobank card',
-            ],
-            [
-                'code' => 'PAYMENT_CASH',
-                'title_uk' => 'Готівкою при посадці',
-                'title_ru' => 'Наличными при посадке',
-                'title_en' => 'Cash on boarding',
             ],
             [
                 'code' => 'MSG_ALL_ROZKLAD_AVTOBUSIV',

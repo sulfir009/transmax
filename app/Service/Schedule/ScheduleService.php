@@ -7,7 +7,6 @@ use App\Repository\Schedule\ScheduleRepository;
 use App\Service\Site;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Arr;
 
 class ScheduleService
 {
@@ -320,41 +319,5 @@ class ScheduleService
         ];
         
         return true;
-    }
-        public function getCitiesBySlugs(string $fromSlug, string $toSlug, string $lang): ?array
-    {
-        $departureCity = $this->scheduleRepository->getCityBySlug($fromSlug, $lang);
-        $arrivalCity = $this->scheduleRepository->getCityBySlug($toSlug, $lang);
-
-        if (!$departureCity || !$arrivalCity) {
-            return null;
-        }
-
-        return [
-            'departure' => $departureCity,
-            'arrival' => $arrivalCity,
-        ];
-    }
-
-    public function buildRouteRedirectUrl(int $departureId, int $arrivalId, array $query): ?string
-    {
-        $departureCity = $this->scheduleRepository->getCityById($departureId);
-        $arrivalCity = $this->scheduleRepository->getCityById($arrivalId);
-
-        if (!$departureCity || !$arrivalCity) {
-            return null;
-        }
-
-        $routeUrl = \App\Helpers\LocaleHelper::localizedRoute('schedule.route', [
-            'from' => $departureCity->getSlug(Site::lang()),
-            'to' => $arrivalCity->getSlug(Site::lang()),
-        ]);
-
-        $extraQuery = Arr::except($query, ['departure', 'arrival']);
-        if (!empty($extraQuery)) {
-            $routeUrl .= '?' . http_build_query($extraQuery);
-        }
-
-        return $routeUrl;
     }
 }

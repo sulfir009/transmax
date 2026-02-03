@@ -104,9 +104,6 @@
         <div class="text-page">
             <div class="container">
                 <div class="text-page-content">
-                    @if(!empty($pageData['title']) && !\Illuminate\Support\Str::contains($pageData['text'] ?? '', '<h1'))
-                        <h1>{{ $pageData['title'] }}</h1>
-                    @endif
                     {!! $pageData['text'] !!}
                 </div>
             </div>

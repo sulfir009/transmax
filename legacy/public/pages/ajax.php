@@ -1,5 +1,4 @@
 <?php
-
 require_once(str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT'])."/config.php");
 require_once(str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT']) . "/" . ADMIN_PANEL . "/engine/CDb.php");
 require_once(str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT'])."/". ADMIN_PANEL ."/includes.php");
@@ -8,37 +7,10 @@ $db =  mysqli_connect(DB_HOST, DB_LOGIN, DB_PASS, DB_NAME);
 mysqli_set_charset($db , "utf8" );
 $toursRepository = new \App\Repository\Races\ToursRepository();
 $Db = new CDb($db, $db);
-// На всякий случай
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
-
-// debug=1 можно передать GET или POST
-$debugEnabled = (
-    (isset($_GET['debug']) && (string)$_GET['debug'] === '1') ||
-    (isset($_POST['debug']) && (string)$_POST['debug'] === '1')
-);
-
-// Поддержка JSON-body: если фронт шлёт application/json, $_POST будет пустой
-$rawBody = (string)file_get_contents('php://input');
-if ((empty($_POST) || !isset($_POST['request'])) && $rawBody !== '') {
-    $decoded = json_decode($rawBody, true);
-    if (is_array($decoded)) {
-        // аккуратно мёрджим (POST приоритетнее, но обычно он пуст)
-        $_POST = $decoded + $_POST;
-    }
-}
-
-// request берём из реального $_POST (после возможного decode)
-$request = $_POST['request'] ?? null;
-if (!$request) {
+$cleanPost = filter_input_array(INPUT_POST, FILTER_SANITIZE_SPECIAL_CHARS);
+if (!isset($_POST) || empty($_POST) || !isset($_POST['request'])) {
     exit;
 }
-
-// ВАЖНО: filter_input_array ломает вложенные массивы (order/passengers),
-// поэтому здесь лучше держать "чистый" массив.
-$cleanPost = $_POST;
-
 
 
 /* авторизация  */
@@ -371,7 +343,6 @@ if ($cleanPost['request'] === 'callback') {
             $arrivalTitle = $station['title_uk'];
         }
     }
-
 
     // Функция для отправки почты
     function sendCallbackMail($departure, $arrival, $phone, $message, $date) {
@@ -1200,159 +1171,161 @@ if ($cleanPost['request'] === 'filter') {
 
 }
 
-if ($cleanPost['request'] === 'remember_private_data') {
-
-    // На всякий случай (если где-то сессия не стартанула в includes.php)
-    if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_start();
-    }
-
+if ($cleanPost['request'] === 'remember_private_data'){
+    /*dd($cleanPost);*/
     $_SESSION['order']['family_name'] = $cleanPost['family_name'];
-    $_SESSION['order']['name']        = $cleanPost['name'];
-    $_SESSION['order']['patronymic']  = $cleanPost['patronymic'];
-    $_SESSION['order']['birth_date']  = $cleanPost['birthDate'];
-
-    $_SESSION['order']['email']      = $cleanPost['email'];
-    $_SESSION['order']['phone']      = $cleanPost['phone'];
-    $_SESSION['order']['save_data']  = (int)$cleanPost['save_data'];
+    $_SESSION['order']['name'] = $cleanPost['name'];
+    $_SESSION['order']['patronymic'] = $cleanPost['patronymic'];
+    $_SESSION['order']['birth_date'] = $cleanPost['birthDate'];
+    /*$_SESSION['order']['doc_type'] = $cleanPost['doc_type'];*/
+    $_SESSION['order']['email'] = $cleanPost['email'];
+    $_SESSION['order']['phone'] = $cleanPost['phone'];
+    $_SESSION['order']['save_data'] = (int)$cleanPost['save_data'];
     $_SESSION['order']['phone_code'] = (int)$cleanPost['phone_code'];
 
-    /**
-     * ВАЖНО:
-     * 1) Всегда сбрасываем passengers_data — это чинит кейс “удалил пассажира”.
-     * 2) Потом, если пришли пассажиры — заполняем заново.
-     */
-    $_SESSION['order']['passengers_data'] = [];
 
-    if (isset($cleanPost['passengers']) && is_array($cleanPost['passengers'])) {
+    //Сохраняем пассажиров
+    if (!empty($cleanPost['passengers']) && is_array($cleanPost['passengers'])) {
+        $_SESSION['order']['passengers_data'] = [];
         foreach ($cleanPost['passengers'] as $passenger) {
-
-            // Защита от пустых “шаблонных” блоков, которые UI мог отправить
-            $family = trim($passenger['family_name'] ?? '');
-            $name   = trim($passenger['name'] ?? '');
-            $patr   = trim($passenger['patronymic'] ?? '');
-            $birth  = trim($passenger['birth_date'] ?? '');
-
-            // если строка полностью пустая — пропускаем
-            if ($family === '' && $name === '' && $patr === '' && $birth === '') {
-                continue;
-            }
-
             $_SESSION['order']['passengers_data'][] = [
-                'family_name' => $family,
-                'name'        => $name,
-                'patronymic'  => $patr,
-                'birth_date'  => $birth,
+                'family_name' => $passenger['family_name'],
+                'name' => $passenger['name'],
+                'patronymic' => $passenger['patronymic'],
+                'birth_date' => $passenger['birth_date']
             ];
         }
     }
-
-    /**
-     * Пересчитываем ОБЩЕЕ кол-во пассажиров:
-     *  - основной пассажир (тот, чьи поля name/family_name) = 1
-     *  - доп. пассажиры = count(passengers_data)
-     */
-    $oldPassengers = (int)($_SESSION['order']['passengers'] ?? 1);
-    $newPassengers = 1 + count($_SESSION['order']['passengers_data']);
-    if ($newPassengers < 1) {
-        $newPassengers = 1;
-    }
-
-    // Сохраняем в сессию — теперь шаг 3 будет видеть реальное кол-во
-    $_SESSION['order']['passengers'] = $newPassengers;
-
     echo 'ok';
 }
 
-if (!function_exists('ajax_json')) {
-    function ajax_json(array $payload, int $httpCode = 200): void
-    {
-        // убираем любой мусор (notice/warning/пробелы), чтобы JSON не ломался
-        if (ob_get_level() > 0) {
-            @ob_clean();
+if ($cleanPost['request'] === 'order_route'){
+    $tourId = (int)$cleanPost['order']['tour_id'];
+    $from = (int)$cleanPost['order']['from'];
+    $to = (int)$cleanPost['order']['to'];
+    $tourDate = $cleanPost['order']['date'];
+    $clientName = $cleanPost['order']['name'];
+    $clientSurname = $cleanPost['order']['family_name'];
+    $clientMail = $cleanPost['order']['email'];
+    $clientPhone = $cleanPost['order']['phone'];
+    $paymethod = $cleanPost['order']['paymethod'];
+    $passengers = (int)$cleanPost['order']['passengers'];
+    $uniqId = $cleanPost['order']['order_id'];
+
+    $existingOrder = $Db->getOne("SELECT id FROM `" . DB_PREFIX . "_orders` WHERE uniqId = '".$uniqId."' ");
+
+    if ($existingOrder) {
+        // Если заказ уже существует, использовать его
+        echo 'ok'; // или другая логика, например, обновление заказа или сообщение пользователю
+    } else {
+        $fieldName = $fieldValue = array();
+        $fieldName[] = 'date';
+        $fieldValue[] = 'NOW()';
+        $fieldName[] = 'client_id';
+        $fieldValue[] = '"' . $User->id . '"';
+        $fieldName[] = 'client_name';
+        $fieldValue[] = '"' . $clientName . '"';
+        $fieldName[] = 'client_surname';
+        $fieldValue[] = '"' . $clientSurname . '"';
+        $fieldName[] = 'client_email';
+        $fieldValue[] = '"' . $clientMail . '"';
+        $fieldName[] = 'client_phone';
+        $fieldValue[] = '"' . $clientPhone . '"';
+        $fieldName[] = 'tour_id';
+        $fieldValue[] = '"' . $tourId . '"';
+        $fieldName[] = 'from_stop';
+        $fieldValue[] = '"' . $from . '"';
+        $fieldName[] = 'to_stop';
+        $fieldValue[] = '"' . $to . '"';
+        $fieldName[] = 'tour_date';
+        $fieldValue[] = '"' . $tourDate . '"';
+        $fieldName[] = 'passagers';
+        $fieldValue[] = '"' . (int)$_SESSION['order']['passengers'] . '"';
+        $fieldName[] = 'uniqId';
+        $fieldValue[] = '"' . $uniqId . '"';
+        $order = $Db->query("INSERT INTO `" . DB_PREFIX . "_orders` (" . implode(',', $fieldName) . ") VALUES (" . implode(',', $fieldValue) . ") ");
+        if ($order) {
+            $updPopular = $Db->query("UPDATE `" .  DB_PREFIX . "_tours`  SET popular = popular + 1 WHERE id = '" . $tourId . "' ");
+            $tourDistance = $Db->getOne("SELECT distance FROM `" .  DB_PREFIX . "_tours_stops_prices`  WHERE tour_id = '" . $tourId . "' AND from_stop = '" . $from . "' AND to_stop = '" . $to . "' ");
+            $updClientsMiles = $Db->query("UPDATE `" .  DB_PREFIX . "_clients`  SET miles = miles + " . (int)$tourDistance['distance'] . " WHERE id = '" . $User->id . "' ");
+            $updSales = $Db->query("UPDATE `" .  DB_PREFIX . "_tours_sales`  SET tickets_order = tickets_order + " . $passengers . " WHERE tour_id = '" . $tourId . "' AND tour_date = '" . $tourDate . "' ");
+
+            /*if ($paymethod === 'cardpay') {
+                $updSales = $Db->query("UPDATE `" .  DB_PREFIX . "_tours_sales`  SET tickets_buy = tickets_buy + ".$passengers." WHERE tour_id = '".$tourId."' AND tour_date = '".$tourDate."' ");
+            }*/
+            if ((int)$cleanPost['save_card'] == '1') {
+                $cardNumber = array();
+                $cardNumExplode = explode(' ', $cleanPost['card_number']);
+                foreach ($cardNumExplode as $k => $num) {
+                    $cardNumber[] = (int)$num;
+                }
+                $cardDate = explode('/', $cleanPost['card_valid_date']);
+                $validCardDate = array();
+                foreach ($cardDate as $k => $cd) {
+                    if (strlen($cd) > 2) {
+                        exit('Дата действия карты указана неверно');
+                    }
+                    $validCardDate[] = (int)$cd;
+                }
+                $cardDate = implode('/', $validCardDate);
+
+                $checkCurrentClientCard = $Db->getOne("SELECT id FROM `" .  DB_PREFIX . "_clients_cards`  WHERE client_id = '" . $User->id . "' ");
+                if ($checkCurrentClientCard) {
+                    $upd = $Db->query("UPDATE `" .  DB_PREFIX . "_clients_cards`  SET
+        card_number = '" . implode(' ', $cardNumber) . "',
+        valid_date = '" . $cardDate . "',
+        cardholder_name = '" . $cleanPost['cardholder_name'] . "',
+        cvv = '" . (int)$cleanPost['card_cvv'] . "' WHERE client_id = '" . $User->id . "' ");
+                } else {
+                    $upd = $Db->query("INSERT INTO `" .  DB_PREFIX . "_clients_cards`  (`card_number`,`valid_date`,`cardholder_name`,`cvv`,`client_id`) VALUES
+        ('" . implode(' ', $cardNumber) . "','" . $cardDate . "','" . $cleanPost['cardholder_name'] . "','" . (int)$cleanPost['card_cvv'] . "','" . $User->id . "') ");
+                }
+            }
+
+            $buyerData = [
+                'name' => $clientName,
+                'family_name' => $clientSurname,
+                'patronymic' => $cleanPost['patronymic'],
+                'birth_date' => $cleanPost['birth_date'],
+            ];
+
+            $fieldName = $fieldValue = [];
+            $fieldName[] = 'name';
+            $fieldValue[] = '"' . $buyerData['name'] . '"';
+            $fieldName[] = 'second_name';
+            $fieldValue[] = '"' . $buyerData['family_name'] . '"';
+            $fieldName[] = 'patronymic';
+            $fieldValue[] = '"' . $buyerData['patronymic'] . '"';
+            $fieldName[] = 'order_id';
+            $fieldValue[] = '"' . $uniqId . '"';
+            $fieldName[] = 'birth_date';
+            $fieldValue[] = '"' . $buyerData['birth_date'] . '"';
+
+            $Db->query("INSERT INTO `" . DB_PREFIX . "_orders_passangers` (" . implode(',', $fieldName) . ") VALUES (" . implode(',', $fieldValue) . ") ");
+
+            foreach ($_SESSION['order']['passengers_data'] as $passenger) {
+                $fieldName = $fieldValue = array();
+                $fieldName[] = 'name';
+                $fieldValue[] = '"' . $passenger['name'] . '"';
+                $fieldName[] = 'second_name';
+                $fieldValue[] = '"' . $passenger['family_name'] . '"';
+                $fieldName[] = 'patronymic';
+                $fieldValue[] = '"' . $passenger['patronymic'] . '"';
+                $fieldName[] = 'order_id';
+                $fieldValue[] = '"' . $uniqId . '"'; // Предположим, что $order_id - это ID созданного заказа
+                $fieldName[] = 'birth_date';
+                $fieldValue[] = '"' . $passenger['birth_date'] . '"';
+
+                $Db->query("INSERT INTO `" . DB_PREFIX . "_orders_passangers` (" . implode(',', $fieldName) . ") VALUES (" . implode(',', $fieldValue) . ") ");
+            }
+
+
+            echo 'ok';
+        } else {
+            echo 'err';
         }
-        if (!headers_sent()) {
-            http_response_code($httpCode);
-            header('Content-Type: application/json; charset=utf-8');
-            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-        }
-        echo json_encode($payload, JSON_UNESCAPED_UNICODE);
-        exit;
     }
 }
-
-if ($cleanPost['request'] === 'bonus_preview') {
-    if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_start();
-    }
-
-    $useBonus = !empty($cleanPost['use_bonus']);
-    $payableCents = (int)($cleanPost['payable_cents'] ?? 0);
-
-    if (!isset($_SESSION['order']) || !is_array($_SESSION['order'])) {
-        $_SESSION['order'] = [];
-    }
-
-    if (!isset($User->id) || (int)$User->id <= 0) {
-        $_SESSION['order']['use_bonus'] = 0;
-        $_SESSION['order']['bonus_redeem_cents_preview'] = 0;
-
-        ajax_json([
-            'data' => 'guest',
-            'redeem_cents' => 0,
-        ]);
-    }
-
-    $clientId = (int)$User->id;
-    $bonusBalanceCents = 0;
-
-    try {
-        $client = \App\Models\Client::find($clientId);
-        if ($client) {
-            $bonusBalanceCents = (int)($client->bonus_balance_cents ?? 0);
-        }
-    } catch (Throwable $e) {
-        $bonusBalanceCents = 0;
-    }
-
-    $maxRedeemCents = 0;
-    if ($useBonus && $payableCents > 0) {
-        $bonusService = app(\App\Services\BonusService::class);
-        $maxRedeemCents = $bonusService->calculateMaxRedeemCents($bonusBalanceCents, $payableCents);
-    }
-
-    $_SESSION['order']['use_bonus'] = $useBonus ? 1 : 0;
-    $_SESSION['order']['bonus_redeem_cents_preview'] = $maxRedeemCents;
-
-    ajax_json([
-        'data' => 'ok',
-        'redeem_cents' => $maxRedeemCents,
-        'balance_cents' => $bonusBalanceCents,
-    ]);
-}
-
-if ($request === 'order_route') {
-    try {
-        order_route(); // внутри уже есть свои ajax_json(), но если что-то упадёт — поймаем тут
-    } catch (Throwable $e) {
-        $payload = [
-            'data'    => 'err',
-            'code'    => 'exception',
-            'message' => $e->getMessage(),
-        ];
-
-        if ($debugEnabled) {
-            $payload['file']  = $e->getFile();
-            $payload['line']  = $e->getLine();
-            $payload['trace'] = $e->getTraceAsString();
-        }
-
-        ajax_json($payload, 200);
-    }
-}
-
-
-
 
 if ($cleanPost['request'] === 'update_client_phone'){
     $upd = $Db->query("UPDATE `".DB_PREFIX."_clients` SET `phone_code` = '".$cleanPost['phone_code']."',`phone` = '".$cleanPost['phone']."' WHERE id = '".$User->id."' ");
@@ -2172,31 +2145,6 @@ if ($cleanPost['request'] === 'order_mail') {
 
     $ticketInfo = isset($_POST['ticket_info']) ? $_POST['ticket_info'] : null;
     $order = isset($_POST['order']) ? $_POST['order'] : null;
-    
-    $sessionOrder = $_SESSION['order'] ?? [];
-
-$paymentStatus = 0;
-if (is_array($order) && isset($order['payment_status'])) {
-    $paymentStatus = (int)$order['payment_status'];
-} elseif (isset($_POST['payment_status'])) {
-    $paymentStatus = (int)$_POST['payment_status'];
-} elseif (is_array($sessionOrder) && isset($sessionOrder['payment_status'])) {
-    $paymentStatus = (int)$sessionOrder['payment_status'];
-}
-
-// Если платёжка присылает paymethod (cardpay/mono/cash) — тоже маппим
-$paymethod = (string)($_POST['paymethod'] ?? ($order['paymethod'] ?? ''));
-if ($paymentStatus === 0 && $paymethod !== '') {
-    $pm = strtolower(trim($paymethod));
-    if (in_array($pm, ['cardpay','card','liqpay','fondy','wayforpay'], true)) $paymentStatus = 2;
-    elseif (in_array($pm, ['mono','monobank'], true)) $paymentStatus = 3;
-    elseif (in_array($pm, ['cash','gotivka'], true)) $paymentStatus = 1;
-}
-
-$paymentLabel = 'Готівка';
-if ($paymentStatus === 2) $paymentLabel = 'Банківська картка';
-elseif ($paymentStatus === 3) $paymentLabel = 'Monobank';
-
 
     if ($ticketInfo && $order) {
         $departureCity = $ticketInfo['departure_city'];
@@ -2355,7 +2303,7 @@ elseif ($paymentStatus === 3) $paymentLabel = 'Monobank';
         $message1 .= "
                     <tr>
                         <td class='email-titles'>Спосіб оплати</td>
-                        <td>$paymentLabel</td>
+                        <td>Готівка</td>
                     </tr>
                 </table>
             </div>
@@ -2556,570 +2504,4 @@ elseif ($paymentStatus === 3) $paymentLabel = 'Monobank';
         echo 'error';
     }
 }
-function payment_log(string $msg, array $ctx = []): void
-{
-    $file = '/home/vv513819/maxtransltd.com/www/storage/logs/payment-' . date('Y-m-d') . '.log';
 
-    $line = '[' . date('Y-m-d H:i:s') . '] ' . $msg;
-    if (!empty($ctx)) {
-        $line .= ' | ' . json_encode($ctx, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    }
-    $line .= PHP_EOL;
-
-    // IMPORTANT: если папка/файл без прав — лог не запишется
-    @file_put_contents($file, $line, FILE_APPEND);
-}
-
-function order_route(): void
-{
-    global $Db, $db, $User;
-
-    /* ============================
-     * 0) ajax_json — на случай если ещё не объявлен
-     * ============================ */
-    if (!function_exists('ajax_json')) {
-        function ajax_json(array $payload, int $httpCode = 200): void
-        {
-            if (ob_get_level() > 0) { @ob_clean(); }
-
-            if (!headers_sent()) {
-                http_response_code($httpCode);
-                header('Content-Type: application/json; charset=utf-8');
-                header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-                header('Pragma: no-cache');
-            }
-
-            $flags = JSON_UNESCAPED_UNICODE;
-            if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
-                $flags |= JSON_INVALID_UTF8_SUBSTITUTE;
-            }
-
-            $json = json_encode($payload, $flags);
-            if ($json === false) {
-                $json = '{"data":"err","code":"json_encode_failed","message":"' . addslashes(json_last_error_msg()) . '"}';
-            }
-
-            echo $json;
-            exit;
-        }
-    }
-
-    /* ============================
-     * 1) Session
-     * ============================ */
-    if (session_status() !== PHP_SESSION_ACTIVE) {
-        @session_start();
-    }
-
-    /* ============================
-     * 2) Debug toggle
-     * ============================ */
-    $debugEnabled = (
-        (isset($_GET['debug']) && (string)$_GET['debug'] === '1') ||
-        (isset($_POST['debug']) && (string)$_POST['debug'] === '1')
-    );
-
-    $debugLog = [];
-    $dbg = function (string $msg) use (&$debugLog, $debugEnabled): void {
-        if ($debugEnabled) $debugLog[] = $msg;
-    };
-
-    $respond = function (array $payload, int $httpCode = 200) use (&$debugLog, $debugEnabled): void {
-        if ($debugEnabled) $payload['_debug'] = $debugLog;
-        ajax_json($payload, $httpCode);
-    };
-
-    $fail = function (string $code, string $message, array $extra = []) use ($respond): void {
-        $respond(array_merge([
-            'data'    => 'err',
-            'code'    => $code,
-            'message' => $message,
-        ], $extra), 200);
-    };
-
-    /* ============================
-     * 3) mysqli connection
-     * ============================ */
-    $mysqli = null;
-
-    if (isset($db) && is_object($db) && ($db instanceof mysqli)) {
-        $mysqli = $db;
-    } elseif (isset($GLOBALS['db']) && is_object($GLOBALS['db']) && ($GLOBALS['db'] instanceof mysqli)) {
-        $mysqli = $GLOBALS['db'];
-    } elseif (isset($GLOBALS['mysqli']) && is_object($GLOBALS['mysqli']) && ($GLOBALS['mysqli'] instanceof mysqli)) {
-        $mysqli = $GLOBALS['mysqli'];
-    } else {
-        // пробуем вытащить mysqli из CDb, если там есть свойство/метод
-        if (isset($Db) && is_object($Db)) {
-            if (property_exists($Db, 'db') && is_object($Db->db) && ($Db->db instanceof mysqli)) {
-                $mysqli = $Db->db;
-            } elseif (property_exists($Db, 'mysqli') && is_object($Db->mysqli) && ($Db->mysqli instanceof mysqli)) {
-                $mysqli = $Db->mysqli;
-            }
-        }
-    }
-
-    if (!$mysqli) {
-        $fail('db_not_initialized', 'Не найден mysqli-коннект. Проверь, что $db = mysqli_connect(...) реально создаётся до вызова order_route().');
-    }
-
-    if (!defined('DB_PREFIX') || DB_PREFIX === '') {
-        $fail('db_prefix_missing', 'Константа DB_PREFIX не определена.');
-    }
-
-    $ordersTable = DB_PREFIX . "_orders";
-    $passTable   = DB_PREFIX . "_orders_passangers";
-
-    $dbg('[order_route] mysqli ok: ' . (@$mysqli->host_info ?: 'host_info=n/a'));
-
-    /* ============================
-     * 4) JSON-body (если фронт шлёт application/json)
-     * ============================ */
-    if (empty($_POST) || (!isset($_POST['order']) && !isset($_POST['request']))) {
-        $rawBody = (string)file_get_contents('php://input');
-        if ($rawBody !== '') {
-            $decoded = json_decode($rawBody, true);
-            if (is_array($decoded)) {
-                $_POST = $decoded + $_POST;
-                $dbg('[order_route] JSON-body decoded');
-            } else {
-                $dbg('[order_route] JSON-body present but invalid JSON');
-            }
-        }
-    }
-
-    /* ============================
-     * 5) Helpers: columns list
-     * ============================ */
-    $columnsCache = [];
-
-    $getColumns = function (string $table) use ($mysqli, &$columnsCache, $dbg) : array {
-        if (isset($columnsCache[$table])) return $columnsCache[$table];
-
-        $cols = [];
-        $sql  = "SHOW COLUMNS FROM `{$table}`";
-        $res  = $mysqli->query($sql);
-        if ($res) {
-            while ($row = $res->fetch_assoc()) {
-                if (!empty($row['Field'])) $cols[] = $row['Field'];
-            }
-            $res->free();
-        }
-
-        $columnsCache[$table] = $cols;
-        $dbg('[order_route] columns(' . $table . '): ' . count($cols));
-        return $cols;
-    };
-
-    $hasCol = function (array $cols, string $col): bool {
-        return in_array($col, $cols, true);
-    };
-
-    /* ============================
-     * 6) Helpers: bind_param dynamic
-     * ============================ */
-    $bindParams = function (mysqli_stmt $stmt, string $types, array $params): void {
-        if ($types === '' || empty($params)) return;
-
-        // bind_param требует ссылки
-        $refs = [];
-        $refs[] = $types;
-        foreach ($params as $k => $v) {
-            $refs[] = &$params[$k];
-        }
-        call_user_func_array([$stmt, 'bind_param'], $refs);
-    };
-
-    $execPrepared = function (string $sql, string $types, array $params) use ($mysqli, $bindParams, $dbg): mysqli_stmt {
-        $stmt = $mysqli->prepare($sql);
-        if (!$stmt) {
-            throw new Exception('Prepare failed: ' . $mysqli->error);
-        }
-        $bindParams($stmt, $types, $params);
-        if (!$stmt->execute()) {
-            throw new Exception('Execute failed: ' . $stmt->error);
-        }
-        $dbg('[sql] ' . $sql);
-        return $stmt;
-    };
-
-    /* ============================
-     * 7) Data extraction (POST + SESSION)
-     * ============================ */
-    $orderArr = $_POST['order'] ?? [];
-    if (!is_array($orderArr)) $orderArr = [];
-
-    $sessOrder = $_SESSION['order'] ?? [];
-    if (!is_array($sessOrder)) $sessOrder = [];
-
-    $tourId = (int)($orderArr['tour_id'] ?? $sessOrder['tour_id'] ?? 0);
-    $from   = (int)($orderArr['from']    ?? $sessOrder['from']    ?? 0);
-    $to     = (int)($orderArr['to']      ?? $sessOrder['to']      ?? 0);
-
-    $uniqId = (string)(
-        $orderArr['order_id'] ?? $orderArr['orderId'] ??
-        $sessOrder['order_id'] ?? $sessOrder['orderId'] ?? ''
-    );
-
-    $tourDateCandidate = (string)(
-        $orderArr['date'] ?? $orderArr['tour_date'] ?? $orderArr['tourDate'] ??
-        $sessOrder['date'] ?? $sessOrder['tour_date'] ?? $sessOrder['tourDate'] ?? ''
-    );
-
-    $normalizeDate = function (string $raw): string {
-        $raw = trim($raw);
-        if ($raw === '') return '';
-
-        if ($raw === 'today') {
-            return date('Y-m-d');
-        }
-
-        // YYYY-MM-DD
-        if (preg_match('~^\d{4}-\d{2}-\d{2}$~', $raw)) {
-            return $raw;
-        }
-
-        // YYYY-M-D
-        if (preg_match('~^\d{4}-\d{1,2}-\d{1,2}$~', $raw)) {
-            $p = explode('-', $raw);
-            $y = (int)($p[0] ?? 0);
-            $m = (int)($p[1] ?? 0);
-            $d = (int)($p[2] ?? 0);
-            return ($y && $m && $d) ? sprintf('%04d-%02d-%02d', $y, $m, $d) : '';
-        }
-
-        // DD.MM.YYYY / DD-MM-YYYY
-        if (preg_match('~^\d{1,2}[./-]\d{1,2}[./-]\d{4}$~', $raw)) {
-            $raw = preg_replace('~[./]~', '-', $raw);
-            $p = explode('-', $raw);
-            $d = (int)($p[0] ?? 0);
-            $m = (int)($p[1] ?? 0);
-            $y = (int)($p[2] ?? 0);
-            return ($y && $m && $d) ? sprintf('%04d-%02d-%02d', $y, $m, $d) : '';
-        }
-
-        $ts = strtotime($raw);
-        return $ts ? date('Y-m-d', $ts) : '';
-    };
-
-    $tourDate = $normalizeDate($tourDateCandidate);
-
-    // client data (берём из session как основной источник)
-    $clientName  = trim((string)($sessOrder['name']        ?? $orderArr['name']        ?? ''));
-    $clientFam   = trim((string)($sessOrder['family_name'] ?? $sessOrder['second_name'] ?? $orderArr['family_name'] ?? $orderArr['second_name'] ?? ''));
-    $clientPatr  = trim((string)($sessOrder['patronymic']  ?? $orderArr['patronymic']  ?? ''));
-    $clientBirth = trim((string)($sessOrder['birth_date']  ?? $orderArr['birth_date']  ?? $orderArr['birthDate']   ?? ''));
-
-    $clientEmail = trim((string)(
-        $sessOrder['email'] ?? $orderArr['email'] ?? (isset($User->email) ? $User->email : '')
-    ));
-
-    $clientPhone = trim((string)($sessOrder['phone'] ?? $orderArr['phone'] ?? ''));
-    $phoneCode   = (int)($sessOrder['phone_code'] ?? $orderArr['phone_code'] ?? 0);
-
-    // payment method/status (оставляем совместимость: 1 cash, 2 card, 3 mono)
-    $paymentStatus = (int)(
-        $orderArr['payment_status'] ?? $_POST['payment_status'] ?? $sessOrder['payment_status'] ?? 1
-    );
-    
-    payment_log('order_route: computed payment_status', [
-    'payment_status' => $paymentStatus,
-    'order_id'       => $uniqId ?? null,
-    'tour_id'        => $tourId ?? null,
-    'from'           => $from ?? null,
-    'to'             => $to ?? null,
-    'date'           => $tourDate ?? null,
-    'has_session'    => isset($_SESSION['order']),
-    'post_keys'      => array_keys($_POST ?? []),
-]);
-
-    if (!in_array($paymentStatus, [1, 2, 3], true)) $paymentStatus = 1;
-
-    /* ============================
-     * 8) Validate required
-     * ============================ */
-    $missing = [];
-    if ($tourId <= 0)     $missing[] = 'tour_id';
-    if ($from <= 0)       $missing[] = 'from';
-    if ($to <= 0)         $missing[] = 'to';
-    if ($tourDate === '') $missing[] = 'date';
-    if ($uniqId === '')   $missing[] = 'order_id';
-
-    if (!empty($missing)) {
-        $fail('missing_fields', 'Не хватает обязательных полей для order_route.', [
-            'missing' => $missing
-        ]);
-    }
-
-    // фиксируем сессию, чтобы шаг 3/платёжка видели консистентно
-    if (!isset($_SESSION['order']) || !is_array($_SESSION['order'])) $_SESSION['order'] = [];
-    $_SESSION['order']['tour_id']  = $tourId;
-    $_SESSION['order']['from']     = $from;
-    $_SESSION['order']['to']       = $to;
-    $_SESSION['order']['date']     = $tourDate;
-    $_SESSION['order']['order_id'] = $uniqId;
-
-    /* ============================
-     * 9) Passengers
-     *    Логика: основной пассажир = (name/family_name/...)
-     *            дополнительные = passengers_data
-     * ============================ */
-    $extraPassengers = $_SESSION['order']['passengers_data'] ?? [];
-    if (!is_array($extraPassengers)) $extraPassengers = [];
-
-    // fallback: если по какой-то причине в сессии пусто, пробуем взять из POST
-    if (empty($extraPassengers)) {
-        if (isset($_POST['passengers']) && is_array($_POST['passengers'])) {
-            $extraPassengers = $_POST['passengers'];
-            $dbg('[order_route] passengers fallback: POST.passengers');
-        } elseif (isset($orderArr['passengers_data']) && is_array($orderArr['passengers_data'])) {
-            $extraPassengers = $orderArr['passengers_data'];
-            $dbg('[order_route] passengers fallback: order.passengers_data');
-        }
-    }
-
-    $filteredExtra = [];
-    foreach ($extraPassengers as $p) {
-        if (!is_array($p)) continue;
-
-        $family = trim((string)($p['family_name'] ?? $p['second_name'] ?? ''));
-        $name   = trim((string)($p['name'] ?? ''));
-        $patr   = trim((string)($p['patronymic'] ?? ''));
-        $birth  = trim((string)($p['birth_date'] ?? ''));
-
-        if ($family === '' && $name === '' && $patr === '' && $birth === '') continue;
-
-        $filteredExtra[] = [
-            'family_name' => $family,
-            'name'        => $name,
-            'patronymic'  => $patr,
-            'birth_date'  => $birth,
-        ];
-    }
-
-    $_SESSION['order']['passengers_data'] = $filteredExtra;
-
-    $passengers = 1 + count($filteredExtra);
-    if ($passengers < 1) $passengers = 1;
-
-    $_SESSION['order']['passengers'] = $passengers;
-
-    /* ============================
-     * 10) Insert helpers (dynamic columns)
-     * ============================ */
-    $buildInsert = function (string $table, array $tableCols, array $dataAssoc) : array {
-        $cols = [];
-        $ph   = [];
-        $types = '';
-        $params = [];
-
-        foreach ($dataAssoc as $col => $val) {
-            if (!in_array($col, $tableCols, true)) continue;
-
-            $cols[] = "`{$col}`";
-
-            // raw expression
-            if (is_array($val) && isset($val['raw'])) {
-                $ph[] = $val['raw'];
-                continue;
-            }
-
-            $ph[] = '?';
-
-            if (is_int($val)) {
-                $types .= 'i';
-                $params[] = $val;
-            } else {
-                $types .= 's';
-                $params[] = (string)$val;
-            }
-        }
-
-        if (empty($cols)) {
-            throw new Exception("No matching columns for insert into {$table}");
-        }
-
-        $sql = "INSERT INTO `{$table}` (" . implode(',', $cols) . ") VALUES (" . implode(',', $ph) . ")";
-        return [$sql, $types, $params];
-    };
-
-    /* ============================
-     * 11) Main DB logic (transaction + idempotency)
-     * ============================ */
-    try {
-        $ordersCols = $getColumns($ordersTable);
-        $passCols   = $getColumns($passTable);
-
-        $mysqli->begin_transaction();
-        $dbg('[order_route] transaction begin');
-
-        // 11.1) Идемпотентность: если заказ с таким uniqid уже есть — не создаём второй раз
-        $existingOrderId = 0;
-        if ($hasCol($ordersCols, 'uniqid')) {
-            $stmt = $execPrepared("SELECT id FROM `{$ordersTable}` WHERE `uniqid` = ? LIMIT 1", "s", [$uniqId]);
-            $res = $stmt->get_result();
-            if ($res && ($row = $res->fetch_assoc())) {
-                $existingOrderId = (int)($row['id'] ?? 0);
-            }
-            $stmt->close();
-        }
-
-        if ($existingOrderId > 0) {
-            $mysqli->commit();
-            $dbg('[order_route] order exists: id=' . $existingOrderId);
-
-            $_SESSION['order']['order_db_id'] = $existingOrderId;
-
-            $respond([
-                'data'         => 'ok',
-                'mode'         => 'already_exists',
-                'order_db_id'  => $existingOrderId,
-                'uniqid'       => $uniqId,
-                'passengers'   => $passengers,
-                'payment_status' => $paymentStatus,
-            ], 200);
-        }
-
-        // 11.2) Собираем данные для orders
-        $orderInsert = [
-            'uniqid'     => $uniqId,
-            'tour_id'    => $tourId,
-            'from_stop'  => $from,
-            'to_stop'    => $to,
-            'tour_date'  => $tourDate,
-            'passagers'  => $passengers,
-
-            'client_name'    => $clientName,
-            'client_surname' => $clientFam,
-            'client_phone'   => $clientPhone,
-            'client_email'   => $clientEmail,
-
-            'payment_status' => $paymentStatus,
-        ];
-
-        // если есть поле phone_code
-        if ($hasCol($ordersCols, 'phone_code')) {
-            $orderInsert['phone_code'] = $phoneCode;
-        }
-
-        // если есть patronymic/birth_date
-        if ($hasCol($ordersCols, 'client_patronymic')) $orderInsert['client_patronymic'] = $clientPatr;
-        if ($hasCol($ordersCols, 'patronymic'))        $orderInsert['patronymic']        = $clientPatr;
-
-        if ($hasCol($ordersCols, 'client_birth_date')) $orderInsert['client_birth_date'] = $clientBirth;
-        if ($hasCol($ordersCols, 'birth_date'))        $orderInsert['birth_date']        = $clientBirth;
-
-        // created time (подстраиваемся под схему)
-        if ($hasCol($ordersCols, 'date')) {
-            $orderInsert['date'] = ['raw' => 'NOW()'];
-        } elseif ($hasCol($ordersCols, 'created_at')) {
-            $orderInsert['created_at'] = ['raw' => 'NOW()'];
-        }
-
-        // user id (если есть колонка)
-        if ($hasCol($ordersCols, 'client_id') && isset($User->id)) {
-            $orderInsert['client_id'] = (int)$User->id;
-        }
-        
-        // бонусы (если колонки есть)
-        if ($hasCol($ordersCols, 'bonus_use_requested')) {
-            $orderInsert['bonus_use_requested'] = (int)($_SESSION['order']['use_bonus'] ?? 0);
-        }
-        if ($hasCol($ordersCols, 'bonus_redeemed_cents')) {
-            $orderInsert['bonus_redeemed_cents'] = (int)($_SESSION['order']['bonus_redeem_cents_preview'] ?? 0);
-        }
-
-        // 11.3) INSERT orders
-        list($sql, $types, $params) = $buildInsert($ordersTable, $ordersCols, $orderInsert);
-        $stmt = $execPrepared($sql, $types, $params);
-        $stmt->close();
-
-        $orderDbId = (int)$mysqli->insert_id;
-        if ($orderDbId <= 0) {
-            throw new Exception('Insert orders failed: insert_id is empty.');
-        }
-
-        $_SESSION['order']['order_db_id'] = $orderDbId;
-        $dbg('[order_route] order inserted: id=' . $orderDbId);
-
-        // 11.4) INSERT passengers
-        // основной пассажир = данные клиента
-        $allPassengers = [];
-
-        $allPassengers[] = [
-            'family_name' => $clientFam,
-            'name'        => $clientName,
-            'patronymic'  => $clientPatr,
-            'birth_date'  => $clientBirth,
-        ];
-
-        foreach ($filteredExtra as $p) {
-            $allPassengers[] = $p;
-        }
-
-        foreach ($allPassengers as $p) {
-            $pInsert = [];
-
-            // ключ заказа в пассажирах: в твоём коде это uniqid (см return_ticket_popup)
-            if ($hasCol($passCols, 'order_id')) {
-                $pInsert['order_id'] = $uniqId;
-            } elseif ($hasCol($passCols, 'uniqid')) {
-                $pInsert['uniqid'] = $uniqId;
-            }
-
-            if ($hasCol($passCols, 'name'))        $pInsert['name'] = (string)$p['name'];
-            if ($hasCol($passCols, 'second_name')) $pInsert['second_name'] = (string)$p['family_name'];
-            if ($hasCol($passCols, 'family_name')) $pInsert['family_name'] = (string)$p['family_name'];
-
-            if ($hasCol($passCols, 'patronymic'))  $pInsert['patronymic'] = (string)$p['patronymic'];
-            if ($hasCol($passCols, 'birth_date'))  $pInsert['birth_date'] = (string)$p['birth_date'];
-
-            // дефолты (если есть такие колонки)
-            if ($hasCol($passCols, 'ticket_return')) $pInsert['ticket_return'] = 0;
-
-            // если таблица пассажиров вообще не имеет ожидаемых колонок — это критика
-            if (empty($pInsert)) {
-                throw new Exception('orders_passangers: no matching columns to insert.');
-            }
-
-            list($psql, $ptypes, $pparams) = $buildInsert($passTable, $passCols, $pInsert);
-            $pstmt = $execPrepared($psql, $ptypes, $pparams);
-            $pstmt->close();
-        }
-
-        $dbg('[order_route] passengers inserted: ' . count($allPassengers));
-
-        $mysqli->commit();
-        $dbg('[order_route] transaction commit');
-
-        $respond([
-            'data'           => 'ok',
-            'mode'           => 'created',
-            'order_db_id'    => $orderDbId,
-            'uniqid'         => $uniqId,
-            'passengers'     => $passengers,
-            'payment_status' => $paymentStatus,
-        ], 200);
-
-    } catch (Throwable $e) {
-        // если транзакция началась — откатываем
-        if ($mysqli && $mysqli->errno === 0) {
-            // noop
-        }
-        if ($mysqli && $mysqli->in_transaction) {
-            @$mysqli->rollback();
-        }
-
-        $fail('order_route_exception', $e->getMessage(), [
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-        ]);
-        
-        payment_log('order_route: exception', [
-    'message' => $e->getMessage(),
-    'file'    => $e->getFile(),
-    'line'    => $e->getLine(),
-]);
-
-    }
-}

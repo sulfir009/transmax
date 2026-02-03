@@ -9,14 +9,12 @@ use App\Repository\Races\Params\TicketParams;
 use App\Service\Tour\TicketService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use App\Helpers\LocaleHelper;
 
 class TicketController extends Controller
 {
-    protected TicketRepository $ticketRepository;
-    protected CityRepository $cityRepository;
-    protected TicketService $ticketService;
-
+    protected $ticketRepository;
+    protected $cityRepository;
+    protected $ticketService;
     protected $router;
     protected $db;
 
@@ -26,19 +24,13 @@ class TicketController extends Controller
         TicketService $ticketService
     ) {
         $this->ticketRepository = $ticketRepository;
-        $this->cityRepository   = $cityRepository;
-        $this->ticketService    = $ticketService;
+        $this->cityRepository = $cityRepository;
+        $this->ticketService = $ticketService;
 
+        // Получаем глобальные объекты (временно, пока не рефакторим полностью)
         global $Router, $Db;
         $this->router = $Router;
-        $this->db     = $Db;
-    }
-
-    private function startSession(): void
-    {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
+        $this->db = $Db;
     }
 
     /**
@@ -46,149 +38,87 @@ class TicketController extends Controller
      */
     public function index(Request $request)
     {
-        $this->startSession();
-
-        $lang = $this->router->lang ?? 'ru';
-        $this->ticketRepository->setLanguage($lang);
-        $this->cityRepository->setLanguage($lang);
-
-        /**
-         * ✅ ГЛАВНОЕ ИСПРАВЛЕНИЕ:
-         * "Чистый заход" — это когда в URL НЕТ параметров departure и arrival ВООБЩЕ.
-         * Тогда мы НЕ ИМЕЕМ ПРАВА тянуть их из сессии, иначе плейсхолдер никогда не покажется.
-         */
-        $hasDepartureInUrl = $request->query->has('departure');
-        $hasArrivalInUrl   = $request->query->has('arrival');
-
-        $isCleanLanding = $request->isMethod('get') && !$hasDepartureInUrl && !$hasArrivalInUrl;
-
-        if ($isCleanLanding) {
-            // чистим только фильтр — чтобы не "липли" города
-            unset($_SESSION['filter']);
-
-            $filterDeparture = null;
-            $filterArrival   = null;
-
-            $filterDate   = date('Y-m-d');
-            $adults       = 1;
-            $kids         = 0;
-
-            // совместимость с твоим blade (там используются $filterAdults / $filterKids)
-            $filterAdults = $adults;
-            $filterKids   = $kids;
-
-            $cities = $this->cityRepository->getCitiesForFilter($lang);
-
-            $translationRepository = new \App\Repository\Site\TranslationRepository();
-            $dictionary = $translationRepository->getDictionary($lang);
-
-            // чтобы view не падал
-            $tickets = [];
-            $processedTickets = [];
-            $minTicketsPrice = 0;
-            $maxTicketsPrice = 1;
-
-            $pagination = [
-                'total' => 0,
-                'per_page' => 6,
-                'current_page' => 1,
-                'from' => 0,
-                'last_page' => 1,
-            ];
-
-            $recommendedDates   = [];
-            $pageTitle          = '';
-            $departureCityTitle = null;
-            $arrivalCityTitle   = null;
-            $filterMonth        = null;
-            $weekDay            = date('N');
-
-            $Router = new \App\Service\DbRouter\Router();
-
-            return view('ticket.index', compact(
-                'tickets',
-                'processedTickets',
-                'filterDeparture',
-                'filterArrival',
-                'filterDate',
-                'adults',
-                'kids',
-                'filterAdults',
-                'filterKids',
-                'minTicketsPrice',
-                'maxTicketsPrice',
-                'pagination',
-                'recommendedDates',
-                'pageTitle',
-                'departureCityTitle',
-                'arrivalCityTitle',
-                'filterMonth',
-                'weekDay',
-                'Router',
-                'cities',
-                'dictionary',
-                'lang'
-            ));
+        // Инициализация сессии если нужно
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
         }
 
-        /**
-         * POST от формы фильтра → сохраняем в сессию → redirect на GET
-         */
-        if ($request->isMethod('post')) {
-            if (!$request->filled(['departure', 'arrival'])) {
-                return redirect(LocaleHelper::localizedRoute('schedule'));
-            }
+        // Проверяем, есть ли параметры в запросе
+        $hasParams = $request->has('departure') || $request->has('arrival') || 
+                     $request->has('date') || $request->has('adults') || $request->has('kids');
 
-            $_SESSION['filter'] = [
-                'departure' => (int)$request->input('departure', 0),
-                'arrival'   => (int)$request->input('arrival', 0),
-                'date'      => $request->input('date', date('Y-m-d')),
-                'adults'    => (int)$request->input('adults', 1),
-                'kids'      => (int)$request->input('kids', 0),
+        // Если нет параметров и метод GET, делаем редирект с параметрами из сессии или дефолтными
+        if (!$hasParams && $request->isMethod('get')) {
+            $redirectParams = [
+                'departure' => $_SESSION['filter']['departure'] ?? 183,
+                'arrival' => $_SESSION['filter']['arrival'] ?? 183,
+                'adults' => $_SESSION['filter']['adults'] ?? 1,
+                'kids' => $_SESSION['filter']['kids'] ?? 0
             ];
 
+            // Добавляем date только если есть в сессии
+            if (isset($_SESSION['filter']['date'])) {
+                $redirectParams['date'] = $_SESSION['filter']['date'];
+            }
+
+            return redirect()->route('tickets.index', $redirectParams);
+        }
+
+        // Обработка POST запроса от формы фильтра
+        if ($request->isMethod('post')) {
+            // Сохраняем параметры фильтра в сессию
+            $_SESSION['filter'] = [
+                'departure' => $request->input('departure', 0),
+                'arrival' => $request->input('arrival', 0),
+                'date' => $request->input('date', date('Y-m-d')),
+                'adults' => $request->input('adults', 1),
+                'kids' => $request->input('kids', 0)
+            ];
+            
+            // Перенаправляем на GET запрос для избежания повторной отправки формы
             return redirect()->route('tickets.index', [
                 'departure' => $_SESSION['filter']['departure'],
-                'arrival'   => $_SESSION['filter']['arrival'],
-                'date'      => $_SESSION['filter']['date'],
-                'adults'    => $_SESSION['filter']['adults'],
-                'kids'      => $_SESSION['filter']['kids'],
+                'arrival' => $_SESSION['filter']['arrival'],
+                'date' => $_SESSION['filter']['date'],
+                'adults' => $_SESSION['filter']['adults'],
+                'kids' => $_SESSION['filter']['kids']
             ]);
         }
 
-        /**
-         * GET с параметрами:
-         * ВАЖНО: если параметры есть в URL — используем ТОЛЬКО их, без "подмешивания" сессии.
-         * Это важно для корректной работы плейсхолдера.
-         */
-        $filterDeparture = $hasDepartureInUrl ? (int)$request->query('departure', 0) : 0;
-        $filterArrival   = $hasArrivalInUrl   ? (int)$request->query('arrival', 0)   : 0;
+        // Получение параметров фильтра (для GET запросов)
+        $filterDeparture = $request->get('departure', $_SESSION['filter']['departure'] ?? 0);
+        $filterArrival = $request->get('arrival', $_SESSION['filter']['arrival'] ?? 0);
+        $filterDate = $request->get('date', $_SESSION['filter']['date'] ?? date('Y-m-d'));
+        $adults = $request->get('adults', $_SESSION['filter']['adults'] ?? 1);
+        $kids = $request->get('kids', $_SESSION['filter']['kids'] ?? 0);
+        
+        // Обновляем сессию если параметры пришли через GET
+        $_SESSION['filter'] = [
+            'departure' => $filterDeparture,
+            'arrival' => $filterArrival,
+            'date' => $filterDate,
+            'adults' => $adults,
+            'kids' => $kids
+        ];
+        $lang = $this->router->lang ?? 'ru';
 
-        // Остальные поля — дефолты (не тянем из session, чтобы не было "магии")
-        $filterDate = (string)$request->query('date', date('Y-m-d'));
-        $adults     = (int)$request->query('adults', 1);
-        $kids       = (int)$request->query('kids', 0);
+        // Установка языка для репозиториев
+        $this->ticketRepository->setLanguage($lang);
+        $this->cityRepository->setLanguage($lang);
 
-        // совместимость с blade
-        $filterAdults = $adults;
-        $filterKids   = $kids;
+        // Получение названий городов
+        $departureCityTitle = null;
+        $arrivalCityTitle = null;
 
-        // Сохраняем фильтр в сессию ТОЛЬКО если выбраны оба города (иначе снова "залипание")
-        if ($filterDeparture > 0 && $filterArrival > 0) {
-            $_SESSION['filter'] = [
-                'departure' => $filterDeparture,
-                'arrival'   => $filterArrival,
-                'date'      => $filterDate,
-                'adults'    => $adults,
-                'kids'      => $kids,
-            ];
+        if ($filterDeparture > 0) {
+            $departureCityTitle = $this->cityRepository->getCityTitle($filterDeparture);
         }
 
-        // Названия городов
-        $departureCityTitle = $filterDeparture > 0 ? $this->cityRepository->getCityTitle($filterDeparture) : null;
-        $arrivalCityTitle   = $filterArrival   > 0 ? $this->cityRepository->getCityTitle($filterArrival)   : null;
+        if ($filterArrival > 0) {
+            $arrivalCityTitle = $this->cityRepository->getCityTitle($filterArrival);
+        }
 
-        // Месяц/день недели
+        // Получение месяца для фильтра даты
         $filterMonth = null;
         $weekDay = date('N', time());
 
@@ -198,66 +128,65 @@ class TicketController extends Controller
             $filterMonth = $this->cityRepository->getMonthTitle($monthId);
         }
 
-        // Цены для слайдера
-        $ticketPrices = ($filterDeparture > 0 && $filterArrival > 0)
-            ? $this->ticketRepository->getTicketPrices($filterDeparture, $filterArrival)
-            : [];
-
+        // Получение цен для слайдера
+        $ticketPrices = $this->ticketRepository->getTicketPrices($filterDeparture, $filterArrival);
         $minTicketsPrice = !empty($ticketPrices) ? min($ticketPrices) : 0;
         $maxTicketsPrice = !empty($ticketPrices) ? max($ticketPrices) : 1;
 
-        // Пагинация
+        // Параметры для пагинации
         $filters = [
             'departure' => $filterDeparture,
-            'arrival'   => $filterArrival,
-            'weekDay'   => $filterDate !== "today" ? $weekDay : null,
+            'arrival' => $filterArrival,
+            'weekDay' => $filterDate !== "today" ? $weekDay : null
         ];
 
-        $totalTickets = ($filterDeparture > 0 && $filterArrival > 0)
-            ? $this->ticketRepository->countTickets($filters)
-            : 0;
-
+        $totalTickets = $this->ticketRepository->countTickets($filters);
         $perPage = 6;
-        $currentPage = (int)$request->query('page', 1);
+        $currentPage = $request->get('page', 1);
 
         $pagination = [
             'total' => $totalTickets,
             'per_page' => $perPage,
             'current_page' => $currentPage,
             'from' => ($currentPage - 1) * $perPage,
-            'last_page' => max(1, (int)ceil($totalTickets / $perPage)),
+            'last_page' => ceil($totalTickets / $perPage)
         ];
 
-        // Города + словарь
+        // Получаем список городов для фильтра
         $cities = $this->cityRepository->getCitiesForFilter($lang);
-
+        
+        // Получаем словарь переводов
         $translationRepository = new \App\Repository\Site\TranslationRepository();
         $dictionary = $translationRepository->getDictionary($lang);
+        
+        // Получение билетов через сервис
+        $ticketParams = new TicketParams(
+            $filterDeparture,
+            $filterArrival,
+            $filterDate,
+            $lang
+        );
 
-        // Билеты
-        $tickets = [];
-        if ($filterDeparture > 0 && $filterArrival > 0) {
-            $ticketParams = new TicketParams($filterDeparture, $filterArrival, $filterDate, $lang);
-            $tickets = $this->ticketService->get($ticketParams);
-        }
+        $tickets = $this->ticketService->get($ticketParams);
 
+        // Обработка данных для каждого билета
         $processedTickets = [];
         foreach ($tickets as $ticket) {
             $processedTicket = $this->processTicketData($ticket, $filterDeparture, $filterArrival, $filterDate);
-            if (!empty($processedTicket)) {
+            if ($processedTicket) {
                 $processedTickets[] = $processedTicket;
             }
         }
 
-        // Рекомендованные даты
+        // Получение доступных дней для рекомендаций (если нет билетов)
         $recommendedDates = [];
-        if (($filterDeparture > 0 && $filterArrival > 0) && empty($tickets)) {
+        if (empty($tickets)) {
             $availableDays = $this->ticketRepository->getAvailableDays($filterDeparture, $filterArrival);
             $months = $this->cityRepository->getMonths();
             $recommendedDates = $this->calculateRecommendedDates($availableDays, $months);
         }
 
-        // Заголовок
+        // Формирование заголовка страницы
         $pageTitle = '';
         if ($filterDeparture && $filterArrival) {
             $pageTitle = sprintf(
@@ -280,8 +209,6 @@ class TicketController extends Controller
             'filterDate',
             'adults',
             'kids',
-            'filterAdults',
-            'filterKids',
             'minTicketsPrice',
             'maxTicketsPrice',
             'pagination',
@@ -303,106 +230,131 @@ class TicketController extends Controller
      */
     public function ajax(Request $request, string $lang): JsonResponse
     {
-        $this->startSession();
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
 
         $requestType = $request->input('request');
 
-        return match ($requestType) {
-            'remember_ticket' => $this->rememberTicket($request),
-            'route_details'   => $this->getRouteDetails($request),
-            'filter'          => $this->filterTickets($request),
-            default           => response()->json(['error' => 'Unknown request type'], 400),
-        };
+        switch ($requestType) {
+            case 'remember_ticket':
+                return $this->rememberTicket($request);
+
+            case 'route_details':
+                return $this->getRouteDetails($request);
+
+            case 'filter':
+                return $this->filterTickets($request);
+
+            default:
+                return response()->json(['error' => 'Unknown request type'], 400);
+        }
     }
 
+    /**
+     * Запомнить выбранный билет
+     */
     protected function rememberTicket(Request $request): JsonResponse
     {
         try {
-            $ticketId    = $request->input('id');
-            $date        = $request->input('date');
-            $passengers  = $request->input('passengers');
-            $departure   = $request->input('departure');
-            $arrival     = $request->input('arrival');
-            $fromCity    = $request->input('fromCity');
-            $toCity      = $request->input('toCity');
+            $ticketId = $request->input('id');
+            $date = $request->input('date');
+            $passengers = $request->input('passengers');
+            $departure = $request->input('departure');
+            $arrival = $request->input('arrival');
+            $fromCity = $request->input('fromCity');
+            $toCity = $request->input('toCity');
 
-            $currentTime   = time();
+            // Проверка, не прошёл ли рейс
+            $currentTime = time();
             $departureTime = strtotime($date);
 
             if ($departureTime < $currentTime) {
                 return response()->json(['data' => 'late']);
             }
 
+            // Сохранение в сессию в формате, ожидаемом booking.php
             $_SESSION['order'] = [
-                'tour_id'     => $ticketId,
-                'from'        => $departure,
-                'to'          => $arrival,
-                'passengers'  => $passengers,
-                'date'        => $date,
-                'from_city'   => $fromCity,
-                'to_city'     => $toCity,
+                'tour_id' => $ticketId,
+                'from' => $departure,  // ID остановки посадки
+                'to' => $arrival,       // ID остановки высадки
+                'passengers' => $passengers,
+                'date' => $date,
+                'from_city' => $fromCity,
+                'to_city' => $toCity
             ];
 
+            // Также сохраняем в новом формате для совместимости
             $_SESSION['selected_ticket'] = [
-                'id'         => $ticketId,
-                'date'       => $date,
+                'id' => $ticketId,
+                'date' => $date,
                 'passengers' => $passengers,
-                'departure'  => $departure,
-                'arrival'    => $arrival,
-                'from_city'  => $fromCity,
-                'to_city'    => $toCity,
+                'departure' => $departure,
+                'arrival' => $arrival,
+                'from_city' => $fromCity,
+                'to_city' => $toCity
             ];
 
             return response()->json(['data' => 'ok']);
-        } catch (\Throwable $e) {
+        } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
+    /**
+     * Получить детали маршрута
+     */
     protected function getRouteDetails(Request $request): JsonResponse
     {
         try {
-            $tourId      = $request->input('id');
+            $tourId = $request->input('id');
             $departureId = $request->input('departure');
-            $arrivalId   = $request->input('arrival');
+            $arrivalId = $request->input('arrival');
 
+            // Получаем остановки маршрута
             $stops = $this->ticketRepository->getTicketStops($tourId);
 
+            // Формируем HTML для popup
             $html = view('ticket.partials.route_details', [
-                'stops'       => $stops,
-                'tourId'      => $tourId,
+                'stops' => $stops,
+                'tourId' => $tourId,
                 'departureId' => $departureId,
-                'arrivalId'   => $arrivalId,
+                'arrivalId' => $arrivalId
             ])->render();
 
             return response()->json(['data' => $html]);
-        } catch (\Throwable $e) {
+        } catch (\Exception $e) {
             return response()->json(['error' => 'err'], 500);
         }
     }
 
+    /**
+     * Фильтрация билетов
+     */
     protected function filterTickets(Request $request): JsonResponse
     {
         try {
             $lang = $this->router->lang ?? 'ru';
             $this->ticketRepository->setLanguage($lang);
 
+            // Получение параметров фильтра
             $filters = [
-                'stops'             => $request->input('stops'),
-                'departure_time'    => $request->input('departure_time', []),
-                'arrival_time'      => $request->input('arrival_time', []),
+                'stops' => $request->input('stops'),
+                'departure_time' => $request->input('departure_time', []),
+                'arrival_time' => $request->input('arrival_time', []),
                 'departure_station' => $request->input('departure_station', []),
-                'arrival_station'   => $request->input('arrival_station', []),
-                'comfort'           => $request->input('comfort', []),
-                'min_price'         => $request->input('min_price'),
-                'max_price'         => $request->input('max_price'),
-                'departure_city'    => (int)$request->input('departure_city'),
-                'arrival_city'      => (int)$request->input('arrival_city'),
-                'date'              => $request->input('date'),
-                'sort_option'       => $request->input('sort_option'),
-                'sort_direction'    => $request->input('sort_direction'),
+                'arrival_station' => $request->input('arrival_station', []),
+                'comfort' => $request->input('comfort', []),
+                'min_price' => $request->input('min_price'),
+                'max_price' => $request->input('max_price'),
+                'departure_city' => $request->input('departure_city'),
+                'arrival_city' => $request->input('arrival_city'),
+                'date' => $request->input('date'),
+                'sort_option' => $request->input('sort_option'),
+                'sort_direction' => $request->input('sort_direction')
             ];
 
+            // Получение отфильтрованных билетов
             $ticketParams = new TicketParams(
                 $filters['departure_city'],
                 $filters['arrival_city'],
@@ -412,6 +364,7 @@ class TicketController extends Controller
 
             $tickets = $this->ticketService->getFiltered($ticketParams, $filters);
 
+            // Обработка данных для каждого билета
             $processedTickets = [];
             foreach ($tickets as $ticket) {
                 $processedTicket = $this->processTicketData(
@@ -420,50 +373,62 @@ class TicketController extends Controller
                     $filters['arrival_city'],
                     $filters['date']
                 );
-
-                if (!empty($processedTicket)) {
+                if ($processedTicket) {
                     $processedTickets[] = $processedTicket;
                 }
             }
 
-            $processedTickets = $this->sortTickets(
-                $processedTickets,
-                $filters['sort_option'],
-                $filters['sort_direction']
-            );
+            // Сортировка билетов
+            $processedTickets = $this->sortTickets($processedTickets, $filters['sort_option'], $filters['sort_direction']);
 
+            // Генерация HTML
             $html = view('ticket.partials.ticket_list', [
                 'tickets' => $processedTickets,
                 'filterDeparture' => $filters['departure_city'],
-                'filterArrival' => $filters['arrival_city'],
+                'filterArrival' => $filters['arrival_city']
             ])->render();
 
             return response()->json($html);
-        } catch (\Throwable $e) {
+        } catch (\Exception $e) {
             return response()->json('err', 500);
         }
     }
 
+    /**
+     * Сортировка билетов
+     */
     protected function sortTickets(array $tickets, $sortOption, $sortDirection): array
     {
-        $sortField = 'ticket_price';
+        $sortField = 'ticket_price'; // по умолчанию
 
         switch ($sortOption) {
-            case '1': $sortField = 'ticket_price'; break;
-            case '2': $sortField = 'dep_time'; break;
-            case '3': $sortField = 'arr_time'; break;
-            case '4': $sortField = 'popularity'; break;
+            case '1':
+                $sortField = 'ticket_price';
+                break;
+            case '2':
+                $sortField = 'dep_time';
+                break;
+            case '3':
+                $sortField = 'arr_time';
+                break;
+            case '4':
+                $sortField = 'popularity'; // нужно добавить поле популярности
+                break;
         }
 
-        usort($tickets, function ($a, $b) use ($sortField, $sortDirection) {
-            $av = $a[$sortField] ?? null;
-            $bv = $b[$sortField] ?? null;
+        usort($tickets, function($a, $b) use ($sortField, $sortDirection) {
+            $result = 0;
 
-            if ($av == $bv) return 0;
+            if (isset($a[$sortField]) && isset($b[$sortField])) {
+                if ($a[$sortField] < $b[$sortField]) {
+                    $result = -1;
+                } elseif ($a[$sortField] > $b[$sortField]) {
+                    $result = 1;
+                }
+            }
 
-            $result = ($av < $bv) ? -1 : 1;
-
-            if ((string)$sortDirection === '2') {
+            // Если направление сортировки DESC (2), меняем порядок
+            if ($sortDirection == '2') {
                 $result = -$result;
             }
 
@@ -641,36 +606,12 @@ class TicketController extends Controller
         $this->ticketRepository->setLanguage($lang);
         $this->cityRepository->setLanguage($lang);
 
-$lang = $this->router->lang ?? 'ru';
-
-$this->cityRepository->setLanguage($lang);
-
-// filter из сессии (как в index)
-$filterDeparture = $_SESSION['filter']['departure'] ?? 0;
-$filterArrival   = $_SESSION['filter']['arrival'] ?? 0;
-$filterDate      = $_SESSION['filter']['date'] ?? date('Y-m-d');
-$adults          = $_SESSION['filter']['adults'] ?? 1;
-$kids            = $_SESSION['filter']['kids'] ?? 0;
-
-// города + словарь
-$cities = $this->cityRepository->getCitiesForFilter($lang);
-$translationRepository = new \App\Repository\Site\TranslationRepository();
-$dictionary = $translationRepository->getDictionary($lang);
-
         // Здесь добавьте логику для страницы данных пассажиров
         // Пока возвращаем заглушку
-return view('ticket.data', compact(
-    'selectedTicket',
-    'lang',
-    'cities',
-    'dictionary',
-    'filterDeparture',
-    'filterArrival',
-    'filterDate',
-    'adults',
-    'kids'
-));
-
+        return view('ticket.data', [
+            'selectedTicket' => $selectedTicket,
+            'lang' => $lang
+        ]);
     }
 
     /**

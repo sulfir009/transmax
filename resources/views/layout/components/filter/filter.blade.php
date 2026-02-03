@@ -1,12 +1,6 @@
-<form class="main_filter"
-      autocomplete="off"
-      method="POST"
-      action="{{ $formAction ?? route('tickets.index') }}"
-      data-reset-url="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}">
+<form class="main_filter" method="post" action="{{ $formAction ?? route('tickets.index') }}">
     @csrf
-
     <div class="flex-row gap-8">
-
         {{-- Откуда --}}
         <div class="col-lg-20 col-sm-6 col-xs-12">
             <div class="filter_block_wrapper">
@@ -14,19 +8,14 @@
                     <div class="filter_block_title city_select_title par">
                         @lang('dictionary.MSG_ALL_ZVIDKI')
                     </div>
-
                     <select class="filter_city_select" id="filter_departure" name="departure">
-                        {{-- ВАЖНО: НЕ disabled. Это реальный пункт, который можно выбрать обратно --}}
-                        <option value="" {{ empty($filterDeparture) ? 'selected' : '' }}>Выберите город</option>
-
                         @foreach($cities as $city)
                             <option value="{{ $city['id'] }}"
-                                {{ !empty($filterDeparture) && (int)$filterDeparture === (int)$city['id'] ? 'selected' : '' }}>
+                                {{ $filterDeparture == $city['id'] ? 'selected' : '' }}>
                                 {{ $city['title'] }}
                             </option>
                         @endforeach
                     </select>
-
                     <button class="reverse_filter_btn" onclick="switchDirections()" type="button">
                         <img src="{{ asset('images/legacy/common/pair_arrows.svg') }}" alt="pair_arrows">
                     </button>
@@ -41,14 +30,10 @@
                     <div class="filter_block_title city_select_title par">
                         @lang('dictionary.MSG_ALL_KUDA')
                     </div>
-
-                    {{-- ВАЖНО: name="arrival" --}}
                     <select class="filter_city_select" id="filter_arrival" name="arrival">
-                        <option value="" {{ empty($filterArrival) ? 'selected' : '' }}>Выберите город</option>
-
                         @foreach($cities as $city)
                             <option value="{{ $city['id'] }}"
-                                {{ !empty($filterArrival) && (int)$filterArrival === (int)$city['id'] ? 'selected' : '' }}>
+                                {{ $filterArrival == $city['id'] ? 'selected' : '' }}>
                                 {{ $city['title'] }}
                             </option>
                         @endforeach
@@ -95,7 +80,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="passagers_counter_wrapper filter_submenu">
                     {{-- Взрослые --}}
                     <div class="passengers_counter_block flex_ac adult_passagers">
@@ -160,82 +144,46 @@
 
 @push('scripts')
 <script>
-    function hasSelect2() {
-        return window.jQuery && jQuery.fn && typeof jQuery.fn.select2 === 'function';
-    }
+    // Передаем переменную filterDate в глобальную область видимости
+    window.filterDate = '{{ $filterDate ?? date('Y-m-d') }}';
 
-    // ВАЖНО: не задаём placeholder в select2 config,
-    // иначе option value="" может исчезнуть из списка и ты не сможешь "выбрать Выберите город".
-    function initSelect2IfNeeded() {
-        if (!hasSelect2()) return;
-
-        jQuery('.filter_city_select').each(function () {
-            const $el = jQuery(this);
-            if ($el.hasClass('select2-hidden-accessible')) return;
-
-            $el.select2({
-                width: '100%'
-            });
-        });
-    }
-
-    function setSelectValue(selectEl, value) {
-        if (!selectEl) return;
-
-        selectEl.value = value;
-
-        if (hasSelect2()) {
-            jQuery(selectEl).val(value).trigger('change.select2');
-        }
-    }
-
-    // Если в URL нет параметров — ставим "Выберите город"
-    function forceDefaultIfNoParams() {
-        const params = new URLSearchParams(window.location.search);
-
-        const dep = params.get('departure');
-        const arr = params.get('arrival');
-
-        const noDep = !dep || dep === '0';
-        const noArr = !arr || arr === '0';
-
-        if (!(noDep && noArr)) return;
-
-        setSelectValue(document.getElementById('filter_departure'), '');
-        setSelectValue(document.getElementById('filter_arrival'), '');
-    }
-
-    // Меняем местами значения
+    // Функция переключения направлений
     function switchDirections() {
-        const dep = document.getElementById('filter_departure');
-        const arr = document.getElementById('filter_arrival');
-        if (!dep || !arr) return;
+        const departureSelect = document.getElementById('filter_departure');
+        const arrivalSelect = document.getElementById('filter_arrival');
 
-        const tmp = dep.value;
-        setSelectValue(dep, arr.value);
-        setSelectValue(arr, tmp);
+        const tempValue = departureSelect.value;
+        departureSelect.value = arrivalSelect.value;
+        arrivalSelect.value = tempValue;
     }
-    window.switchDirections = switchDirections;
 
+    // Функция подсчета пассажиров
     function countPassagers(btn, operation, type, maxValue = 15) {
         const counterWrapper = btn.closest('.passengers_counter');
         const valueElement = counterWrapper.querySelector('.p_counter_value');
         const inputElement = counterWrapper.querySelector('input[type="hidden"]');
         const totalElement = document.querySelector(`.${type}_total`);
 
-        let currentValue = parseInt(valueElement.textContent, 10);
+        let currentValue = parseInt(valueElement.textContent);
 
-        if (operation === 'plus' && currentValue < maxValue) currentValue++;
-        if (operation === 'minus') {
-            if (type === 'adults' && currentValue > 1) currentValue--;
-            if (type === 'kids' && currentValue > 0) currentValue--;
+        if (operation === 'plus' && currentValue < maxValue) {
+            currentValue++;
+        } else if (operation === 'minus') {
+            if (type === 'adults' && currentValue > 1) {
+                currentValue--;
+            } else if (type === 'kids' && currentValue > 0) {
+                currentValue--;
+            }
         }
 
         valueElement.textContent = currentValue;
         inputElement.value = currentValue;
-        if (totalElement) totalElement.textContent = currentValue;
+        if (totalElement) {
+            totalElement.textContent = currentValue;
+        }
     }
 
+    // Функция переключения подменю
     function toggleSubmenu(element) {
         const submenu = element.nextElementSibling;
         if (submenu && submenu.classList.contains('filter_submenu')) {
@@ -244,62 +192,49 @@
         }
     }
 
+    // Функция переключения календаря
     function toggleFilterCalendar() {
         const dateInput = document.getElementById('filter_date_input');
         if (dateInput && dateInput._flatpickr) {
             dateInput._flatpickr.open();
-            return;
+        } else if (dateInput) {
+            // Попытка найти существующий flatpickr по классу
+            const filterDate = document.querySelector('.filter_date');
+            if (filterDate && filterDate._flatpickr) {
+                filterDate._flatpickr.open();
+            } else {
+                dateInput.focus();
+            }
         }
-        if (dateInput) dateInput.focus();
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // 1) сначала ставим дефолт, пока Select2 ещё не вмешался
-        forceDefaultIfNoParams();
-
-        // 2) инициализируем Select2 (если ещё не был инициализирован в footer_scripts)
-        initSelect2IfNeeded();
-
-        // 3) ещё раз — после инициализации (перебиваем “автовыбор первого города”)
-        setTimeout(forceDefaultIfNoParams, 0);
-        setTimeout(forceDefaultIfNoParams, 200);
-        setTimeout(forceDefaultIfNoParams, 600);
-
-        // Редирект если города не выбраны
-        document.querySelectorAll('.main_filter').forEach((form) => {
-            if (form.dataset.emptyRedirectBound === '1') return;
-            form.dataset.emptyRedirectBound = '1';
-
-            form.addEventListener('submit', function (event) {
-                const depSel = form.querySelector('#filter_departure');
-                const arrSel = form.querySelector('#filter_arrival');
-                if (!depSel || !arrSel) return;
-
-                if (!depSel.value || !arrSel.value) {
-                    event.preventDefault();
-                    const resetUrl = form.dataset.resetUrl || '{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}';
-                    window.location.href = resetUrl;
-                }
-            });
-        });
-
-        // закрытие пассажиров по клику вне
-        document.addEventListener('click', function (event) {
-            const passengersWrapper = document.querySelector('.passagers_filter_wrapper');
-            if (passengersWrapper && !passengersWrapper.contains(event.target)) {
-                const submenu = passengersWrapper.querySelector('.filter_submenu');
-                const block = passengersWrapper.querySelector('.filter_block');
-                if (submenu && submenu.classList.contains('active')) {
-                    submenu.classList.remove('active');
-                    block.classList.remove('active');
-                }
+    // Закрытие подменю при клике вне элемента
+    document.addEventListener('click', function(event) {
+        const passengersWrapper = document.querySelector('.passagers_filter_wrapper');
+        if (passengersWrapper && !passengersWrapper.contains(event.target)) {
+            const submenu = passengersWrapper.querySelector('.filter_submenu');
+            const block = passengersWrapper.querySelector('.filter_block');
+            if (submenu && submenu.classList.contains('active')) {
+                submenu.classList.remove('active');
+                block.classList.remove('active');
             }
-        });
+        }
     });
 
-    // bfcache: возврат назад/вперёд
-    window.addEventListener('pageshow', function () {
-        forceDefaultIfNoParams();
+    // НЕ инициализируем датапикер здесь, так как он уже инициализируется в footer_scripts.blade.php
+    // для элементов с классом .filter_date
+    // Если нужна дополнительная логика, добавляем её после основной инициализации
+    document.addEventListener('DOMContentLoaded', function() {
+        // Ждем немного, чтобы основная инициализация из footer_scripts завершилась
+        setTimeout(function() {
+            const filterDateInput = document.getElementById('filter_date_input');
+            
+            // Если календарь не был инициализирован в footer_scripts (на случай если элемент не был найден)
+            if (filterDateInput && typeof flatpickr !== 'undefined' && !filterDateInput._flatpickr) {
+                console.warn('Flatpickr не был инициализирован в footer_scripts, инициализируем здесь');
+                // Здесь можем добавить запасную инициализацию если потребуется
+            }
+        }, 500);
     });
 </script>
 @endpush

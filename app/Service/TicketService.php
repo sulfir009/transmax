@@ -2,15 +2,9 @@
 
 namespace App\Service;
 
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
-use App\Models\BonusTransaction;
-use App\Models\Client;
-use App\Services\BonusService;
 use Mpdf\Mpdf;
-use Throwable;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class TicketService
 {
@@ -18,334 +12,269 @@ class TicketService
 
     public function __construct()
     {
-        // На всякий случай, чтобы не падать, если legacy.php не defines DB_PREFIX
-        if (!defined('DB_PREFIX')) {
-            define('DB_PREFIX', 'mt');
-        }
-
-        // Если у тебя реально есть legacy-конфиг, можешь подключить:
-        // require_once config_path('legacy.php');
-
-        $this->dbPrefix = (string) DB_PREFIX;
+        // Загружаем конфигурацию legacy
+        require_once config_path('legacy.php');
+        $this->dbPrefix = DB_PREFIX;
     }
-
+    
     /**
-     * Генерация и отправка билетов после успешной оплаты.
-     *
-     * ВАЖНО:
-     * - $orderIdOrUniq может быть как numeric order_id (1000981),
-     *   так и legacy uniqid ("order_....").
-     * - paymentData — массив статуса/колбека (Monobank/LiqPay/и т.д.)
-     *
-     * @param int|string $orderIdOrUniq
+     * Генерация и отправка билетов после успешной оплаты
      */
-    public function processSuccessfulPayment($orderIdOrUniq, $paymentData = [], ?string $correlationId = null): bool
+    public function processSuccessfulPayment($orderId, $paymentData)
     {
-        $paymentData = is_array($paymentData) ? $paymentData : (array)$paymentData;
-        $correlationId = $correlationId ?: (string)($paymentData['correlation_id'] ?? '');
-
         Log::channel('payment')->info('========================================');
         Log::channel('payment')->info('=== TICKET SERVICE: START PROCESSING ===');
         Log::channel('payment')->info('========================================', [
-            'correlation_id' => $correlationId,
-            'order_input'    => $orderIdOrUniq,
-            'payment_data'   => $paymentData,
-            'timestamp'      => now()->toIso8601String(),
-            'db_prefix'      => $this->dbPrefix,
+            'order_id' => $orderId,
+            'payment_data' => $paymentData,
+            'timestamp' => now()->toIso8601String(),
+            'db_prefix' => $this->dbPrefix
         ]);
 
         try {
-            $orderInfo = $this->findOrder($orderIdOrUniq);
+            // Получаем информацию о заказе из legacy БД
+            $orderInfo = null;
+            $attempts = 0;
+            $maxAttempts = 3;
+
+            Log::channel('payment')->info('Searching for order in database', [
+                'search_field' => 'uniqId',
+                'search_value' => $orderId,
+                'table' => $this->dbPrefix . '_orders'
+            ]);
+
+            // Пытаемся найти заказ несколько раз с задержкой
+            while (!$orderInfo && $attempts < $maxAttempts) {
+                Log::channel('payment')->info('Order search attempt ' . ($attempts + 1) . '/' . $maxAttempts);
+                
+                $orderInfo = DB::table($this->dbPrefix . '_orders')
+                    ->where('uniqId', $orderId)
+                    ->first();
+
+                if (!$orderInfo && $attempts < $maxAttempts - 1) {
+                    Log::channel('payment')->warning('Order not found on attempt ' . ($attempts + 1) . ', waiting 2 seconds...', [
+                        'order_id' => $orderId
+                    ]);
+                    sleep(2);
+                }
+
+                $attempts++;
+            }
+
+            Log::channel('payment')->info('Order search completed', [
+                'order_id' => $orderId,
+                'found' => !empty($orderInfo),
+                'attempts_made' => $attempts
+            ]);
 
             if (!$orderInfo) {
-                Log::channel('payment')->error('=== TICKET SERVICE: FAILED - ORDER NOT FOUND ===', [
-                    'correlation_id' => $correlationId,
-                    'order_input'    => $orderIdOrUniq,
-                ]);
-                return false;
-            }
-
-            $orderIdNumeric = (int)($orderInfo->id ?? 0);
-            $legacyUniq     = $this->getLegacyUniqId($orderInfo, $orderIdOrUniq);
-
-            Log::channel('payment')->info('=== ORDER FOUND ===', [
-                'correlation_id' => $correlationId,
-                'order_id'       => $orderIdNumeric,
-                'uniqId'         => $legacyUniq,
-                'tour_id'        => $orderInfo->tour_id ?? null,
-                'tour_date'      => $orderInfo->tour_date ?? null,
-                'from_stop'      => $orderInfo->from_stop ?? null,
-                'to_stop'        => $orderInfo->to_stop ?? null,
-                'passagers'      => $orderInfo->passagers ?? null,
-                'client_email'   => $orderInfo->client_email ?? null,
-                'payment_status' => $orderInfo->payment_status ?? null,
-            ]);
-
-            /**
-             * 1) Обновление статуса оплаты (idempotent)
-             *    - Если уже payment_status=2, affected_rows будет 0.
-             *    - Это НОРМАЛЬНО: билеты всё равно можно отправлять, но
-             *      tickets_buy мы не инкрементим.
-             */
-            $paymentProvider = $this->detectPaymentProvider($paymentData);
-            $legacyUpdate = ['payment_status' => 2];
-
-            $legacyUpdate = array_merge($legacyUpdate, $this->buildLegacyPaymentFieldsUpdate($paymentProvider));
-            $legacyUpdate = array_merge($legacyUpdate, $this->buildLegacyPaidDateUpdate());
-
-            Log::channel('payment')->info('Updating legacy order payment fields', [
-                'correlation_id' => $correlationId,
-                'where'          => ['id' => $orderIdNumeric, 'uniqId' => $legacyUniq],
-                'update'         => $legacyUpdate,
-                'provider'       => $paymentProvider,
-                'label'          => $this->detectPaymentLabel($paymentData),
-            ]);
-
-            // Обновляем по id, а если вдруг 0 — пробуем по uniqId/uniqid
-            $updatedRows = DB::table($this->dbPrefix . '_orders')
-                ->where('id', $orderIdNumeric)
-                ->where(function ($q) {
-                    $q->whereNull('payment_status')->orWhere('payment_status', '<>', 2);
-                })
-                ->update($legacyUpdate);
-
-            if ($updatedRows === 0 && is_string($legacyUniq) && $legacyUniq !== '') {
-                $updatedRows = DB::table($this->dbPrefix . '_orders')
-                    ->where(function ($q) use ($legacyUniq) {
-                        $q->where('uniqId', $legacyUniq)->orWhere('uniqid', $legacyUniq);
-                    })
-                    ->where(function ($q) {
-                        $q->whereNull('payment_status')->orWhere('payment_status', '<>', 2);
-                    })
-                    ->update($legacyUpdate);
-            }
-
-            Log::channel('payment')->info('Payment status update result', [
-                'correlation_id' => $correlationId,
-                'affected_rows'  => $updatedRows,
-            ]);
-
-            /**
-             * 2) tickets_buy инкрементим ТОЛЬКО если мы реально первыми перевели в paid (updatedRows > 0)
-             */
-            $passengersCount = $this->getPassengersCountFromOrder($orderInfo);
-
-            if ($updatedRows > 0) {
-                Log::channel('payment')->info('Increment tickets_buy in tours_sales', [
-                    'correlation_id' => $correlationId,
-                    'tour_id'        => $orderInfo->tour_id ?? null,
-                    'tour_date'      => $orderInfo->tour_date ?? null,
-                    'increment_by'   => $passengersCount,
+                Log::channel('payment')->error('=== ORDER NOT FOUND ===', [
+                    'order_id' => $orderId
                 ]);
 
-                try {
-                    DB::table($this->dbPrefix . '_tours_sales')
-                        ->where('tour_id', (int)$orderInfo->tour_id)
-                        ->where('tour_date', (string)$orderInfo->tour_date)
-                        ->increment('tickets_buy', $passengersCount);
-                } catch (Throwable $e) {
-                    Log::channel('payment')->warning('Failed increment tickets_buy (non-fatal)', [
-                        'correlation_id' => $correlationId,
-                        'error'          => $e->getMessage(),
+                // Попробуем найти по частичному совпадению
+                Log::channel('payment')->info('Trying partial match search...');
+                
+                $possibleOrders = DB::table($this->dbPrefix . '_orders')
+                    ->where('uniqId', 'like', '%' . $orderId . '%')
+                    ->orWhere('uniqId', 'like', $orderId . '%')
+                    ->get();
+
+                if ($possibleOrders->count() > 0) {
+                    Log::channel('payment')->warning('Found possible orders with partial match', [
+                        'count' => $possibleOrders->count(),
+                        'orders' => $possibleOrders->map(function($o) {
+                            return ['id' => $o->id, 'uniqId' => $o->uniqId];
+                        })->toArray()
                     ]);
+                } else {
+                    Log::channel('payment')->info('No partial matches found');
                 }
-            } else {
-                Log::channel('payment')->info('Skip tickets_buy increment (already paid earlier)', [
-                    'correlation_id' => $correlationId,
-                    'payment_status' => (int)($orderInfo->payment_status ?? 0),
+
+                // Покажем последние 10 заказов для отладки
+                $recentOrders = DB::table($this->dbPrefix . '_orders')
+                    ->select('id', 'uniqId', 'date', 'tour_date', 'client_email', 'payment_status')
+                    ->orderBy('id', 'desc')
+                    ->limit(10)
+                    ->get();
+
+                Log::channel('payment')->info('Recent orders for debugging', [
+                    'orders' => $recentOrders->toArray()
                 ]);
-            }
 
-            /**
-             * 3) Инфа о билете
-             */
-            $ticketInfo = $this->getTicketInfo($orderInfo);
-            if (!$ticketInfo) {
-                Log::channel('payment')->error('=== TICKET INFO NOT FOUND ===', [
-                    'correlation_id' => $correlationId,
-                    'tour_id'        => $orderInfo->tour_id ?? null,
-                    'from_stop'      => $orderInfo->from_stop ?? null,
-                    'to_stop'        => $orderInfo->to_stop ?? null,
+                // Проверяем разные варианты order_id
+                $orderVariants = [
+                    $orderId,
+                    'order_' . $orderId,
+                    str_replace('order_', '', $orderId),
+                ];
+
+                Log::channel('payment')->info('Trying order ID variants', [
+                    'variants' => $orderVariants
                 ]);
-                return false;
-            }
 
-            /**
-             * 4) Пассажиры
-             *    ВАЖНО: order_id в mt_orders_passangers обычно = numeric mt_orders.id.
-             *    Но на всякий пробуем и legacy uniqId.
-             */
-            $passengers = $this->loadPassengers($orderIdNumeric, $legacyUniq);
+                foreach ($orderVariants as $variant) {
+                    $checkOrder = DB::table($this->dbPrefix . '_orders')
+                        ->where('uniqId', $variant)
+                        ->first();
 
-            Log::channel('payment')->info('Passengers retrieved', [
-                'correlation_id' => $correlationId,
-                'count'          => $passengers->count(),
-            ]);
-            
-            $this->applyBonusOperations($orderInfo, $ticketInfo, $passengersCount, $paymentData, $correlationId);
-
-            /**
-             * 5) PDF
-             */
-            Log::channel('payment')->info('=== GENERATING PDF TICKETS ===', [
-                'correlation_id' => $correlationId,
-            ]);
-
-            $pdfFiles = $this->generateTickets($orderInfo, $ticketInfo, $passengers);
-
-            Log::channel('payment')->info('PDF tickets generated', [
-                'correlation_id' => $correlationId,
-                'count'          => count($pdfFiles),
-                'files'          => $pdfFiles,
-            ]);
-
-            /**
-             * 6) Email (ВАЖНО: не логируем "успешно", пока реально не ушло)
-             */
-            Log::channel('payment')->info('=== SENDING EMAILS ===', [
-                'correlation_id' => $correlationId,
-                'client_email'   => $orderInfo->client_email ?? 'N/A',
-            ]);
-
-            $emailOk = $this->sendTicketsEmail($orderInfo, $ticketInfo, $passengers, $pdfFiles, $paymentData);
-
-            if ($emailOk) {
-                // ✅ Cleanup только если реально отправилось
-                foreach ($pdfFiles as $file) {
-                    if (is_string($file) && $file !== '' && file_exists($file)) {
-                        @unlink($file);
+                    if ($checkOrder) {
+                        Log::channel('payment')->info('Found order with variant!', [
+                            'variant' => $variant,
+                            'order_id' => $checkOrder->id,
+                            'uniqId' => $checkOrder->uniqId
+                        ]);
+                        break;
+                    } else {
+                        Log::channel('payment')->debug('Variant not found: ' . $variant);
                     }
                 }
 
-                // Если у заказа есть флаг tickets_sent_at — отметим (НЕ обязателен)
-                $this->markTicketsSentIfPossible($orderIdNumeric);
-
-                Log::channel('payment')->info('========================================');
-                Log::channel('payment')->info('=== TICKET SERVICE: SUCCESS ===');
-                Log::channel('payment')->info('========================================', [
-                    'correlation_id' => $correlationId,
-                    'order_id'       => $orderIdNumeric,
-                    'uniqId'         => $legacyUniq,
-                ]);
-
-                return true;
+                Log::channel('payment')->error('=== TICKET SERVICE: FAILED - ORDER NOT FOUND ===');
+                return false;
             }
 
-            // ❗ Не удаляем PDF, чтобы можно было переслать/добить проблему
-            Log::channel('payment')->warning('Email not sent - keep PDF files for retry', [
-                'correlation_id' => $correlationId,
-                'files'          => $pdfFiles,
-                'client_email'   => $orderInfo->client_email ?? null,
+            // Заказ найден
+            Log::channel('payment')->info('=== ORDER FOUND ===', [
+                'order_id' => $orderInfo->id,
+                'uniqId' => $orderInfo->uniqId,
+                'tour_id' => $orderInfo->tour_id,
+                'tour_date' => $orderInfo->tour_date ?? 'N/A',
+                'from_stop' => $orderInfo->from_stop ?? 'N/A',
+                'to_stop' => $orderInfo->to_stop ?? 'N/A',
+                'passagers' => $orderInfo->passagers ?? 'N/A',
+                'client_name' => $orderInfo->client_name ?? 'N/A',
+                'client_surname' => $orderInfo->client_surname ?? 'N/A',
+                'client_email' => $orderInfo->client_email ?? 'N/A',
+                'client_phone' => $orderInfo->client_phone ?? 'N/A',
+                'payment_status' => $orderInfo->payment_status ?? 'N/A',
+                'date' => $orderInfo->date ?? 'N/A'
             ]);
 
-            Log::channel('payment')->error('========================================');
-            Log::channel('payment')->error('=== TICKET SERVICE: FAILED (EMAIL) ===');
-            Log::channel('payment')->error('========================================', [
-                'correlation_id' => $correlationId,
-                'order_id'       => $orderIdNumeric,
-                'uniqId'         => $legacyUniq,
+            // Обновляем статус оплаты
+            Log::channel('payment')->info('Updating payment status to 2 (paid)');
+            
+            $updateResult = DB::table($this->dbPrefix . '_orders')
+                ->where('uniqId', $orderId)
+                ->update(['payment_status' => 2]);
+            
+            Log::channel('payment')->info('Payment status update result', [
+                'affected_rows' => $updateResult
             ]);
 
-            return false;
+            // Обновляем количество проданных билетов
+            Log::channel('payment')->info('Updating tickets_buy in tours_sales', [
+                'tour_id' => $orderInfo->tour_id,
+                'tour_date' => $orderInfo->tour_date,
+                'increment_by' => $orderInfo->passagers
+            ]);
+            
+            $salesUpdateResult = DB::table($this->dbPrefix . '_tours_sales')
+                ->where('tour_id', $orderInfo->tour_id)
+                ->where('tour_date', $orderInfo->tour_date)
+                ->increment('tickets_buy', $orderInfo->passagers);
+            
+            Log::channel('payment')->info('Tours sales update result', [
+                'affected_rows' => $salesUpdateResult
+            ]);
 
-        } catch (Throwable $e) {
+            // Получаем информацию о билете
+            Log::channel('payment')->info('Getting ticket info', [
+                'tour_id' => $orderInfo->tour_id,
+                'from_stop' => $orderInfo->from_stop,
+                'to_stop' => $orderInfo->to_stop
+            ]);
+            
+            $ticketInfo = $this->getTicketInfo($orderInfo);
+            
+            if (!$ticketInfo) {
+                Log::channel('payment')->error('=== TICKET INFO NOT FOUND ===', [
+                    'tour_id' => $orderInfo->tour_id,
+                    'from_stop' => $orderInfo->from_stop,
+                    'to_stop' => $orderInfo->to_stop
+                ]);
+                return false;
+            }
+            
+            Log::channel('payment')->info('Ticket info retrieved', [
+                'departure_city' => $ticketInfo->departure_city ?? 'N/A',
+                'arrival_city' => $ticketInfo->arrival_city ?? 'N/A',
+                'departure_station' => $ticketInfo->departure_station ?? 'N/A',
+                'arrival_station' => $ticketInfo->arrival_station ?? 'N/A',
+                'departure_time' => $ticketInfo->departure_time ?? 'N/A',
+                'arrival_time' => $ticketInfo->arrival_time ?? 'N/A',
+                'price' => $ticketInfo->price ?? 'N/A',
+                'bus' => $ticketInfo->bus ?? 'N/A'
+            ]);
+
+            // Получаем пассажиров
+            Log::channel('payment')->info('Getting passengers', [
+                'order_id' => $orderId,
+                'table' => $this->dbPrefix . '_orders_passangers'
+            ]);
+            
+            $passengers = DB::table($this->dbPrefix . '_orders_passangers')
+                ->where('order_id', $orderId)
+                ->get();
+
+            Log::channel('payment')->info('Passengers retrieved', [
+                'count' => $passengers->count(),
+                'passengers' => $passengers->map(function($p) {
+                    return [
+                        'id' => $p->id ?? 'N/A',
+                        'name' => $p->name ?? 'N/A',
+                        'second_name' => $p->second_name ?? 'N/A'
+                    ];
+                })->toArray()
+            ]);
+
+            // Генерируем PDF билеты
+            Log::channel('payment')->info('=== GENERATING PDF TICKETS ===');
+            
+            $pdfFiles = $this->generateTickets($orderInfo, $ticketInfo, $passengers);
+            
+            Log::channel('payment')->info('PDF tickets generated', [
+                'count' => count($pdfFiles),
+                'files' => $pdfFiles
+            ]);
+
+            // Отправляем email
+            Log::channel('payment')->info('=== SENDING EMAILS ===', [
+                'client_email' => $orderInfo->client_email ?? 'N/A'
+            ]);
+            
+            $this->sendTicketsEmail($orderInfo, $ticketInfo, $passengers, $pdfFiles);
+            
+            Log::channel('payment')->info('Emails sent successfully');
+
+            // Удаляем временные PDF файлы
+            Log::channel('payment')->info('Cleaning up temporary PDF files');
+            
+            foreach ($pdfFiles as $file) {
+                if (file_exists($file)) {
+                    unlink($file);
+                    Log::channel('payment')->debug('Deleted temp file: ' . $file);
+                }
+            }
+
+            Log::channel('payment')->info('========================================');
+            Log::channel('payment')->info('=== TICKET SERVICE: SUCCESS ===');
+            Log::channel('payment')->info('========================================');
+            
+            return true;
+
+        } catch (\Exception $e) {
             Log::channel('payment')->error('========================================');
             Log::channel('payment')->error('=== TICKET SERVICE: EXCEPTION ===');
             Log::channel('payment')->error('========================================', [
-                'correlation_id' => $correlationId,
-                'error'          => $e->getMessage(),
-                'file'           => $e->getFile(),
-                'line'           => $e->getLine(),
-                'trace'          => $e->getTraceAsString(),
+                'error' => $e->getMessage(),
+                'code' => $e->getCode(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
             ]);
             return false;
         }
-    }
-
-    /**
-     * Поиск заказа по id/uniqId/uniqid
-     */
-    private function findOrder($orderIdOrUniq)
-    {
-        $table = $this->dbPrefix . '_orders';
-
-        // 1) numeric -> ищем по id
-        if (is_numeric($orderIdOrUniq)) {
-            $id = (int)$orderIdOrUniq;
-            $row = DB::table($table)->where('id', $id)->first();
-            if ($row) return $row;
-        }
-
-        // 2) string -> ищем по uniqId / uniqid
-        $uniq = (string)$orderIdOrUniq;
-        if ($uniq !== '') {
-            $row = DB::table($table)
-                ->where(function ($q) use ($uniq) {
-                    $q->where('uniqId', $uniq)->orWhere('uniqid', $uniq);
-                })
-                ->first();
-            if ($row) return $row;
-        }
-
-        // 3) на всякий — варианты "order_" / без "order_"
-        $variants = [];
-        if (is_string($orderIdOrUniq)) {
-            $variants[] = $orderIdOrUniq;
-            $variants[] = 'order_' . $orderIdOrUniq;
-            $variants[] = str_replace('order_', '', $orderIdOrUniq);
-        }
-
-        foreach (array_unique(array_filter($variants)) as $v) {
-            $row = DB::table($table)
-                ->where(function ($q) use ($v) {
-                    $q->where('uniqId', $v)->orWhere('uniqid', $v);
-                })
-                ->first();
-            if ($row) return $row;
-        }
-
-        return null;
-    }
-
-    private function getLegacyUniqId($orderInfo, $orderIdOrUniq): string
-    {
-        if (isset($orderInfo->uniqId) && is_string($orderInfo->uniqId) && $orderInfo->uniqId !== '') {
-            return $orderInfo->uniqId;
-        }
-        if (isset($orderInfo->uniqid) && is_string($orderInfo->uniqid) && $orderInfo->uniqid !== '') {
-            return $orderInfo->uniqid;
-        }
-        if (is_string($orderIdOrUniq) && $orderIdOrUniq !== '') {
-            return $orderIdOrUniq;
-        }
-        return 'order_' . (int)($orderInfo->id ?? 0);
-    }
-
-    private function getPassengersCountFromOrder($orderInfo): int
-    {
-        $cnt = 1;
-        if (isset($orderInfo->passagers) && is_numeric($orderInfo->passagers)) {
-            $cnt = (int)$orderInfo->passagers;
-        } elseif (isset($orderInfo->passengers_count) && is_numeric($orderInfo->passengers_count)) {
-            $cnt = (int)$orderInfo->passengers_count;
-        }
-        return max(1, min(10, $cnt));
-    }
-
-    private function loadPassengers(int $orderIdNumeric, string $legacyUniq)
-    {
-        $table = $this->dbPrefix . '_orders_passangers';
-
-        // 1) самый вероятный вариант: order_id = numeric id
-        $rows = DB::table($table)->where('order_id', $orderIdNumeric)->get();
-        if ($rows->count() > 0) return $rows;
-
-        // 2) fallback: если вдруг order_id хранит uniqId
-        if ($legacyUniq !== '') {
-            $rows = DB::table($table)->where('order_id', $legacyUniq)->get();
-        }
-
-        return $rows;
     }
 
     /**
@@ -353,6 +282,12 @@ class TicketService
      */
     private function getTicketInfo($orderInfo)
     {
+        Log::channel('payment')->debug('Executing getTicketInfo query', [
+            'tour_id' => $orderInfo->tour_id,
+            'from_stop' => $orderInfo->from_stop,
+            'to_stop' => $orderInfo->to_stop
+        ]);
+        
         try {
             $result = DB::select("
                 SELECT
@@ -363,7 +298,6 @@ class TicketService
                     to_city.title_uk AS arrival_station,
                     arrival_city.title_uk AS arrival_city,
                     bus.title_uk AS bus,
-                    bus.id AS bus_id,
                     prices.price
                 FROM `{$this->dbPrefix}_tours_stops` AS from_stop
                 JOIN `{$this->dbPrefix}_cities` AS from_city ON from_stop.stop_id = from_city.id
@@ -380,17 +314,21 @@ class TicketService
                 WHERE from_stop.tour_id = ?
                 AND from_stop.stop_id = ?
                 AND to_stop.stop_id = ?
-            ", [
-                (int)$orderInfo->tour_id,
-                (int)$orderInfo->from_stop,
-                (int)$orderInfo->to_stop
+            ", [$orderInfo->tour_id, $orderInfo->from_stop, $orderInfo->to_stop]);
+            
+            $ticketInfo = $result[0] ?? null;
+            
+            Log::channel('payment')->debug('getTicketInfo result', [
+                'found' => !empty($ticketInfo),
+                'data' => $ticketInfo ? (array)$ticketInfo : null
             ]);
-
-            return $result[0] ?? null;
-
-        } catch (Throwable $e) {
+            
+            return $ticketInfo;
+            
+        } catch (\Exception $e) {
             Log::channel('payment')->error('getTicketInfo exception', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             return null;
         }
@@ -399,107 +337,137 @@ class TicketService
     /**
      * Генерация PDF билетов
      */
-    private function generateTickets($orderInfo, $ticketInfo, $passengers): array
+    private function generateTickets($orderInfo, $ticketInfo, $passengers)
     {
+        Log::channel('payment')->info('generateTickets called', [
+            'passengers_count' => $passengers->count(),
+            'order_passagers' => $orderInfo->passagers
+        ]);
+        
         $pdfFiles = [];
         $ticketsPath = storage_path('app/tickets');
 
         if (!file_exists($ticketsPath)) {
-            @mkdir($ticketsPath, 0777, true);
+            mkdir($ticketsPath, 0777, true);
+            Log::channel('payment')->info('Created tickets directory: ' . $ticketsPath);
         }
 
-        // Города/остановки
-        $fromStop = DB::table($this->dbPrefix . '_cities')->where('id', (int)$orderInfo->from_stop)->first();
-        $toStop   = DB::table($this->dbPrefix . '_cities')->where('id', (int)$orderInfo->to_stop)->first();
+        // Получаем информацию о городах и остановках
+        Log::channel('payment')->debug('Getting city/stop info', [
+            'from_stop_id' => $orderInfo->from_stop,
+            'to_stop_id' => $orderInfo->to_stop
+        ]);
+        
+        $fromStop = DB::table($this->dbPrefix . '_cities')
+            ->where('id', $orderInfo->from_stop)
+            ->first();
+
+        $toStop = DB::table($this->dbPrefix . '_cities')
+            ->where('id', $orderInfo->to_stop)
+            ->first();
 
         if (!$fromStop || !$toStop) {
             Log::channel('payment')->error('Stop not found', [
-                'from_stop' => (int)$orderInfo->from_stop,
-                'to_stop'   => (int)$orderInfo->to_stop,
+                'from_stop' => $fromStop ? 'found' : 'NOT FOUND',
+                'to_stop' => $toStop ? 'found' : 'NOT FOUND'
             ]);
             return $pdfFiles;
         }
 
-        $fromCity = DB::table($this->dbPrefix . '_cities')->where('id', (int)$fromStop->section_id)->first();
-        $toCity   = DB::table($this->dbPrefix . '_cities')->where('id', (int)$toStop->section_id)->first();
+        $fromCity = DB::table($this->dbPrefix . '_cities')
+            ->where('id', $fromStop->section_id)
+            ->first();
+
+        $toCity = DB::table($this->dbPrefix . '_cities')
+            ->where('id', $toStop->section_id)
+            ->first();
 
         if (!$fromCity || !$toCity) {
             Log::channel('payment')->error('City not found', [
-                'from_city_id' => (int)$fromStop->section_id,
-                'to_city_id'   => (int)$toStop->section_id,
+                'from_city' => $fromCity ? 'found' : 'NOT FOUND',
+                'to_city' => $toCity ? 'found' : 'NOT FOUND'
             ]);
             return $pdfFiles;
         }
 
-        $orderPassengersCount = $this->getPassengersCountFromOrder($orderInfo);
+        Log::channel('payment')->info('Cities and stops info', [
+            'from_city' => $fromCity->title_uk ?? 'N/A',
+            'to_city' => $toCity->title_uk ?? 'N/A',
+            'from_stop' => $fromStop->title_uk ?? 'N/A',
+            'to_stop' => $toStop->title_uk ?? 'N/A'
+        ]);
 
-        // Если нет пассажиров — делаем один билет на покупателя
-        if ($passengers->count() === 0) {
-            $pdfPath = $this->generateSingleTicket(
-                $orderInfo,
-                $ticketInfo,
-                null,
-                (string)$fromCity->title_uk,
-                (string)$toCity->title_uk,
-                (string)$fromStop->title_uk,
-                (string)$toStop->title_uk,
-                null
-            );
-            if ($pdfPath) $pdfFiles[] = $pdfPath;
-            return $pdfFiles;
-        }
-
-        // Если пассажир 1 — обычно один билет
-        if ($orderPassengersCount <= 1) {
+        if ($passengers->count() == 0 || $orderInfo->passagers == 1) {
+            Log::channel('payment')->info('Generating single ticket for buyer');
+            
+            // Один билет для покупателя
             $pdfPath = $this->generateSingleTicket(
                 $orderInfo,
                 $ticketInfo,
                 $passengers->first(),
-                (string)$fromCity->title_uk,
-                (string)$toCity->title_uk,
-                (string)$fromStop->title_uk,
-                (string)$toStop->title_uk,
-                null
+                $fromCity->title_uk,
+                $toCity->title_uk,
+                $fromStop->title_uk,
+                $toStop->title_uk
             );
-            if ($pdfPath) $pdfFiles[] = $pdfPath;
-            return $pdfFiles;
-        }
-
-        // Иначе — билет каждому пассажиру
-        $i = 1;
-        foreach ($passengers as $p) {
-            $pdfPath = $this->generateSingleTicket(
-                $orderInfo,
-                $ticketInfo,
-                $p,
-                (string)$fromCity->title_uk,
-                (string)$toCity->title_uk,
-                (string)$fromStop->title_uk,
-                (string)$toStop->title_uk,
-                $i
-            );
-            if ($pdfPath) $pdfFiles[] = $pdfPath;
-            $i++;
+            
+            if ($pdfPath) {
+                $pdfFiles[] = $pdfPath;
+                Log::channel('payment')->info('Single ticket generated: ' . $pdfPath);
+            }
+        } else {
+            Log::channel('payment')->info('Generating tickets for each passenger', [
+                'count' => $passengers->count()
+            ]);
+            
+            // Билет для каждого пассажира
+            foreach ($passengers as $index => $passenger) {
+                $pdfPath = $this->generateSingleTicket(
+                    $orderInfo,
+                    $ticketInfo,
+                    $passenger,
+                    $fromCity->title_uk,
+                    $toCity->title_uk,
+                    $fromStop->title_uk,
+                    $toStop->title_uk,
+                    $index + 1
+                );
+                
+                if ($pdfPath) {
+                    $pdfFiles[] = $pdfPath;
+                    Log::channel('payment')->info('Passenger ticket generated', [
+                        'passenger_index' => $index + 1,
+                        'path' => $pdfPath
+                    ]);
+                }
+            }
         }
 
         return $pdfFiles;
     }
 
-    private function generateSingleTicket($orderInfo, $ticketInfo, $passenger, string $fromCity, string $toCity, string $fromStop, string $toStop, ?int $passengerNumber): ?string
+    /**
+     * Генерация одного билета
+     */
+    private function generateSingleTicket($orderInfo, $ticketInfo, $passenger = null, $fromCity, $toCity, $fromStop, $toStop, $passengerNumber = null)
     {
+        Log::channel('payment')->debug('generateSingleTicket called', [
+            'order_id' => $orderInfo->id,
+            'passenger_number' => $passengerNumber,
+            'passenger_name' => $passenger ? ($passenger->name ?? 'N/A') : 'buyer'
+        ]);
+        
         try {
-            $tmpDir = storage_path('app/mpdf/tmp');
-            if (!file_exists($tmpDir)) {
-                @mkdir($tmpDir, 0777, true);
-            }
-
             $mpdf = new Mpdf([
-                'mode'        => 'utf-8',
-                'orientation' => 'P',
-                'tempDir'     => $tmpDir,
+                'mode' => 'utf-8',
+                'orientation' => 'p'
             ]);
 
-            $passengerName = $this->buildPassengerName($orderInfo, $passenger);
+            $passengerName = $passenger
+                ? $passenger->name . ' ' . $passenger->second_name
+                : $orderInfo->client_name . ' ' . $orderInfo->client_surname;
+
+            Log::channel('payment')->debug('Creating ticket for: ' . $passengerName);
 
             $html = $this->getTicketTemplate(
                 $orderInfo,
@@ -520,836 +488,735 @@ class TicketService
             $pdfPath = storage_path('app/tickets/' . $filename);
             $mpdf->Output($pdfPath, 'F');
 
-            return file_exists($pdfPath) ? $pdfPath : null;
+            Log::channel('payment')->info('PDF created successfully', [
+                'path' => $pdfPath,
+                'size' => file_exists($pdfPath) ? filesize($pdfPath) : 0
+            ]);
 
-        } catch (Throwable $e) {
+            return $pdfPath;
+            
+        } catch (\Exception $e) {
             Log::channel('payment')->error('generateSingleTicket exception', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             return null;
         }
     }
 
-    private function buildPassengerName($orderInfo, $passenger): string
+    /**
+     * Шаблон билета
+     */
+    private function getTicketTemplate($orderInfo, $ticketInfo, $passengerName, $fromCity, $toCity, $fromStop, $toStop)
     {
-        if ($passenger) {
-            $n = trim((string)($passenger->name ?? ''));
-            $s = trim((string)($passenger->second_name ?? ''));
-            $full = trim($n . ' ' . $s);
-            if ($full !== '') return $full;
-        }
-
-        $cn = trim((string)($orderInfo->client_name ?? ''));
-        $cs = trim((string)($orderInfo->client_surname ?? ''));
-        $full = trim($cn . ' ' . $cs);
-
-        return $full !== '' ? $full : 'Passenger';
-    }
-
-    private function getTicketTemplate($orderInfo, $ticketInfo, string $passengerName, string $fromCity, string $toCity, string $fromStop, string $toStop): string
-    {
-        $saleDate = $this->safeDate($orderInfo);
-
-        $depTime  = isset($ticketInfo->departure_time) ? substr((string)$ticketInfo->departure_time, 0, 5) : '';
-        $tourDate = (string)($orderInfo->tour_date ?? '');
-        $price    = (string)($ticketInfo->price ?? '');
-        
-                $bonusRedeemedCents = (int)($orderInfo->bonus_redeemed_cents ?? 0);
-        $bonusCashbackCents = (int)($orderInfo->bonus_cashback_cents ?? 0);
-        $bonusHtml = '';
-
-        if ($bonusRedeemedCents > 0) {
-            $bonusHtml .= '<div><b>Списано бонусами</b>: ' . htmlspecialchars(number_format($bonusRedeemedCents / 100, 2, '.', ''), ENT_QUOTES, 'UTF-8') . ' грн</div>';
-        }
-        if ($bonusCashbackCents > 0) {
-            $bonusHtml .= '<div><b>Нараховано кешбеком</b>: ' . htmlspecialchars(number_format($bonusCashbackCents / 100, 2, '.', ''), ENT_QUOTES, 'UTF-8') . ' грн</div>';
-        }
-
         return '
-<!DOCTYPE html>
-<html lang="uk">
+    <!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <style>
-    body { font-family: Arial, sans-serif; margin:0; padding:0; }
-    table { width:100%; padding:15px; border-collapse:collapse; }
-    td { vertical-align:top; padding:10px; }
-    .container { padding:0 30px; width:1140px; }
-    .tiket_section { padding:20px; border-bottom:2px dashed #000; }
-    table.tiket_bordered { padding:20px; border:2px dashed #000; border-radius:10px; }
-    .tiket_column.small_info { width:25%; text-align:center; border-right:1px solid #000; padding-right:20px; margin-right:20px; }
-    .title { font-weight:bold; }
-    .big_title { font-size:18px; text-align:center; }
-    .tr_border_top { padding-top:30px; border-top:1px solid #000; }
-  </style>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        table {
+            width: 100%;
+            padding: 15px;
+            border-collapse: collapse;
+        }
+        img{
+        max-width: 100%;
+        width: 200px;
+        }
+        td {
+            vertical-align: top;
+            padding: 10px;
+        }
+        .container {
+            padding: 0 30px;
+            width: 1140px;
+        }
+        .tiket_section {
+            padding: 20px;
+            border-bottom: 2px dashed #000;
+        }
+        table.tiket_bordered {
+            padding: 20px;
+            border: 2px dashed #000;
+            border-radius: 10px;
+        }
+        .tiket_column.small_info {
+            width: 25%;
+            text-align: center;
+            border-right: 1px solid #000;
+            padding-right: 20px;
+            margin-right: 20px;
+        }
+        .tiket_logo img {
+            max-width: 100%;
+            height: auto;
+        }
+        .title {
+            font-weight: bold;
+        }
+        .big_title {
+            font-size: 18px;
+            text-align: center;
+        }
+        .add_info {
+            padding-top: 50px;
+            border-top: 1px solid #000;
+            text-align: right;
+            padding-right: 20px;
+        }
+        .pass_info-section {
+            padding: 20px;
+        }
+        .pass_info-columns_wrapper {
+            display: flex;
+            justify-content: space-between;
+        }
+        .pass_info-column {
+            flex: 1;
+            padding: 10px;
+        }
+        .tr_border_top{
+            padding-top: 30px;
+            border-top: 1px solid #000;
+        }
+        .qr-code{
+        position: relative;
+        margin-top: 30px;
+        }
+        .add_info_title{
+        white-space: nowrap;
+        }
+    </style>
 </head>
 <body>
-<div class="container">
-  <section class="tiket_section">
-    <table class="tiket_bordered" style="border-collapse:collapse; width:100%;">
-      <tr>
-        <td class="tiket_column small_info" style="width:25%;">
-          <div class="tiket_logo">
-            <img style="max-width:100%; height:auto;" src="https://www.maxtransltd.com/public/upload/logos/maxTransLogo.png" alt="">
-          </div>
-          <div class="date_title title">Продано/Sales</div>
-          <div class="date_info">' . htmlspecialchars($saleDate, ENT_QUOTES, 'UTF-8') . '</div>
-          <div class="tiket_id" style="margin-bottom:30px;">№' . (int)$orderInfo->id . '</div>
-          <div class="qr-code" style="margin-top:30px;">
-            <img style="max-width:200px;" src="https://www.maxtransltd.com/public/upload/logos/qr-code.png" alt="">
-          </div>
-        </td>
-        <td class="tiket_column passanger_data" style="width:100%;">
-          <div class="big_title title" style="text-align:center; width:100%;">ЕЛЕКТРОННИЙ КВИТОК</div>
-
-          <table>
-            <tr>
-              <td><b>Рейс/Flight</b>
-                <div>' . htmlspecialchars((string)($ticketInfo->departure_city ?? ''), ENT_QUOTES, 'UTF-8') . ' - ' . htmlspecialchars((string)($ticketInfo->arrival_city ?? ''), ENT_QUOTES, 'UTF-8') . '</div>
-              </td>
-              <td><b>Відправлення/Departure</b>
-                <div>' . htmlspecialchars($tourDate, ENT_QUOTES, 'UTF-8') . ' ' . htmlspecialchars($depTime, ENT_QUOTES, 'UTF-8') . '<br>' . htmlspecialchars($fromCity . ' ' . $fromStop, ENT_QUOTES, 'UTF-8') . '</div>
-              </td>
-              <td><b>Прибуття/Arrival</b>
-                <div>' . htmlspecialchars($toCity . ' ' . $toStop, ENT_QUOTES, 'UTF-8') . '</div>
-              </td>
-            </tr>
-            <tr>
-              <td><b>Пасажир/Passenger</b>
-                <div>' . htmlspecialchars($passengerName, ENT_QUOTES, 'UTF-8') . '</div>
-              </td>
-              <td><b>Місце/Seat</b>
-                <div>На вільне місце</div>
-              </td>
-              <td><b>Перевізник/Carrier</b>
-                <div>Maks Trans LTD</div>
-              </td>
-            </tr>
-          </table>
-
-          <table>
-            <tr>
-              <td></td>
-              <td><div>Тариф<br>Tariff</div><div>' . htmlspecialchars($price, ENT_QUOTES, 'UTF-8') . '</div></td>
-              <td><div>Страховий збір<br>Insurance fee</div><div>0.00</div></td>
-              <td><div>В т.ч. ПДВ<br>Including VAT</div><div>0.00</div></td>
-              <td></td><td></td>
-            </tr>
-            <tr>
-              <td><b>Збір/Послуга<br>Fee/Service</b><div>' . htmlspecialchars($price, ENT_QUOTES, 'UTF-8') . '</div></td>
-              <td><b>Проїзд<br>Passage</b><div>' . htmlspecialchars($price, ENT_QUOTES, 'UTF-8') . '</div></td>
-              <td><b>Багаж<br>Luggage</b><div></div></td>
-              <td><b>Тип<br>Type</b><div>ПОВНИЙ</div></td>
-              <td><b>Знижка<br>Discount</b><div></div></td>
-              <td><b>Всього, грн<br>Total, UAH</b><div>' . htmlspecialchars($price, ENT_QUOTES, 'UTF-8') . '</div></td>
-            </tr>
-          </table>
-          
-                    ' . ($bonusHtml !== '' ? '<div style="margin-top:10px;">' . $bonusHtml . '</div>' : '') . '
-
-          <table>
-            <tr class="tr_border_top" style="padding-top:30px; border-top:1px solid;">
-              <td></td><td></td>
-              <td>
-                <div class="add_info_title title">Служба підтримки / Support service</div>
-                <div class="add_info_phone">+38 093 272 11 54</div>
-              </td>
-            </tr>
-          </table>
-
-        </td>
-      </tr>
+<div class="container" >
+    <section class="tiket_section">
+        <table class="tiket_bordered" style="border-collapse: collapse; width: 100%;">
+        <tr>
+            <td class="tiket_column small_info" style="width:25%;">
+                <div class="tiket_logo"><img src="https://www.maxtransltd.com/public/upload/logos/maxTransLogo.png" alt=""></div>
+                <div class="date_title title">Продано/Sales</div>
+                <div class="date_info">' . $orderInfo->date . '</div>
+                <div class="tiket_id" style="margin-bottom: 30px;">№' . $orderInfo->id . '</div>
+                <div class="qr-code" style="margin-top: 30px;"><img src="https://www.maxtransltd.com/public/upload/logos/qr-code.png" alt=""></div>
+            </td>
+            <td class="tiket_column passanger_data" style="width: 100%;">
+                <div class="big_title title" style="text-align: center; width: 100%;">ЕЛЕКТРОННИЙ КВИТОК</div>
+                <table>
+                    <tr>
+                        <td><b>Рейс/Flight</b>
+                            <div>' . $ticketInfo->departure_city . ' - ' . $ticketInfo->arrival_city . '</div>
+                        </td>
+                        <td><b>Відправлення/Departure</b>
+                            <div>' . $orderInfo->tour_date . ' ' . substr($ticketInfo->departure_time, 0, 5) . '<br>' . $fromCity . ' ' . $fromStop . '</div>
+                        </td>
+                        <td><b>Прибуття/Arrival</b>
+                            <div>' . $toCity . ' ' . $toStop . '</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><b>Пасажир/Passenger</b>
+                            <div>' . $passengerName . '</div>
+                        </td>
+                        <td><b>Місце/Seat</b>
+                            <div>На вільне місце</div>
+                        </td>
+                        <td><b>Перевізник/Carrier</b>
+                            <div>Maks Trans LTD</div>
+                        </td>
+                    </tr>
+                </table>
+                <table>
+                    <tr>
+                        <td>
+                        </td>
+                        <td><div>Тариф<br>Tariff</div>
+                            <div>' . $ticketInfo->price . '</div>
+                        </td>
+                        <td><div>Страховий збір<br>Insurance fee</div>
+                            <div>0.00</div>
+                        </td>
+                        <td><div>В т.ч. ПДВ<br>Including VAT</div>
+                            <div>0.00</div>
+                        </td>
+                        <td>
+                        </td>
+                        <td>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><b>Збір/Послуга<br>Fee/Service</b>
+                            <div>' . $ticketInfo->price . '</div>
+                        </td>
+                        <td><b>Проїзд<br>Passage</b>
+                            <div>' . $ticketInfo->price . '</div>
+                        </td>
+                        <td><b>Багаж<br>Luggage</b>
+                            <div></div>
+                        </td>
+                        <td><b>Тип<br>Type</b>
+                            <div>ПОВНИЙ</div>
+                        </td>
+                        <td><b>Знижка<br>Discount</b>
+                            <div></div>
+                        </td>
+                        <td><b>Всього, грн<br>Total, UAH</b>
+                            <div>' . $ticketInfo->price . '</div>
+                        </td>
+                    </tr>
+                </table>
+                <table>
+                    <tr class="tr_border_top" style="padding-top: 30px; border-top: 1px solid;">
+                        <td>
+                        </td>
+                        <td>
+                        </td>
+                        <td>
+                            <div class="add_info_title title">
+                            Служба підтримки / Support service
+                            </div>
+                            <div class="add_info_phone">
+                                +38 093 272 11 54
+                            </div>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
     </table>
-  </section>
-
-  <section class="pass_info-section">
+</section>
+<section class="pass_info-section">
     <div class="tiket_wrapper container">
-      <div class="pass_info_container">
-        <div class="pass_info_title title">До відома пасажирів:</div>
-        <div class="pass_info-columns_wrapper">
-          <div class="pass_info-column">
-            <div class="pass_info">1. Після оплати проїзду пасажиру рекомендовано перевірити усі реєстраційні дані, вказані у ваучері бронювання.</div>
-            <div class="pass_info">2. Для забезпечення організованої посадки, пасажиру бажано прибути до місця відправлення автобусу.</div>
-            <div class="pass_info">3. Відправлення автобусу у рейс здійснюється за місцевим часом.</div>
-            <div class="pass_info">4. Пасажир несе відповідальність за дотримання візового режиму та умов перетину кордону.</div>
-            <div class="pass_info">5. Для отримання інформації щодо переоформлення або відміни поїздки пасажир може звернутися до офіційних представництв компанії або за телефонами Служби підтримки.</div>
-            <div class="pass_info">6. Оплата поїздки свідчить про згоду пасажира з умовами договору оферти.</div>
-            <div class="pass_info">7. Квиток є дійсним тільки за умови відповідності ПІБ паспортним даним.</div>
-          </div>
+        <div class="pass_info_container">
+            <div class="pass_info_title title">
+                До відома пасажирів:
+            </div>
+            <div class="pass_info-columns_wrapper">
+            <div class="pass_info-column">
+                <div class="pass_info">1.Після оплати проїзду пасажиру рекомендовано перевірити усі реєстраційні дані, вказані у ваучері бронювання.</div>
+                <div class="pass_info">2.Для забезпечення організованої посадки, пасажиру бажано прибути до місця відправлення автобусу </div>
+                <div class="pass_info">3.Відправлення автобусу у рейс здійснюється за місцевим часом</div>
+                <div class="pass_info">4.Пасажир несе відповідальність за домтримання візового режиму та умов перетину кордону</div>
+                <div class="pass_info">5.Для отримання інформації щодо переоформлення або відміни поїздки пасажир може звернутися до офіційних представництв компаніі, або за телефонами Служби підтримки</div>
+                <div class="pass_info">6.Оплата поїздки свідчить про згоду пасажира з умовами договору оферти, розміщенного на сайті та в офіційних прдставництвах компанії.</div>
+                <div class="pass_info">7.Квиток є дійсним, тільки за умови, якщо прізвище та Імя пасажира відповідають його паспортним даним.</div>
+            </div>
+            </div>
         </div>
-      </div>
-
-      <div class="pass_info_container">
-        <div class="pass_info_title title">Умови повернення квитків:</div>
-        <div class="pass_info">- від 72 год і більше до відправлення – 75% від вартості поїздки</div>
-        <div class="pass_info">- від 24 год до 72 год до відправлення - 50% від вартості поїздки</div>
-        <div class="pass_info">- від 12 год до 24 год до відправлення – 25% від вартості поїздки</div>
-        <div class="pass_info">- менше 12 год до відправлення - гроші за поїздку не повертаються</div>
-      </div>
+        <div class="pass_info_container">
+            <div class="pass_info_title title">
+    Умови повернення квитків:
+            </div>
+            <div class="pass_info">- від 72 год і більше до відправлення – 75% від вартості поїздки</div>
+            <div class="pass_info">- від 24 год до 72 год до відправлення - 50% від вартості поїздки</div>
+            <div class="pass_info">- від 12 год до 24 год до відправлення – 25% від вартості поїздки</div>
+            <div class="pass_info">- менше 12 год до відправлення - гроші за поїздку не повертаються</div>
+        </div>
     </div>
-  </section>
-
+</section>
 </div>
 </body>
 </html>';
     }
 
-    private function safeDate($orderInfo): string
-    {
-        $raw = '';
-        if (isset($orderInfo->date) && is_string($orderInfo->date) && $orderInfo->date !== '') {
-            $raw = $orderInfo->date;
-        } elseif (isset($orderInfo->created_at) && $orderInfo->created_at) {
-            $raw = (string)$orderInfo->created_at;
-        }
-
-        if ($raw === '') return date('Y-m-d');
-
-        try {
-            return Carbon::parse($raw)->format('Y-m-d');
-        } catch (Throwable $e) {
-            return date('Y-m-d');
-        }
-    }
-
     /**
-     * Отправка email с билетами (возвращает true только если ушло клиенту и админу (если не test))
+     * Отправка email с билетами
      */
-    private function sendTicketsEmail($orderInfo, $ticketInfo, $passengers, array $pdfFiles, array $paymentData = []): bool
+    private function sendTicketsEmail($orderInfo, $ticketInfo, $passengers, $pdfFiles)
     {
+        Log::channel('payment')->info('sendTicketsEmail called', [
+            'client_email' => $orderInfo->client_email,
+            'pdf_count' => count($pdfFiles)
+        ]);
+        
         try {
-            $fromStop = DB::table($this->dbPrefix . '_cities')->where('id', (int)$orderInfo->from_stop)->first();
-            $toStop   = DB::table($this->dbPrefix . '_cities')->where('id', (int)$orderInfo->to_stop)->first();
+            $fromStop = DB::table($this->dbPrefix . '_cities')
+                ->where('id', $orderInfo->from_stop)
+                ->first();
 
-            $fromCity = $fromStop ? DB::table($this->dbPrefix . '_cities')->where('id', (int)$fromStop->section_id)->first() : null;
-            $toCity   = $toStop ? DB::table($this->dbPrefix . '_cities')->where('id', (int)$toStop->section_id)->first() : null;
+            $toStop = DB::table($this->dbPrefix . '_cities')
+                ->where('id', $orderInfo->to_stop)
+                ->first();
+
+            $fromCity = DB::table($this->dbPrefix . '_cities')
+                ->where('id', $fromStop->section_id)
+                ->first();
+
+            $toCity = DB::table($this->dbPrefix . '_cities')
+                ->where('id', $toStop->section_id)
+                ->first();
 
             $emailData = [
                 'orderInfo' => $orderInfo,
                 'ticketInfo' => $ticketInfo,
                 'passengers' => $passengers,
-                'fromCity' => (string)($fromCity->title_uk ?? ''),
-                'toCity' => (string)($toCity->title_uk ?? ''),
-                'fromStop' => (string)($fromStop->title_uk ?? ''),
-                'toStop' => (string)($toStop->title_uk ?? ''),
-                'paymentMethodLabel' => $this->detectPaymentLabel($paymentData),
-                'totalPrice' => (float)($ticketInfo->price ?? 0) * $this->getPassengersCountFromOrder($orderInfo),
-                                'bonusRedeemedCents' => (int)($orderInfo->bonus_redeemed_cents ?? 0),
-                'bonusCashbackCents' => (int)($orderInfo->bonus_cashback_cents ?? 0),
+                'fromCity' => $fromCity->title_uk,
+                'toCity' => $toCity->title_uk,
+                'fromStop' => $fromStop->title_uk,
+                'toStop' => $toStop->title_uk,
+                'totalPrice' => $ticketInfo->price * $orderInfo->passagers,
             ];
 
-            // Клиент
-            $okClient = $this->sendEmailToClient($emailData, $pdfFiles);
+            // Отправка клиенту
+            Log::channel('payment')->info('Sending email to client', [
+                'email' => $orderInfo->client_email
+            ]);
+            $this->sendEmailToClient($emailData, $pdfFiles);
 
-            // Админ (если не тест)
-            $isTest = stripos((string)($orderInfo->client_name ?? ''), 'test') !== false
-                || stripos((string)($orderInfo->client_surname ?? ''), 'test') !== false;
+            // Отправка администратору (если не тест)
+            $isTest = stripos($orderInfo->client_name, 'test') !== false ||
+                      stripos($orderInfo->client_surname, 'test') !== false;
 
-            $okAdmin = true;
-            if (!$isTest) {
-                $okAdmin = $this->sendEmailToAdmin($emailData, $pdfFiles);
-            }
-
-            if (!$okClient || !$okAdmin) {
-                Log::channel('payment')->error('Emails FAILED', [
-                    'ok_client'    => $okClient ? 1 : 0,
-                    'ok_admin'     => $okAdmin ? 1 : 0,
-                    'client_email' => (string)($orderInfo->client_email ?? ''),
-                ]);
-                return false;
-            }
-
-            Log::channel('payment')->info('Emails sent successfully', [
-                'client_email' => (string)($orderInfo->client_email ?? ''),
+            Log::channel('payment')->info('Test order check', [
+                'is_test' => $isTest,
+                'client_name' => $orderInfo->client_name,
+                'client_surname' => $orderInfo->client_surname
             ]);
 
-            return true;
-
-        } catch (Throwable $e) {
+            if (!$isTest) {
+                Log::channel('payment')->info('Sending email to admin');
+                $this->sendEmailToAdmin($emailData, $pdfFiles);
+            } else {
+                Log::channel('payment')->info('Skipping admin email (test order)');
+            }
+            
+            Log::channel('payment')->info('All emails sent successfully');
+            
+        } catch (\Exception $e) {
             Log::channel('payment')->error('sendTicketsEmail exception', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
-            return false;
         }
     }
-    private function applyBonusOperations($orderInfo, $ticketInfo, int $passengersCount, array $paymentData, string $correlationId): void
-    {
-        $orderId = (int)($orderInfo->id ?? 0);
-        if ($orderId <= 0) {
-            return;
-        }
 
-        $client = $this->resolveClientForBonus($orderInfo, $correlationId);
-        if (!$client) {
-            return;
-        }
-        $clientId = (int) $client->id;
-
-        $useBonus = isset($orderInfo->bonus_use_requested) && (int)$orderInfo->bonus_use_requested === 1;
-
-        $pricePer = (float)($ticketInfo->price ?? 0);
-        $payableCents = (int)round($pricePer * max(1, $passengersCount) * 100);
-
-        $bonusService = app(BonusService::class);
-
-        if (!$client || $payableCents <= 0) {
-            return;
-        }
-        DB::transaction(function () use (
-            $bonusService,
-            $client,
-            $clientId,
-            $orderId,
-            $orderInfo,
-            $useBonus,
-            $payableCents,
-            $paymentData,
-            $correlationId
-        ) {
-            $redeemCents = (int)($orderInfo->bonus_redeemed_cents ?? 0);
-
-            $alreadyRedeemed = false;
-            if ($useBonus) {
-                $alreadyRedeemed = $bonusService->hasTransaction($clientId, 'redeem', $orderId);
-
-                if (!$alreadyRedeemed) {
-                    $balanceCents = $bonusService->getBalanceCents($client->fresh());
-                    $redeemCents = $bonusService->calculateMaxRedeemCents($balanceCents, $payableCents);
-
-                    if ($redeemCents > 0) {
-                        try {
-                            $bonusService->debit($client, $redeemCents, 'redeem', [
-                                'payment_source' => $this->detectPaymentProvider($paymentData),
-                            ], $orderId);
-
-                            DB::table($this->dbPrefix . '_orders')
-                                ->where('id', $orderId)
-                                ->update([
-                                    'bonus_redeemed_cents' => $redeemCents,
-                                    'bonus_use_requested' => 1,
-                                ]);
-                        } catch (Throwable $e) {
-                            Log::channel('payment')->warning('Bonus redeem failed', [
-                                'correlation_id' => $correlationId,
-                                'order_id' => $orderId,
-                                'client_id' => $clientId,
-                                'error' => $e->getMessage(),
-                            ]);
-                        }
-                    }
-                } else {
-                    $redeemSum = BonusTransaction::where('order_id', $orderId)
-                        ->where('type', 'redeem')
-                        ->sum('amount_cents');
-                    $redeemCents = abs((int)$redeemSum);
-                }
-            }
-
-            $alreadyCashback = $bonusService->hasTransaction($clientId, 'cashback', $orderId);
-            $cashbackCents = (int)($orderInfo->bonus_cashback_cents ?? 0);
-
-            if (!$alreadyCashback) {
-                $cashbackBaseCents = max($payableCents - $redeemCents, 0);
-                $cashbackCents = (int)round($cashbackBaseCents * 0.05);
-
-                if ($cashbackCents > 0) {
-                    try {
-                        $bonusService->credit($client, $cashbackCents, 'cashback', [
-                            'payment_source' => $this->detectPaymentProvider($paymentData),
-                        ], $orderId);
-
-                        DB::table($this->dbPrefix . '_orders')
-                            ->where('id', $orderId)
-                            ->update([
-                                'bonus_cashback_cents' => $cashbackCents,
-                            ]);
-                    } catch (Throwable $e) {
-                        Log::channel('payment')->warning('Bonus cashback failed', [
-                            'correlation_id' => $correlationId,
-                            'order_id' => $orderId,
-                            'client_id' => $clientId,
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
-                }
-            }
-
-            Log::channel('payment')->info('Bonus operations summary', [
-                'correlation_id' => $correlationId,
-                'order_id' => $orderId,
-                'client_id' => $clientId,
-                'use_bonus' => $useBonus ? 1 : 0,
-                'payable_cents' => $payableCents,
-                'redeem_cents' => $redeemCents,
-                'cashback_cents' => $cashbackCents,
-                'already_redeemed' => $alreadyRedeemed ? 1 : 0,
-                'already_cashback' => $alreadyCashback ? 1 : 0,
-                'balance_cents' => $bonusService->getBalanceCents($client->fresh()),
-            ]);
-        });
-    }
-
-    private function resolveClientForBonus($orderInfo, string $correlationId): ?Client
-    {
-        $orderId = (int)($orderInfo->id ?? 0);
-        $clientId = (int)($orderInfo->client_id ?? 0);
-
-        if ($clientId > 0) {
-            return Client::find($clientId);
-        }
-
-        $email = trim((string)($orderInfo->client_email ?? ''));
-        if ($email === '') {
-            Log::channel('payment')->warning('Bonus skipped: order has no client_id and no email', [
-                'correlation_id' => $correlationId,
-                'order_id' => $orderId,
-            ]);
-            return null;
-        }
-
-        $client = Client::where('email', $email)->first();
-        if (!$client) {
-            Log::channel('payment')->warning('Bonus skipped: client not found by email', [
-                'correlation_id' => $correlationId,
-                'order_id' => $orderId,
-                'client_email' => $email,
-            ]);
-            return null;
-        }
-
-        $updated = DB::table($this->dbPrefix . '_orders')
-            ->where('id', $orderId)
-            ->where(function ($query) {
-                $query->whereNull('client_id')->orWhere('client_id', 0);
-            })
-            ->update(['client_id' => $client->id]);
-
-        Log::channel('payment')->info('Order client bound by email for bonuses', [
-            'correlation_id' => $correlationId,
-            'order_id' => $orderId,
-            'client_id' => $client->id,
-            'client_email' => $email,
-            'updated_rows' => $updated,
-        ]);
-
-        return $client;
-    }
-
-
-    private function sendEmailToClient(array $data, array $pdfFiles): bool
+    /**
+     * Отправка email клиенту
+     */
+    private function sendEmailToClient($data, $pdfFiles)
     {
         $subject = "Ваш квиток";
-        $to = (string)($data['orderInfo']->client_email ?? '');
+        $to = $data['orderInfo']->client_email;
 
-        if ($to === '') {
-            Log::channel('payment')->warning('Client email empty, skip sending');
-            return false;
-        }
+        Log::channel('payment')->info('sendEmailToClient', [
+            'to' => $to,
+            'subject' => $subject
+        ]);
 
         $message = $this->getClientEmailTemplate($data);
 
-        $ok = $this->sendEmailWithAttachments($to, $subject, $message, $pdfFiles);
-
+        $result = $this->sendEmailWithAttachments($to, $subject, $message, $pdfFiles);
+        
         Log::channel('payment')->info('Client email result', [
             'to' => $to,
-            'ok' => $ok ? 1 : 0,
+            'result' => $result ? 'SUCCESS' : 'FAILED'
         ]);
-
-        return $ok;
     }
 
-    private function sendEmailToAdmin(array $data, array $pdfFiles): bool
+    /**
+     * Отправка email администратору
+     */
+    private function sendEmailToAdmin($data, $pdfFiles)
     {
-        $count = (int)($data['orderInfo']->passagers ?? 1);
+        $subject = $data['orderInfo']->passagers > 1
+            ? "Покупка {$data['orderInfo']->passagers} білетів:"
+            : "Покупка білета:";
 
-        $subject = $count > 1 ? "Покупка {$count} білетів:" : "Покупка білета:";
         $to = "max210183@ukr.net";
+
+        Log::channel('payment')->info('sendEmailToAdmin', [
+            'to' => $to,
+            'subject' => $subject
+        ]);
 
         $message = $this->getAdminEmailTemplate($data);
 
-        $ok = $this->sendEmailWithAttachments($to, $subject, $message, $pdfFiles);
-
+        $result = $this->sendEmailWithAttachments($to, $subject, $message, $pdfFiles);
+        
         Log::channel('payment')->info('Admin email result', [
             'to' => $to,
-            'ok' => $ok ? 1 : 0,
+            'result' => $result ? 'SUCCESS' : 'FAILED'
         ]);
-
-        return $ok;
     }
 
     /**
-     * ✅ Надёжная отправка multipart/mixed:
-     * - HTML как base64 (важно для UTF-8)
-     * - retry без 5-го параметра (-f), если хостинг/обвязка режет
-     * - логируем error_get_last()
+     * Отправка email с вложениями
      */
-    private function sendEmailWithAttachments(string $to, string $subject, string $message, array $attachments): bool
+    private function sendEmailWithAttachments($to, $subject, $message, $attachments)
     {
-        $eol = "\r\n";
-
-        $fromName  = "Max Trans LTD";
-        $fromEmail = "info@maxtransltd.com";
-
-        $encodedSubject = function_exists('mb_encode_mimeheader')
-            ? mb_encode_mimeheader($subject, 'UTF-8', 'B', $eol)
-            : $subject;
-
-        $boundary = 'b_' . md5((string)microtime(true));
-
-        $headers  = "From: {$fromName} <{$fromEmail}>{$eol}";
-        $headers .= "Reply-To: {$fromEmail}{$eol}";
-        $headers .= "Date: " . date('r') . $eol;
-        $headers .= "Message-ID: <" . md5((string)microtime(true)) . "@maxtransltd.com>{$eol}";
-        $headers .= "MIME-Version: 1.0{$eol}";
-        $headers .= "Content-Type: multipart/mixed; boundary=\"{$boundary}\"{$eol}";
-        $headers .= "X-Mailer: PHP/" . PHP_VERSION . $eol;
-
-        // HTML как base64 — чтобы UTF-8 не ломало письмо
-        $htmlBase64 = chunk_split(base64_encode($message));
-
-        $body  = "--{$boundary}{$eol}";
-        $body .= "Content-Type: text/html; charset=\"UTF-8\"{$eol}";
-        $body .= "Content-Transfer-Encoding: base64{$eol}{$eol}";
-        $body .= $htmlBase64 . $eol;
-
-        foreach ($attachments as $file) {
-            if (!is_string($file) || $file === '' || !file_exists($file)) {
-                Log::channel('payment')->warning('Attachment missing / invalid', ['file' => $file]);
-                continue;
-            }
-
-            $content = file_get_contents($file);
-            if ($content === false || $content === '') {
-                Log::channel('payment')->warning('Attachment empty / unreadable', ['file' => $file]);
-                continue;
-            }
-
-            $fileName = basename($file);
-            $fileContent = chunk_split(base64_encode($content));
-
-            $body .= "--{$boundary}{$eol}";
-            $body .= "Content-Type: application/pdf; name=\"{$fileName}\"{$eol}";
-            $body .= "Content-Transfer-Encoding: base64{$eol}";
-            $body .= "Content-Disposition: attachment; filename=\"{$fileName}\"{$eol}{$eol}";
-            $body .= $fileContent . $eol;
-        }
-
-        $body .= "--{$boundary}--{$eol}";
-
-        Log::channel('payment')->info('mail() attempt', [
-            'to'           => $to,
-            'subject_raw'  => $subject,
-            'subject_enc'  => $encodedSubject,
-            'sendmail_path'=> ini_get('sendmail_path'),
-            'smtp'         => ini_get('SMTP'),
-            'smtp_port'    => ini_get('smtp_port'),
-            'sapi'         => php_sapi_name(),
+        Log::channel('payment')->info('sendEmailWithAttachments', [
+            'to' => $to,
+            'subject' => $subject,
+            'attachments_count' => count($attachments),
+            'message_length' => strlen($message)
         ]);
-
-        // 1) пробуем с envelope-from (-f)
-        $params = '-f ' . $fromEmail;
-        $result = @mail($to, $encodedSubject, $body, $headers, $params);
-
-        if ($result) {
-            Log::channel('payment')->info('mail() OK (with -f)', ['to' => $to]);
-            return true;
-        }
-
-        $last = error_get_last();
-        Log::channel('payment')->warning('mail() FAILED (with -f), retrying without params', [
-            'to'         => $to,
-            'params'     => $params,
-            'last_error' => $last,
-        ]);
-
-        // 2) fallback: без 5-го параметра
-        $result2 = @mail($to, $encodedSubject, $body, $headers);
-
-        Log::channel('payment')->info('mail() result final', [
-            'to'         => $to,
-            'result'     => $result2 ? 1 : 0,
-            'last_error' => error_get_last(),
-        ]);
-
-        return (bool)$result2;
-    }
-
-    private function getClientEmailTemplate(array $data): string
-    {
-        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-
-        $appUrl = rtrim((string)config('app.url'), '/');
-        $imagePath = $appUrl !== '' ? ($appUrl . '/images/legacy/upload/logos/mailLogo.jpeg') : '';
-
-        $orderInfo = $data['orderInfo'];
-        $ticketInfo = $data['ticketInfo'];
-
-        $depTime = substr((string)($ticketInfo->departure_time ?? ''), 0, 5);
-
-        $html = '
-        <html><head><title>Ваш квиток</title></head><body>
-        <div style="text-align:center;margin-bottom:20px;">
-            <a href="https://www.maxtransltd.com">
-                <img src="' . $e($imagePath) . '" style="max-width:150px;" alt="MaxTrans LTD">
-            </a>
-        </div>
-        <p>Ваш квиток:</p>
-        <div style="border-left:4px solid #40A6FF; padding-left:10px;">
-            <table style="width:100%; border-collapse:collapse;">';
-
-        if ($data['passengers']->count() > 1) {
-            $i = 1;
-            foreach ($data['passengers'] as $passenger) {
-                $html .= "
-                    <tr><td style='font-weight:bold;'>{$i}</td><td></td></tr>
-                    <tr><td style='font-weight:bold;'>Квиток</td><td>{$e($orderInfo->id)} {$i}/{$data['passengers']->count()}</td></tr>
-                    <tr><td style='font-weight:bold;'>Рейс</td><td>{$e($ticketInfo->departure_city)} - {$e($ticketInfo->arrival_city)}</td></tr>
-                    <tr><td style='font-weight:bold;'>Виїзд</td><td>{$e($orderInfo->tour_date)} {$e($depTime)}</td></tr>
-                    <tr><td style='font-weight:bold;'>Виїзд</td><td>{$e($data['fromCity'])} {$e($data['fromStop'])}</td></tr>
-                    <tr><td style='font-weight:bold;'>Прибуття</td><td>{$e($data['toCity'])} {$e($data['toStop'])}</td></tr>
-                    <tr><td style='font-weight:bold;'>Пасажир</td><td>{$e($passenger->name ?? '')} {$e($passenger->second_name ?? '')}</td></tr>
-                    <tr><td style='font-weight:bold;'>Телефон</td><td>{$e($orderInfo->client_phone ?? '')}</td></tr>
-                    <tr><td style='font-weight:bold;'>E-mail</td><td>{$e($orderInfo->client_email ?? '')}</td></tr>
-                    <tr><td style='font-weight:bold;'>Ціна квитка</td><td>{$e($ticketInfo->price ?? '')}</td></tr>";
-                $i++;
-            }
-        } else {
-            $html .= "
-                <tr><td style='font-weight:bold;'>Квиток</td><td>{$e($orderInfo->id)}</td></tr>
-                <tr><td style='font-weight:bold;'>Рейс</td><td>{$e($ticketInfo->departure_city)} - {$e($ticketInfo->arrival_city)}</td></tr>
-                <tr><td style='font-weight:bold;'>Виїзд</td><td>{$e($orderInfo->tour_date)} {$e($depTime)}</td></tr>
-                <tr><td style='font-weight:bold;'>Виїзд</td><td>{$e($data['fromCity'])} {$e($data['fromStop'])}</td></tr>
-                <tr><td style='font-weight:bold;'>Прибуття</td><td>{$e($data['toCity'])} {$e($data['toStop'])}</td></tr>
-                <tr><td style='font-weight:bold;'>Пасажир</td><td>{$e($orderInfo->client_name ?? '')} {$e($orderInfo->client_surname ?? '')}</td></tr>
-                <tr><td style='font-weight:bold;'>Телефон</td><td>{$e($orderInfo->client_phone ?? '')}</td></tr>
-                <tr><td style='font-weight:bold;'>E-mail</td><td>{$e($orderInfo->client_email ?? '')}</td></tr>
-                <tr><td style='font-weight:bold;'>Ціна квитка</td><td>{$e($ticketInfo->price ?? '')}</td></tr>";
-        }
         
-                $bonusRedeemedCents = (int)($data['bonusRedeemedCents'] ?? 0);
-        $bonusCashbackCents = (int)($data['bonusCashbackCents'] ?? 0);
-
-        $bonusRows = '';
-        if ($bonusRedeemedCents > 0) {
-            $bonusRows .= "<tr><td style='font-weight:bold;'>Списано бонусами</td><td>{$e(number_format($bonusRedeemedCents / 100, 2, '.', ''))}</td></tr>";
-        }
-        if ($bonusCashbackCents > 0) {
-            $bonusRows .= "<tr><td style='font-weight:bold;'>Нараховано кешбеком</td><td>{$e(number_format($bonusCashbackCents / 100, 2, '.', ''))}</td></tr>";
-        }
-
-
-        $html .= "
-                <tr><td style='font-weight:bold;'>Сумма замовлення</td><td>{$e($data['totalPrice'])}</td></tr>
-                {$bonusRows}
-            </table>
-            <p>У вартість квитка включено перевезення одного місця багажу вагою до 25 кг.</p>
-            <p>Перевізник: Maks Trans LTD</p>
-        </div>
-        </body></html>";
-
-        return $html;
-    }
-
-    private function getAdminEmailTemplate(array $data): string
-    {
-        $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-
-        $appUrl = rtrim((string)config('app.url'), '/');
-        $imagePath = $appUrl !== '' ? ($appUrl . '/images/legacy/upload/logos/mailLogo.jpeg') : '';
-
-        $count = (int)($data['orderInfo']->passagers ?? 1);
-        $title = $count > 1 ? "Покупка {$count} білетів:" : "Покупка білета:";
-
-        $orderInfo = $data['orderInfo'];
-        $ticketInfo = $data['ticketInfo'];
-        $depTime = substr((string)($ticketInfo->departure_time ?? ''), 0, 5);
-
-        $html = '
-        <html><head><title>' . $e($title) . '</title></head><body>
-        <div style="text-align:center;margin-bottom:20px;">
-            <a href="https://www.maxtransltd.com">
-                <img src="' . $e($imagePath) . '" style="max-width:150px;" alt="MaxTrans LTD">
-            </a>
-        </div>
-        <p>' . $e($title) . '</p>
-        <div style="border-left:4px solid #40A6FF; padding-left:10px;">
-        <table style="width:100%; border-collapse:collapse;">
-            <tr><td style="font-weight:bold;">Покупець</td><td>' . $e(($orderInfo->client_name ?? '') . ' ' . ($orderInfo->client_surname ?? '')) . '</td></tr>
-            <tr><td style="font-weight:bold;">Пасажирів</td><td>' . $count . '</td></tr>';
-
-        if ($data['passengers']->count() > 1) {
-            $i = 1;
-            foreach ($data['passengers'] as $passenger) {
-                $html .= "
-                    <tr><td style='font-weight:bold;'>{$i}</td><td></td></tr>
-                    <tr><td style='font-weight:bold;'>Квиток</td><td>{$e($orderInfo->id)} {$i}/{$data['passengers']->count()}</td></tr>
-                    <tr><td style='font-weight:bold;'>Рейс</td><td>{$e($ticketInfo->departure_city)} - {$e($ticketInfo->arrival_city)}</td></tr>
-                    <tr><td style='font-weight:bold;'>Виїзд</td><td>{$e($orderInfo->tour_date)} {$e($depTime)}</td></tr>
-                    <tr><td style='font-weight:bold;'>Виїзд</td><td>{$e($data['fromCity'])} {$e($data['fromStop'])}</td></tr>
-                    <tr><td style='font-weight:bold;'>Прибуття</td><td>{$e($data['toCity'])} {$e($data['toStop'])}</td></tr>
-                    <tr><td style='font-weight:bold;'>Пасажир</td><td>{$e($passenger->name ?? '')} {$e($passenger->second_name ?? '')}</td></tr>
-                    <tr><td style='font-weight:bold;'>Телефон</td><td>{$e($orderInfo->client_phone ?? '')}</td></tr>
-                    <tr><td style='font-weight:bold;'>E-mail</td><td>{$e($orderInfo->client_email ?? '')}</td></tr>
-                    <tr><td style='font-weight:bold;'>Ціна</td><td>{$e($ticketInfo->price ?? '')}</td></tr>";
-                $i++;
-            }
-        } else {
-            $html .= "
-                <tr><td style='font-weight:bold;'>Квиток</td><td>{$e($orderInfo->id)}</td></tr>
-                <tr><td style='font-weight:bold;'>Рейс</td><td>{$e($ticketInfo->departure_city)} - {$e($ticketInfo->arrival_city)}</td></tr>
-                <tr><td style='font-weight:bold;'>Виїзд</td><td>{$e($orderInfo->tour_date)} {$e($depTime)}</td></tr>
-                <tr><td style='font-weight:bold;'>Виїзд</td><td>{$e($data['fromCity'])} {$e($data['fromStop'])}</td></tr>
-                <tr><td style='font-weight:bold;'>Прибуття</td><td>{$e($data['toCity'])} {$e($data['toStop'])}</td></tr>
-                <tr><td style='font-weight:bold;'>Телефон</td><td>{$e($orderInfo->client_phone ?? '')}</td></tr>
-                <tr><td style='font-weight:bold;'>E-mail</td><td>{$e($orderInfo->client_email ?? '')}</td></tr>
-                <tr><td style='font-weight:bold;'>Ціна</td><td>{$e($ticketInfo->price ?? '')}</td></tr>";
-        }
-        
-                $bonusRedeemedCents = (int)($data['bonusRedeemedCents'] ?? 0);
-        $bonusCashbackCents = (int)($data['bonusCashbackCents'] ?? 0);
-
-        $bonusRows = '';
-        if ($bonusRedeemedCents > 0) {
-            $bonusRows .= "<tr><td style='font-weight:bold;'>Списано бонусами</td><td>{$e(number_format($bonusRedeemedCents / 100, 2, '.', ''))}</td></tr>";
-        }
-        if ($bonusCashbackCents > 0) {
-            $bonusRows .= "<tr><td style='font-weight:bold;'>Нараховано кешбеком</td><td>{$e(number_format($bonusCashbackCents / 100, 2, '.', ''))}</td></tr>";
-        }
-
-
-        $html .= "
-            <tr><td style='font-weight:bold;'>Сумма замовлення</td><td>{$e($data['totalPrice'])}</td></tr>
-            {$bonusRows}
-            <tr><td style='font-weight:bold;'>Спосіб оплати</td><td>{$e($data['paymentMethodLabel'] ?? 'Онлайн')}</td></tr>
-        </table>
-        <p>Перевізник: Maks Trans LTD</p>
-        </div>
-        </body></html>";
-
-        return $html;
-    }
-
-    /**
-     * Provider по payload
-     */
-    private function detectPaymentProvider(array $paymentData): string
-    {
-        if (!empty($paymentData['invoiceId']) || !empty($paymentData['invoice_id'])) {
-            return 'monobank';
-        }
-
-        if (!empty($paymentData['liqpay_order_id']) || !empty($paymentData['payment_id']) || !empty($paymentData['public_key'])) {
-            return 'liqpay';
-        }
-
-        return 'online';
-    }
-
-    private function detectPaymentLabel(array $paymentData): string
-    {
-        $provider = $this->detectPaymentProvider($paymentData);
-
-        if ($provider === 'monobank') return 'Онлайн Monobank';
-        if ($provider === 'liqpay')   return 'Онлайн LiqPay';
-        return 'Онлайн';
-    }
-
-    /**
-     * Выставляем “онлайн/провайдер” в релевантные legacy колонки, если они существуют.
-     */
-    private function buildLegacyPaymentFieldsUpdate(string $provider): array
-    {
-        $table = $this->dbPrefix . '_orders';
-
-        $columns = [];
         try {
-            $cols = DB::select("SHOW COLUMNS FROM `{$table}`");
-            foreach ($cols as $c) {
-                $columns[(string)$c->Field] = strtolower((string)$c->Type);
-            }
-        } catch (Throwable $e) {
-            // fallback below
-        }
+            $separator = md5(time());
+            $eol = "\r\n";
 
-        $has = function (string $col) use ($table, $columns): bool {
-            if (!empty($columns)) return array_key_exists($col, $columns);
-            return Schema::hasColumn($table, $col);
-        };
+            $fromName = "Max Trans LTD";
+            $fromEmail = "info@maxtransltd.com";
 
-        $isNumeric = function (string $col) use ($columns): bool {
-            if (empty($columns[$col])) return false;
-            $t = $columns[$col];
-            return str_contains($t, 'int') || str_contains($t, 'decimal') || str_contains($t, 'float') || str_contains($t, 'double');
-        };
+            $headers = "From: $fromName <$fromEmail>" . $eol;
+            $headers .= "MIME-Version: 1.0" . $eol;
+            $headers .= "Content-Type: multipart/mixed; boundary=\"$separator\"" . $eol;
 
-        $onlineNumeric  = 2;
-        $onlineString   = 'online';
-        $providerString = $provider;
+            $body  = "--" . $separator . $eol;
+            $body .= "Content-Type: text/html; charset=\"utf-8\"" . $eol;
+            $body .= "Content-Transfer-Encoding: 7bit" . $eol . $eol;
+            $body .= $message . $eol;
 
-        $u = [];
-
-        $candidates = [
-            'payment_type',
-            'pay_type',
-            'payment_method',
-            'pay_method',
-            'payment_provider',
-            'provider',
-            'payment_form',
-            'type_pay',
-            'payment_way',
-            'payment_kind',
-        ];
-
-        foreach ($candidates as $col) {
-            if (!$has($col)) continue;
-
-            if ($isNumeric($col)) {
-                $u[$col] = $onlineNumeric;
-            } else {
-                if (str_contains($col, 'provider') || str_contains($col, 'method')) {
-                    $u[$col] = $providerString;
+            // Добавляем вложения
+            foreach ($attachments as $file) {
+                if (file_exists($file)) {
+                    $fileName = basename($file);
+                    $fileSize = filesize($file);
+                    $fileContent = chunk_split(base64_encode(file_get_contents($file)));
+                    
+                    Log::channel('payment')->debug('Adding attachment', [
+                        'file' => $fileName,
+                        'size' => $fileSize
+                    ]);
+                    
+                    $body .= "--" . $separator . $eol;
+                    $body .= "Content-Type: application/pdf; name=\"$fileName\"" . $eol;
+                    $body .= "Content-Transfer-Encoding: base64" . $eol;
+                    $body .= "Content-Disposition: attachment; filename=\"$fileName\"" . $eol . $eol;
+                    $body .= $fileContent . $eol;
                 } else {
-                    $u[$col] = $onlineString;
+                    Log::channel('payment')->warning('Attachment file not found', [
+                        'file' => $file
+                    ]);
                 }
             }
-        }
 
-        if ($has('paid_online')) {
-            $u['paid_online'] = 1;
-        }
+            $body .= "--" . $separator . "--";
 
-        return $u;
-    }
+            // Отправка
+            $result = mail($to, $subject, $body, $headers);
 
-    private function buildLegacyPaidDateUpdate(): array
-    {
-        $table = $this->dbPrefix . '_orders';
-        $u = [];
-
-        $dateCols = ['paid_at', 'payment_date', 'paid_date', 'pay_date', 'date_paid'];
-        foreach ($dateCols as $col) {
-            if (Schema::hasColumn($table, $col)) {
-                $u[$col] = date('Y-m-d H:i:s');
-            }
-        }
-
-        return $u;
-    }
-
-    private function markTicketsSentIfPossible(int $orderId): void
-    {
-        $table = $this->dbPrefix . '_orders';
-        if (!Schema::hasColumn($table, 'tickets_sent_at')) {
-            return;
-        }
-
-        try {
-            DB::table($table)->where('id', $orderId)->update([
-                'tickets_sent_at' => date('Y-m-d H:i:s')
+            Log::channel('payment')->info('mail() function result', [
+                'to' => $to,
+                'result' => $result,
+                'body_length' => strlen($body)
             ]);
-        } catch (Throwable $e) {
-            // не критично
+            
+            return $result;
+            
+        } catch (\Exception $e) {
+            Log::channel('payment')->error('sendEmailWithAttachments exception', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return false;
         }
+    }
+
+    /**
+     * Шаблон email для клиента
+     */
+    private function getClientEmailTemplate($data)
+    {
+        $imagePath = asset('images/legacy/upload/logos/mailLogo.jpeg');
+        $html = '
+        <html>
+        <head>
+            <title>Ваш квиток</title>
+            <style>
+                .email-content {
+                    border-left: 4px solid #40A6FF;
+                    padding-left: 10px;
+                }
+                .email-content table {
+                    width: 100%;
+                    border-collapse: collapse;
+                }
+                .email-content td {
+                    padding: 5px 10px;
+                }
+                .email-titles {
+                    font-weight: bold;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 20px;
+                }
+                .logo {
+                    max-width: 150px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <a href="https://www.maxtransltd.com">
+                <img src="' . $imagePath . '" alt="MaxTrans LTD" class="logo">
+                </a>
+            </div>
+            <p>Ваш квиток:</p>
+            <div class="email-content">
+                <table>';
+
+        if ($data['passengers']->count() > 1) {
+            $i = 1;
+            foreach ($data['passengers'] as $passenger) {
+                $html .= "
+                    <tr>
+                        <td class='email-titles'>$i</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Квиток</td>
+                        <td>{$data['orderInfo']->id} $i/{$data['passengers']->count()}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Рейс</td>
+                        <td>{$data['ticketInfo']->departure_city} - {$data['ticketInfo']->arrival_city}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Виїзд</td>
+                        <td>{$data['orderInfo']->tour_date} " . substr($data['ticketInfo']->departure_time, 0, 5) . "</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Виїзд</td>
+                        <td>{$data['fromCity']} {$data['fromStop']}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Прибуття</td>
+                        <td>{$data['toCity']} {$data['toStop']}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Пасажир</td>
+                        <td>{$passenger->name} {$passenger->second_name}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Телефон</td>
+                        <td>{$data['orderInfo']->client_phone}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>E-mail</td>
+                        <td>{$data['orderInfo']->client_email}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Ціна квитка</td>
+                        <td>{$data['ticketInfo']->price}</td>
+                    </tr>";
+                $i++;
+            }
+        } else {
+            $html .= "
+                    <tr>
+                        <td class='email-titles'>Квиток</td>
+                        <td>{$data['orderInfo']->id}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Рейс</td>
+                        <td>{$data['ticketInfo']->departure_city} - {$data['ticketInfo']->arrival_city}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Виїзд</td>
+                        <td>{$data['orderInfo']->tour_date} " . substr($data['ticketInfo']->departure_time, 0, 5) . "</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Виїзд</td>
+                        <td>{$data['fromCity']} {$data['fromStop']}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Прибуття</td>
+                        <td>{$data['toCity']} {$data['toStop']}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Пасажир</td>
+                        <td>{$data['orderInfo']->client_name} {$data['orderInfo']->client_surname}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Телефон</td>
+                        <td>{$data['orderInfo']->client_phone}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>E-mail</td>
+                        <td>{$data['orderInfo']->client_email}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Ціна квитка</td>
+                        <td>{$data['ticketInfo']->price}</td>
+                    </tr>";
+        }
+
+        $html .= "
+                    <tr>
+                        <td class='email-titles'>Сумма замовлення</td>
+                        <td>{$data['totalPrice']}</td>
+                    </tr>
+                </table>
+                <p>У вартість квитка включено перевезення одного місця багажу вагою до 25 кг. За кожну додаткову одиницю багажу передбачена доплата в розмірі 10% від вартості квитка.</p>
+                <p>Перевізник: Maks Trans LTD</p>
+            </div>
+        </body>
+        </html>";
+
+        return $html;
+    }
+
+    /**
+     * Шаблон email для администратора
+     */
+    private function getAdminEmailTemplate($data)
+    {
+        $imagePath = asset('images/legacy/upload/logos/mailLogo.jpeg');
+        $title = $data['orderInfo']->passagers > 1
+            ? "Покупка {$data['orderInfo']->passagers} білетів:"
+            : "Покупка білета:";
+
+        $html = '
+        <html>
+        <head>
+            <title>' . $title . '</title>
+            <style>
+                .email-content {
+                    border-left: 4px solid #40A6FF;
+                    padding-left: 10px;
+                }
+                .email-content table {
+                    width: 100%;
+                    border-collapse: collapse;
+                }
+                .email-content td {
+                    padding: 5px 10px;
+                }
+                .email-titles {
+                    font-weight: bold;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 20px;
+                }
+                .logo {
+                    max-width: 150px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <a href="https://www.maxtransltd.com">
+                <img src="' . $imagePath . '" alt="MaxTrans LTD" class="logo">
+                </a>
+            </div>
+            <p>' . $title . '</p>
+            <div class="email-content">
+                <table>
+                <tr>
+                    <td class="email-titles">Покупець</td>
+                    <td>' . $data['orderInfo']->client_name . ' ' . $data['orderInfo']->client_surname . '</td>
+                </tr>
+                <tr>
+                    <td class="email-titles">Пасажирів</td>
+                    <td>' . $data['orderInfo']->passagers . '</td>
+                </tr>';
+
+        if ($data['passengers']->count() > 1) {
+            $i = 1;
+            foreach ($data['passengers'] as $passenger) {
+                $html .= "
+                    <tr>
+                        <td class='email-titles'>$i</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Квиток</td>
+                        <td>{$data['orderInfo']->id} $i/{$data['passengers']->count()}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Рейс</td>
+                        <td>{$data['ticketInfo']->departure_city} - {$data['ticketInfo']->arrival_city}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Виїзд</td>
+                        <td>{$data['orderInfo']->tour_date} " . substr($data['ticketInfo']->departure_time, 0, 5) . "</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Виїзд</td>
+                        <td>{$data['fromCity']} {$data['fromStop']}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Прибуття</td>
+                        <td>{$data['toCity']} {$data['toStop']}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Пасажир</td>
+                        <td>{$passenger->name} {$passenger->second_name}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Телефон</td>
+                        <td>{$data['orderInfo']->client_phone}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>E-mail</td>
+                        <td>{$data['orderInfo']->client_email}</td>
+                    </tr>
+                    <tr>
+                        <td class='email-titles'>Ціна</td>
+                        <td>{$data['ticketInfo']->price}</td>
+                    </tr>";
+                $i++;
+            }
+        } else {
+            $html .= "
+                <tr>
+                    <td class='email-titles'>Квиток</td>
+                    <td>{$data['orderInfo']->id}</td>
+                </tr>
+                <tr>
+                    <td class='email-titles'>Рейс</td>
+                    <td>{$data['ticketInfo']->departure_city} - {$data['ticketInfo']->arrival_city}</td>
+                </tr>
+                <tr>
+                    <td class='email-titles'>Виїзд</td>
+                    <td>{$data['orderInfo']->tour_date} " . substr($data['ticketInfo']->departure_time, 0, 5) . "</td>
+                </tr>
+                <tr>
+                    <td class='email-titles'>Виїзд</td>
+                    <td>{$data['fromCity']} {$data['fromStop']}</td>
+                </tr>
+                <tr>
+                    <td class='email-titles'>Прибуття</td>
+                    <td>{$data['toCity']} {$data['toStop']}</td>
+                </tr>
+                <tr>
+                    <td class='email-titles'>Телефон</td>
+                    <td>{$data['orderInfo']->client_phone}</td>
+                </tr>
+                <tr>
+                    <td class='email-titles'>E-mail</td>
+                    <td>{$data['orderInfo']->client_email}</td>
+                </tr>
+                <tr>
+                    <td class='email-titles'>Ціна</td>
+                    <td>{$data['ticketInfo']->price}</td>
+                </tr>";
+        }
+
+        $html .= "
+                <tr>
+                    <td class='email-titles'>Сумма замовлення</td>
+                    <td>{$data['totalPrice']}</td>
+                </tr>
+                <tr>
+                    <td class='email-titles'>Спосіб оплати</td>
+                    <td>Онлайн LiqPay</td>
+                </tr>
+            </table>
+            <p>Перевізник: Maks Trans LTD</p>
+        </div>
+    </body>
+    </html>";
+
+        return $html;
     }
 }

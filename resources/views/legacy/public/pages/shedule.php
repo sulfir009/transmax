@@ -69,7 +69,7 @@
     END ASC,tsp.price DESC LIMIT " . $pagination['from'] . "," . $pagination['per_page']);
             ?>
             <div class="shedule_table_container">
-                <h1 class="shedule_title h2_title">
+                <div class="shedule_title h2_title">
                     <? if (!$filterParams) {
                         echo  __('alias_schedule');
                     } elseif ($filterParams && isset($_GET['country'])) {
@@ -77,7 +77,7 @@
                     } elseif ($filterParams && isset($_GET['departure']) && isset($_GET['arrival'])) {
                         echo  __('dictionary.MSG_MSG_SCHEDULE_ROZKLAD_NAPRAVLENNYA') . ' ' . $getRoutes[0]['departure_city_title'] . ' - ' . $getRoutes[0]['arrival_city_title'];
                     } ?>
-                </h1>
+                </div>
                 <div class="shedule_table_wrapper">
                     <table class="shedule_table">
                         <thead class="shedule_th">
@@ -204,7 +204,7 @@
                             foreach ($getCountries as $k => $country) {
                                 ?>
                                 <div>
-                                    <a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('schedule') ?>?country=<?php echo  $country['id'] ?>"
+                                    <a href="<?php echo  route('schedule') ?>?country=<?php echo  $country['id'] ?>"
                                        class="shedule_link"><?php echo  $country['title'] ?></a>
                                 </div>
                             <? } ?>
@@ -217,7 +217,7 @@
                             foreach ($getCities as $k => $city) {
                                 ?>
                                 <div>
-                                    <a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('schedule') ?>?city=<?php echo  $city['id'] ?>"
+                                    <a href="<?php echo  route('schedule') ?>?city=<?php echo  $city['id'] ?>"
                                        class="shedule_link"><?php echo  $city['title'] ?></a>
                                 </div>
                             <? } ?>
@@ -228,8 +228,7 @@
                             class="route_list_title h3_title"><?php echo  $GLOBALS['dictionary']['MSG_ALL_MIZHNARODNI'] ?></div>
                         <div class="route_list">
                             <? $getInternationalTours = $Db->getAll("SELECT t.id,t.departure,t.arrival,departure_city.title_" . $Router->lang . " AS departure_city, arrival_city.title_" . $Router->lang . " AS arrival_city,
-                            departure_city.id AS departure_city_id,arrival_city.id AS arrival_city_id,
-                            departure_city.slug_" . $Router->lang . " AS departure_city_slug, arrival_city.slug_" . $Router->lang . " AS arrival_city_slug
+                            departure_city.id AS departure_city_id,arrival_city.id AS arrival_city_id
                                 FROM `" . DB_PREFIX . "_tours` t
                                  JOIN `" . DB_PREFIX . "_cities` departure_city ON t.departure = departure_city.id
                                  JOIN `" . DB_PREFIX . "_cities` arrival_city ON t.arrival = arrival_city.id
@@ -241,7 +240,7 @@
                                 if (!in_array($routeString, $printedRoutes)) {
                                     ?>
                                     <div>
-                                        <a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('schedule.route', ['from' => $internationalTour['departure_city_slug'], 'to' => $internationalTour['arrival_city_slug']]) ?>"
+                                        <a href="<?php echo  route('schedule') ?>?departure=<?php echo  $internationalTour['departure_city_id'] ?>&arrival=<?php echo  $internationalTour['arrival_city_id'] ?>"
                                            class="shedule_link"><?php echo  $internationalTour['departure_city'] ?>
                                             → <?php echo  $internationalTour['arrival_city'] ?></a>
                                     </div>
@@ -254,8 +253,7 @@
                         <div class="route_list_title h3_title"><?php echo  __('dictionary.MSG_ALL_VNUTRISHNI') ?></div>
                         <div class="route_list">
                             <?php $getHomeTours = $Db->getAll("SELECT t.id,t.departure,t.arrival,departure_city.title_" . $Router->lang . " AS departure_city, arrival_city.title_" . $Router->lang . " AS arrival_city,
-                            departure_city.id AS departure_city_id,arrival_city.id AS arrival_city_id,
-                            departure_city.slug_" . $Router->lang . " AS departure_city_slug, arrival_city.slug_" . $Router->lang . " AS arrival_city_slug
+                            departure_city.id AS departure_city_id,arrival_city.id AS arrival_city_id
                                 FROM `" . DB_PREFIX . "_tours` t
                                  JOIN `" . DB_PREFIX . "_cities` departure_city ON t.departure = departure_city.id
                                  JOIN `" . DB_PREFIX . "_cities` arrival_city ON t.arrival = arrival_city.id
@@ -267,7 +265,7 @@
                                 if (!in_array($routeString, $printedRoutes)) {
                                     ?>
                                     <div>
-                                        <a href="<?php echo \App\Helpers\LocaleHelper::localizedRoute('schedule.route', ['from' => $homeTour['departure_city_slug'], 'to' => $homeTour['arrival_city_slug']]) ?>"
+                                        <a href="<?php echo  route('schedule') ?>?departure=<?php echo  $homeTour['departure_city_id'] ?>&arrival=<?php echo  $homeTour['arrival_city_id'] ?>"
                                            class="shedule_link"><?php echo  $homeTour['departure_city'] ?>
                                             → <?php echo  $homeTour['arrival_city'] ?></a>
                                     </div>

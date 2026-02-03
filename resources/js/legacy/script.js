@@ -17,8 +17,7 @@ $('.bus_img').slick({
 });
 const overlay = document.getElementById('popup-regular');
 
-$('[data-open-popup-regular]').on('click', function (event){
-    event.preventDefault();
+$('[data-open-popup-regular]').on('click', function (){
     const popup = document.getElementById('popup-regular');
     popup.style.display = 'flex';
 

@@ -107,19 +107,4 @@ class TextPageController extends Controller
 
         return view('text-pages.data-deletion-instructions', compact('pageData'));
     }
-    
-public function mobileApp(Request $request)
-{
-    $pageData = [
-        'page_title' => 'Мобільний додаток MaxTrans',
-        'meta_description' => 'Офіційний мобільний додаток MaxTrans. Бонуси, квитки, рейси онлайн.',
-        'meta_keywords' => 'MaxTrans, мобільний додаток, квитки, бонуси',
-        'text' => '', 
-    ];
-
-    return view('text-pages.mobile_app', compact('pageData'));
-}
-
-
-
 }

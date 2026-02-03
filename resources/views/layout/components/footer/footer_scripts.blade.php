@@ -1,5 +1,3 @@
-{{-- /home/vv513819/maxtransltd.com/www/resources/views/layout/components/footer/footer_scripts.blade.php --}}
-
 <!-- Flatpickr стили загружаем в начале -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 
@@ -17,9 +15,6 @@
     border: 0 !important;
     padding: 0 !important;
     box-sizing: border-box !important;
-
-    /* КЛЮЧЕВОЕ: календарь всегда поверх любых фильтров/меню */
-    z-index: 2147483647 !important;
 }
 
 /* Стабилизируем размеры после анимации открытия */
@@ -31,7 +26,7 @@
 }
 
 .flatpickr-calendar.open {
-    /* z-index выставлен на .flatpickr-calendar выше */
+    z-index: 99999 !important;
     display: inline-block !important;
 }
 
@@ -126,45 +121,6 @@ span.flatpickr-weekday {
     color: rgba(57,57,57,0.3) !important;
     background: transparent !important;
     border-color: transparent !important;
-}
-
-/*
-    ==============================
-    MAXTRANS FIX: ПОЗИЦИЯ КАЛЕНДАРЯ
-    ==============================
-    Проблема из твоих логов:
-    - fp.input (hidden) имеет rect 0x0, а altInput нормальный.
-    - на странице есть transform (mib_content), из-за этого стандартное позиционирование и/или
-      чужие стили (top/left/transform с !important) могут уводить календарь далеко.
-    Решение:
-    - помечаем календарь data-mx-fp="1"
-    - принудительно ставим position: fixed
-    - принудительно выставляем top/left рядом с altInput через JS с !important
-*/
-.flatpickr-calendar[data-mx-fp="1"]{
-    position: fixed !important;
-    top: auto !important;
-    left: auto !important;
-    right: auto !important;
-    bottom: auto !important;
-    transform: none !important;
-    margin: 0 !important;
-    z-index: 2147483647 !important;
-}
-
-/* На мобильных можно дать календарю чуть шире, чтобы не вылезал за края */
-@media (max-width: 768px){
-    .flatpickr-calendar{
-        width: 90vw !important;
-        max-width: 320px !important;
-        min-width: 0 !important;
-    }
-    .flatpickr-days,
-    .dayContainer{
-        width: 100% !important;
-        min-width: 0 !important;
-        max-width: 100% !important;
-    }
 }
 </style>
 
@@ -278,6 +234,10 @@ span.flatpickr-weekday {
             }
         });
     }
+
+
+
+
 
     $('.filter_city_select').select2({
         sorter: function(data) {
@@ -398,313 +358,29 @@ span.flatpickr-weekday {
     const currentDate = new Date();
     const threeYearsAgo = new Date(currentDate.getFullYear() - 3, currentDate.getMonth(), currentDate.getDate());
 
+
     let filterDatePicker;
     let isFilterInitialized = false;
 
-    /*
-        ============================
-        MAXTRANS: FIX POSITION HELPERS
-        ============================
-        Эти функции НЕ ломают твою логику подсветки/запросов.
-        Они только принудительно ставят календарь прямо под инпутом,
-        даже если на странице есть transform или чужие стили top/left с !important.
-    */
-
-    window.__mxFpOpenInstance = null;
-    window.__mxFpRafId = null;
-
-    function mxFpNormalizeCallbackArray(value){
-        if (!value) return [];
-        if (Array.isArray(value)) return value;
-        if (typeof value === 'function') return [value];
-        return [];
-    }
-
-    function mxFpMarkCalendar(fp){
-        if (!fp || !fp.calendarContainer) return;
-        fp.calendarContainer.setAttribute('data-mx-fp', '1');
-    }
-
-    function mxFpGetAnchor(fp){
-        if (!fp) return null;
-        if (fp.altInput) return fp.altInput;
-        if (fp.input) return fp.input;
-        return null;
-    }
-
-    function mxFpPlaceCalendarNow(fp){
-        if (!fp || !fp.calendarContainer) return;
-
-        const cal = fp.calendarContainer;
-        const anchor = mxFpGetAnchor(fp);
-
-        if (!anchor) return;
-
-        // Помечаем и принудительно делаем fixed, чтобы transform-родители не влияли
-        mxFpMarkCalendar(fp);
-
-        cal.style.setProperty('position', 'fixed', 'important');
-        cal.style.setProperty('right', 'auto', 'important');
-        cal.style.setProperty('bottom', 'auto', 'important');
-        cal.style.setProperty('transform', 'none', 'important');
-        cal.style.setProperty('margin', '0', 'important');
-        cal.style.setProperty('z-index', '2147483647', 'important');
-
-        const gap = 8;
-        const rect = anchor.getBoundingClientRect();
-
-        // Ставим временно, чтобы измерить размеры календаря
-        cal.style.setProperty('top', '0px', 'important');
-        cal.style.setProperty('left', '0px', 'important');
-
-        const calRect = cal.getBoundingClientRect();
-        const calW = calRect.width || cal.offsetWidth || 0;
-        const calH = calRect.height || cal.offsetHeight || 0;
-
-        // Позиция по умолчанию: снизу слева
-        let top = rect.bottom + gap;
-        let left = rect.left;
-
-        // Если не помещается вниз — открываем вверх
-        if (calH > 0 && (top + calH) > (window.innerHeight - gap)) {
-            top = rect.top - calH - gap;
-        }
-
-        // Ограничиваем, чтобы не уезжало за экран
-        top = Math.max(gap, top);
-
-        if (calW > 0 && (left + calW) > (window.innerWidth - gap)) {
-            left = window.innerWidth - calW - gap;
-        }
-        left = Math.max(gap, left);
-
-        // На мобиле удобнее центрировать
-        if (window.innerWidth <= 768 && calW > 0) {
-            let centeredLeft = (window.innerWidth - calW) / 2;
-            centeredLeft = Math.max(gap, centeredLeft);
-            left = centeredLeft;
-        }
-
-        cal.style.setProperty('top', top + 'px', 'important');
-        cal.style.setProperty('left', left + 'px', 'important');
-    }
-
-    function mxFpRequestPlace(fp){
-        if (!fp) return;
-
-        if (window.__mxFpRafId) {
-            cancelAnimationFrame(window.__mxFpRafId);
-            window.__mxFpRafId = null;
-        }
-
-        window.__mxFpRafId = requestAnimationFrame(function(){
-            mxFpPlaceCalendarNow(fp);
-            window.__mxFpRafId = null;
-        });
-    }
-
-    function mxFpEnsureHooks(fp){
-        if (!fp || !fp.config || fp.__mxFixed === true) return;
-        fp.__mxFixed = true;
-
-        // Нормализуем колбэки в массивы, чтобы можно было push
-        fp.config.onOpen = mxFpNormalizeCallbackArray(fp.config.onOpen);
-        fp.config.onClose = mxFpNormalizeCallbackArray(fp.config.onClose);
-        fp.config.onMonthChange = mxFpNormalizeCallbackArray(fp.config.onMonthChange);
-        fp.config.onYearChange = mxFpNormalizeCallbackArray(fp.config.onYearChange);
-        fp.config.onValueUpdate = mxFpNormalizeCallbackArray(fp.config.onValueUpdate);
-
-        fp.config.onOpen.push(function(selectedDates, dateStr, instance){
-            window.__mxFpOpenInstance = instance;
-            mxFpMarkCalendar(instance);
-
-            // Ставим позицию сразу и ещё раз через 2 кадра (на случай анимации fpFadeInDown)
-            mxFpRequestPlace(instance);
-            requestAnimationFrame(function(){ mxFpPlaceCalendarNow(instance); });
-            requestAnimationFrame(function(){ mxFpPlaceCalendarNow(instance); });
-        });
-
-        fp.config.onMonthChange.push(function(selectedDates, dateStr, instance){
-            if (instance && instance.isOpen) {
-                mxFpRequestPlace(instance);
-            }
-        });
-
-        fp.config.onYearChange.push(function(selectedDates, dateStr, instance){
-            if (instance && instance.isOpen) {
-                mxFpRequestPlace(instance);
-            }
-        });
-
-        fp.config.onValueUpdate.push(function(selectedDates, dateStr, instance){
-            if (instance && instance.isOpen) {
-                mxFpRequestPlace(instance);
-            }
-        });
-
-        fp.config.onClose.push(function(selectedDates, dateStr, instance){
-            if (window.__mxFpOpenInstance === instance) {
-                window.__mxFpOpenInstance = null;
-            }
-        });
-
-        // Если уже открыт — сразу фиксируем
-        if (fp.isOpen) {
-            window.__mxFpOpenInstance = fp;
-            mxFpRequestPlace(fp);
-        }
-    }
-
-    function mxFpTryFixByInputElement(inputEl){
-        if (!inputEl) return;
-        if (inputEl._flatpickr) {
-            mxFpEnsureHooks(inputEl._flatpickr);
-        }
-    }
-
-    function mxFpTryFixBySelector(selector){
-        const el = document.querySelector(selector);
-        if (!el) return;
-        mxFpTryFixByInputElement(el);
-    }
-
-    /**
-     * ============================
-     * FLATPICKR INIT (FILTER MAIN)
-     * ============================
-     */
-
     document.addEventListener("DOMContentLoaded", function() {
-        const filterInput = document.getElementById("filter_date_input") || document.querySelector(".filter_date");
+        const filterInput = document.querySelector(".filter_date");
 
         if (!filterInput) {
             return;
         }
-
-        // Если где-то выше уже инициализировали flatpickr, уничтожаем и делаем заново
+        
+        // Проверяем, что flatpickr еще не инициализирован
         if (filterInput._flatpickr) {
-            try { filterInput._flatpickr.destroy(); } catch (e) {}
+            return; // Уже инициализирован
         }
+        
+        let filterDatePicker;
+        let isFilterInitialized = false;
 
-        function initBasicFilterPicker() {
-            if (filterInput._flatpickr) {
-                try { filterInput._flatpickr.destroy(); } catch (e) {}
-            }
-
-            filterDatePicker = flatpickr(filterInput, {
-                minDate: "today",
-                dateFormat: "Y-m-d",
-                altInput: true,
-                altFormat: "F j, Y",
-                defaultDate: "<?php echo isset($filterDate) ? $filterDate : date('Y-m-d')?>",
-                locale: "<?php echo isset($lang) ? $lang : 'uk'?>",
-
-                // ВАЖНО: пусть создаётся обычно, но позицию мы всё равно будем принудительно фиксить
-                static: false,
-                appendTo: document.body,
-                disableMobile: true,
-                position: "below left",
-
-                onReady: function(selectedDates, dateStr, instance){
-                    mxFpMarkCalendar(instance);
-                    mxFpEnsureHooks(instance);
-                },
-
-                onOpen: function(selectedDates, dateStr, instance){
-                    mxFpEnsureHooks(instance);
-                    mxFpRequestPlace(instance);
-                },
-
-                onChange: function(selectedDates, dateStr, instance) {
-                    const currentDate = new Date();
-                    const threeYearsAgo = new Date(currentDate.getFullYear() - 3, currentDate.getMonth(), currentDate.getDate());
-                    if (selectedDates.length && selectedDates[0] < threeYearsAgo) {
-                        instance.setDate(threeYearsAgo);
-                    }
-                }
-            });
-
-            // После создания точно навешиваем хуки
-            if (filterInput._flatpickr) {
-                mxFpEnsureHooks(filterInput._flatpickr);
-            }
-        }
-
-        // Если нет нужных селектов — просто ставим обычный календарь и выходим
-        if (!window.jQuery || !$('#filter_departure').length || !$('#filter_arrival').length) {
-            initBasicFilterPicker();
-            return;
-        }
-
-        let filterDatePickerLocal = null;
-
-        function initHighlightedPicker(highlightedDaysArray) {
-            if (filterDatePickerLocal) {
-                try { filterDatePickerLocal.destroy(); } catch (e) {}
-            }
-            if (filterInput._flatpickr) {
-                try { filterInput._flatpickr.destroy(); } catch (e) {}
-            }
-
-            filterDatePickerLocal = flatpickr(filterInput, {
-                minDate: "today",
-                dateFormat: "Y-m-d",
-                altInput: true,
-                altFormat: "F j, Y",
-                defaultDate: "<?php echo isset($filterDate) ? $filterDate : date('Y-m-d')?>",
-                locale: "<?php echo $lang?>",
-
-                static: false,
-                appendTo: document.body,
-                disableMobile: true,
-                position: "below left",
-
-                onReady: function(selectedDates, dateStr, instance){
-                    mxFpMarkCalendar(instance);
-                    mxFpEnsureHooks(instance);
-                },
-
-                onOpen: function(selectedDates, dateStr, instance){
-                    mxFpEnsureHooks(instance);
-                    mxFpRequestPlace(instance);
-                },
-
-                onDayCreate: function(dObj, dStr, fp, dayElem) {
-                    let dayOfWeek = dayElem.dateObj.getDay();
-                    if (dayOfWeek === 0) {
-                        dayOfWeek = 7;
-                    }
-                    if (Array.isArray(highlightedDaysArray) && highlightedDaysArray.includes(dayOfWeek)) {
-                        dayElem.classList.add("highlight-day");
-                    }
-                },
-
-                onChange: function(selectedDates, dateStr, instance) {
-                    const currentDate = new Date();
-                    const threeYearsAgo = new Date(currentDate.getFullYear() - 3, currentDate.getMonth(), currentDate.getDate());
-                    if (selectedDates.length && selectedDates[0] < threeYearsAgo) {
-                        instance.setDate(threeYearsAgo);
-                    }
-                }
-            });
-
-            filterDatePicker = filterDatePickerLocal;
-
-            // После создания точно навешиваем хуки
-            if (filterInput._flatpickr) {
-                mxFpEnsureHooks(filterInput._flatpickr);
-            }
-        }
-
+        // Функция для отправки AJAX-запроса
         function sendFilterRequest() {
             const departure = $('#filter_departure').val();
             const arrival = $('#filter_arrival').val();
-
-            if (!departure || !arrival) {
-                initBasicFilterPicker();
-                return;
-            }
-
             console.log("Отправляем запрос с параметрами departure:", departure, "и arrival:", arrival);
             $.ajax({
                 type: 'post',
@@ -720,37 +396,79 @@ span.flatpickr-weekday {
                 success: function(response) {
                     console.log("Получен ответ от сервера:", response);
 
-                    let highlightedDaysString = (response || '').toString().trim();
+                    let highlightedDaysString = response.trim();
 
                     if (highlightedDaysString) {
-                        let highlightedDaysArray = highlightedDaysString
-                            .split('\n')
-                            .map(line => line.trim().split(/\D+/).map(Number))
-                            .flat()
-                            .filter(day => day > 0);
-
+                        highlightedDaysArray = highlightedDaysString.split('\n').map(line => line.trim().split(/\D+/).map(Number)).flat().filter(day => day > 0);
+                        // Очищаем от повторяющихся и лишних чисел
                         let uniqueDays = {};
-                        highlightedDaysArray.forEach(day => { uniqueDays[day] = true; });
+                        highlightedDaysArray.forEach(day => {
+                            uniqueDays[day] = true;
+                        });
                         highlightedDaysArray = Object.keys(uniqueDays).map(Number);
+                        console.log(highlightedDaysArray)
+                        if (filterDatePicker) {
+                            filterDatePicker.destroy();
+                        }
 
-                        console.log(highlightedDaysArray);
+                        filterDatePicker = flatpickr(filterInput, {
+                            minDate: "today",
+                            dateFormat: "Y-m-d",
+                            altInput: true,
+                            altFormat: "F j, Y",
+                            defaultDate: "<?php echo isset($filterDate) ? $filterDate : date('Y-m-d')?>",
+                            locale: '<?php echo $lang?>',
+                            static: true,
+                            disableMobile: true,
+                            onDayCreate: function(dObj, dStr, fp, dayElem) {
+                                let dayOfWeek = dayElem.dateObj.getDay();
+                                if (dayOfWeek === 0) {
+                                    dayOfWeek = 7;
+                                }
+                                if (highlightedDaysArray.includes(dayOfWeek)) {
+                                    dayElem.classList.add("highlight-day");
+                                }
+                            },
+                            onChange: function(selectedDates, dateStr, instance) {
+                                const currentDate = new Date();
+                                const threeYearsAgo = new Date(currentDate.getFullYear() - 3, currentDate.getMonth(), currentDate.getDate());
+                                if (selectedDates.length && selectedDates[0] < threeYearsAgo) {
+                                    instance.setDate(threeYearsAgo);
+                                }
+                            }
+                        });
 
-                        initHighlightedPicker(highlightedDaysArray);
                         isFilterInitialized = true;
                     } else {
                         console.log("Нет доступных дней для выбранных параметров.");
-                        initBasicFilterPicker();
+                        filterDatePicker = flatpickr(filterInput, {
+                            minDate: "today",
+                            dateFormat: "Y-m-d",
+                            altInput: true,
+                            altFormat: "F j, Y",
+                            defaultDate: "<?php echo isset($filterDate) ? $filterDate : date('Y-m-d')?>",
+                            locale: '<?php echo isset($lang) ? $lang : 'uk'?>',
+                            static: true,
+                            disableMobile: true,
+                            onChange: function(selectedDates, dateStr, instance) {
+                                const currentDate = new Date();
+                                const threeYearsAgo = new Date(currentDate.getFullYear() - 3, currentDate.getMonth(), currentDate.getDate());
+                                if (selectedDates.length && selectedDates[0] < threeYearsAgo) {
+                                    instance.setDate(threeYearsAgo);
+                                }
+                            }
+                        });
                     }
                 },
                 error: function(xhr, status, error) {
                     console.error("Ошибка при выполнении запроса:", error);
-                    initBasicFilterPicker();
                 }
             });
         }
 
         sendFilterRequest();
 
+        // Отправляем запрос при изменении значений инпутов
         $('#filter_departure, #filter_arrival').on("change", sendFilterRequest);
     });
 
@@ -760,135 +478,20 @@ span.flatpickr-weekday {
     $orderDate = isset($_SESSION['order']['date']) ? $_SESSION['order']['date'] : '';
     ?>
 
-    /**
-     * ============================
-     * FLATPICKR INIT (BOOKING)
-     * ============================
-     */
-
     document.addEventListener("DOMContentLoaded", function() {
         const filterInput = document.querySelector(".filter_date_booking");
 
         if (!filterInput) {
             return;
         }
+        let filterDatePicker;
+        let isFilterInitialized = false;
 
-        // Если уже был инициализирован — уничтожаем, чтобы применились новые настройки
-        if (filterInput._flatpickr) {
-            try { filterInput._flatpickr.destroy(); } catch (e) {}
-        }
-
-        let filterDatePickerLocal = null;
-
-        function initBookingPickerBasic() {
-            if (filterDatePickerLocal) {
-                try { filterDatePickerLocal.destroy(); } catch (e) {}
-            }
-            if (filterInput._flatpickr) {
-                try { filterInput._flatpickr.destroy(); } catch (e) {}
-            }
-
-            filterDatePickerLocal = flatpickr(filterInput, {
-                minDate: "today",
-                dateFormat: "Y-m-d",
-                altInput: true,
-                altFormat: "F j, Y",
-                defaultDate: "<?php echo $orderDate?>",
-                locale: "<?php echo $lang?>",
-
-                static: false,
-                appendTo: document.body,
-                disableMobile: true,
-                position: "below left",
-
-                onReady: function(selectedDates, dateStr, instance){
-                    mxFpMarkCalendar(instance);
-                    mxFpEnsureHooks(instance);
-                },
-
-                onOpen: function(selectedDates, dateStr, instance){
-                    mxFpEnsureHooks(instance);
-                    mxFpRequestPlace(instance);
-                },
-
-                onChange: function(selectedDates, dateStr, instance) {
-                    const currentDate = new Date();
-                    const threeYearsAgo = new Date(currentDate.getFullYear() - 3, currentDate.getMonth(), currentDate.getDate());
-                    if (selectedDates.length && selectedDates[0] < threeYearsAgo) {
-                        instance.setDate(threeYearsAgo);
-                    }
-                    updateSessionDate(dateStr);
-                }
-            });
-
-            // После создания точно навешиваем хуки
-            if (filterInput._flatpickr) {
-                mxFpEnsureHooks(filterInput._flatpickr);
-            }
-        }
-
-        function initBookingPickerHighlighted(highlightedDaysArray) {
-            if (filterDatePickerLocal) {
-                try { filterDatePickerLocal.destroy(); } catch (e) {}
-            }
-            if (filterInput._flatpickr) {
-                try { filterInput._flatpickr.destroy(); } catch (e) {}
-            }
-
-            filterDatePickerLocal = flatpickr(filterInput, {
-                minDate: "today",
-                dateFormat: "Y-m-d",
-                altInput: true,
-                altFormat: "F j, Y",
-                defaultDate: "<?php echo $orderDate?>",
-                locale: "<?php echo $lang?>",
-
-                static: false,
-                appendTo: document.body,
-                disableMobile: true,
-                position: "below left",
-
-                onReady: function(selectedDates, dateStr, instance){
-                    mxFpMarkCalendar(instance);
-                    mxFpEnsureHooks(instance);
-                },
-
-                onOpen: function(selectedDates, dateStr, instance){
-                    mxFpEnsureHooks(instance);
-                    mxFpRequestPlace(instance);
-                },
-
-                onDayCreate: function(dObj, dStr, fp, dayElem) {
-                    let dayOfWeek = dayElem.dateObj.getDay();
-                    if (dayOfWeek === 0) {
-                        dayOfWeek = 7;
-                    }
-                    if (Array.isArray(highlightedDaysArray) && highlightedDaysArray.includes(dayOfWeek)) {
-                        dayElem.classList.add("highlight-day");
-                    }
-                },
-
-                onChange: function(selectedDates, dateStr, instance) {
-                    const currentDate = new Date();
-                    const threeYearsAgo = new Date(currentDate.getFullYear() - 3, currentDate.getMonth(), currentDate.getDate());
-                    if (selectedDates.length && selectedDates[0] < threeYearsAgo) {
-                        instance.setDate(threeYearsAgo);
-                    }
-                    updateSessionDate(dateStr);
-                }
-            });
-
-            // После создания точно навешиваем хуки
-            if (filterInput._flatpickr) {
-                mxFpEnsureHooks(filterInput._flatpickr);
-            }
-        }
-
+        // Функция для отправки AJAX-запроса
         function sendFilterRequest() {
             const departure = "<?php echo  $departure ?>";
             const arrival = "<?php echo  $arrival ?>";
             console.log("Отправляем запрос с параметрами departure:", departure, "и arrival:", arrival);
-
             $.ajax({
                 type: 'post',
                 url:  '/ajax/ru',
@@ -903,44 +506,88 @@ span.flatpickr-weekday {
                 success: function(response) {
                     console.log("Получен ответ от сервера:", response);
 
-                    let highlightedDaysString = (response || '').toString().trim();
+                    let highlightedDaysString = response.trim();
 
                     if (highlightedDaysString) {
-                        let highlightedDaysArray = highlightedDaysString
-                            .split('\n')
-                            .map(line => line.trim().split(/\D+/).map(Number))
-                            .flat()
-                            .filter(day => day > 0);
-
+                        highlightedDaysArray = highlightedDaysString.split('\n').map(line => line.trim().split(/\D+/).map(Number)).flat().filter(day => day > 0);
+                        // Очищаем от повторяющихся и лишних чисел
                         let uniqueDays = {};
-                        highlightedDaysArray.forEach(day => { uniqueDays[day] = true; });
+                        highlightedDaysArray.forEach(day => {
+                            uniqueDays[day] = true;
+                        });
                         highlightedDaysArray = Object.keys(uniqueDays).map(Number);
+                        console.log(highlightedDaysArray)
+                        if (filterDatePicker) {
+                            filterDatePicker.destroy();
+                        }
 
-                        console.log(highlightedDaysArray);
+                        filterDatePicker = flatpickr(filterInput, {
+                            minDate: "today",
+                            dateFormat: "Y-m-d",
+                            altInput: true,
+                            altFormat: "F j, Y",
+                            defaultDate: "<?php echo $orderDate?>",
+                            locale: '<?php echo $lang?>',
+                            static: true,
+                            disableMobile: true,
+                            onDayCreate: function(dObj, dStr, fp, dayElem) {
+                                let dayOfWeek = dayElem.dateObj.getDay();
+                                if (dayOfWeek === 0) {
+                                    dayOfWeek = 7;
+                                }
+                                if (highlightedDaysArray.includes(dayOfWeek)) {
+                                    dayElem.classList.add("highlight-day");
+                                }
+                            },
+                            onChange: function(selectedDates, dateStr, instance) {
+                                const currentDate = new Date();
+                                const threeYearsAgo = new Date(currentDate.getFullYear() - 3, currentDate.getMonth(), currentDate.getDate());
+                                if (selectedDates.length && selectedDates[0] < threeYearsAgo) {
+                                    instance.setDate(threeYearsAgo);
+                                }
+                                updateSessionDate(dateStr);
+                            }
+                        });
 
-                        initBookingPickerHighlighted(highlightedDaysArray);
                         isFilterInitialized = true;
 
                     } else {
                         console.log("Нет доступных дней для выбранных параметров.");
-                        initBookingPickerBasic();
+                        filterDatePicker = flatpickr(filterInput, {
+                            minDate: "today",
+                            dateFormat: "Y-m-d",
+                            altInput: true,
+                            altFormat: "F j, Y",
+                            defaultDate: "<?php echo $orderDate?>",
+                            locale: '<?php echo $lang?>',
+                            static: true,
+                            disableMobile: true,
+                            onChange: function(selectedDates, dateStr, instance) {
+                                const currentDate = new Date();
+                                const threeYearsAgo = new Date(currentDate.getFullYear() - 3, currentDate.getMonth(), currentDate.getDate());
+                                if (selectedDates.length && selectedDates[0] < threeYearsAgo) {
+                                    instance.setDate(threeYearsAgo);
+                                }
+                                updateSessionDate(dateStr);
+                            }
+                        });
                     }
                 },
                 error: function(xhr, status, error) {
                     console.error("Ошибка при выполнении запроса:", error);
-                    initBookingPickerBasic();
                 }
             });
 
         }
 
+        // Функция для обновления даты в сессии
         function updateSessionDate(date) {
             $.ajax({
                 type: 'post',
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                 },
-                url: '/ajax/ru',
+                url: '/ajax/ru', // Путь к PHP-файлу, обрабатывающему запрос
                 data: {
                     request: 'booking_date',
                     date: date
@@ -955,14 +602,15 @@ span.flatpickr-weekday {
         }
 
         sendFilterRequest();
-    });
 
+    });
     function togglePhoneDropdown() {
         const menu = document.getElementById('phoneMenu-header');
         menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
     }
 
     function sendOrderRequest() {
+        // Удаляем предыдущие ошибки
         $('.callback_popUp').find('.error-border').removeClass('error-border');
 
         let params = {
@@ -972,6 +620,7 @@ span.flatpickr-weekday {
             comment: $.trim($('#callback_message').val()),
         };
 
+        // Валидация обязательных полей
         let hasErrors = false;
 
         if (!params.phone || params.phone.trim() === '') {
@@ -996,28 +645,29 @@ span.flatpickr-weekday {
         sendRequestOrder(params);
     }
 
-    function sendRequestOrder(params)
-    {
-        $.ajax({
-            type: "POST",
-            url: '/ajax/callback',
-            contentType: 'application/json',
-            dataType: 'json',
-            data: JSON.stringify(params),
-            headers: {
-                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-            },
-            success: function (response) {
-                document.getElementById('successModal').style.display = 'flex';
-                document.querySelector('.callback_popUp').style.display = 'none';
-            },
-            error: function (xhr) {
-                alert('Request din`t send');
-            }
-        });
-    }
+        function sendRequestOrder(params)
+        {
+            $.ajax({
+                type: "POST",
+                url: '/ajax/callback',
+                contentType: 'application/json',
+                dataType: 'json',
+                data: JSON.stringify(params),
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                },
+                success: function (response) {
+                    document.getElementById('successModal').style.display = 'flex';
+                    document.querySelector('.callback_popUp').style.display = 'none';
+                },
+                error: function (xhr) {
+                    alert('Request din`t send');
+                }
+            });
+        }
 
     function sendCallback(){
+        // Удаляем предыдущие ошибки
         $('.callback_form').find('.error-border').removeClass('error-border');
 
         let departure = $.trim($('#callback_departure').val());
@@ -1027,6 +677,7 @@ span.flatpickr-weekday {
 
         let hasErrors = false;
 
+        // Валидация обязательных полей
         if (!phone || phone.trim() === '') {
             $('#callback_phone').addClass('error-border');
             hasErrors = true;
@@ -1045,7 +696,6 @@ span.flatpickr-weekday {
         if (hasErrors) {
             return false;
         }
-
         $('body').prepend('<div class="loader"></div>');
         $.ajax({
             type:'post',
@@ -1083,62 +733,4 @@ span.flatpickr-weekday {
         });
     });
 
-    /*
-        ============================
-        MAXTRANS: GLOBAL LISTENERS
-        ============================
-        - Если календарь открыт и ты скроллишь/ресайзишь — держим его возле инпута.
-        - Если какой-то сторонний код создаст flatpickr позже — мы всё равно навесим хуки.
-    */
-    document.addEventListener('DOMContentLoaded', function(){
-        // пробуем навесить фиксы после того как отработают все DOMContentLoaded внутри файла
-        setTimeout(function(){
-            mxFpTryFixBySelector('#filter_date_input');
-            mxFpTryFixBySelector('.filter_date');
-            mxFpTryFixBySelector('.filter_date_booking');
-        }, 0);
-
-        window.addEventListener('scroll', function(){
-            if (window.__mxFpOpenInstance && window.__mxFpOpenInstance.isOpen) {
-                mxFpRequestPlace(window.__mxFpOpenInstance);
-            }
-        }, true);
-
-        window.addEventListener('resize', function(){
-            if (window.__mxFpOpenInstance && window.__mxFpOpenInstance.isOpen) {
-                mxFpRequestPlace(window.__mxFpOpenInstance);
-            }
-        }, true);
-
-        // Любой клик по инпуту/кнопке календаря — ещё раз убеждаемся что хуки навешены
-        document.addEventListener('click', function(e){
-            const t = e.target;
-
-            // клики по кнопке календаря
-            const calendarBtn = t && (t.closest ? t.closest('.filter_calendar_btn') : null);
-            if (calendarBtn) {
-                const inp = document.getElementById('filter_date_input') || document.querySelector('.filter_date');
-                if (inp && inp._flatpickr) {
-                    mxFpEnsureHooks(inp._flatpickr);
-                    // если уже открыт, перепозиционируем
-                    if (inp._flatpickr.isOpen) {
-                        mxFpRequestPlace(inp._flatpickr);
-                    }
-                }
-                return;
-            }
-
-            // клики по самому altInput (он создаётся flatpickr-ом)
-            if (t && t.classList && t.classList.contains('flatpickr-input')) {
-                if (t._flatpickr) {
-                    mxFpEnsureHooks(t._flatpickr);
-                } else {
-                    // иногда кликают по altInput (он не тот же элемент),
-                    // поэтому пробуем найти оригинальные инпуты
-                    mxFpTryFixBySelector('#filter_date_input');
-                    mxFpTryFixBySelector('.filter_date_booking');
-                }
-            }
-        }, true);
-    });
 </script>

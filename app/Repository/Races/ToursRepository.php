@@ -76,9 +76,7 @@ class ToursRepository
                 departure_city.title_{$lang} AS departure_city,
                 arrival_city.title_{$lang} AS arrival_city,
                 departure_city.id AS departure_city_id,
-                arrival_city.id AS arrival_city_id,
-                departure_city.slug_{$lang} AS departure_city_slug,
-                arrival_city.slug_{$lang} AS arrival_city_slug
+                arrival_city.id AS arrival_city_id
             ")
             ->whereRaw('departure_city.section_id != arrival_city.section_id')
             ->get()
@@ -105,9 +103,7 @@ class ToursRepository
                 departure_city.title_{$lang} AS departure_city,
                 arrival_city.title_{$lang} AS arrival_city,
                 departure_city.id AS departure_city_id,
-                arrival_city.id AS arrival_city_id,
-                departure_city.slug_{$lang} AS departure_city_slug,
-                arrival_city.slug_{$lang} AS arrival_city_slug
+                arrival_city.id AS arrival_city_id
             ")
             ->where('departure_city.section_id', '13')
             ->where('arrival_city.section_id', '13')
