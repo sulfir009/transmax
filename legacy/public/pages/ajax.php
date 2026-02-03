@@ -1,33 +1,92 @@
 <?php
 
+declare(strict_types=1);
+
+/**
+ * 0) Нормализуем вход:
+ *    - если JSON body: мерджим его в $_POST (чтобы дальше код не переписывать)
+ *    ВАЖНО: делаем это ДО чтения lang и request.
+ */
+$contentType = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
+$rawBody = (string) file_get_contents('php://input');
+
+// иногда фронт шлёт JSON без правильного Content-Type → поэтому ловим и по "похоже на JSON"
+$looksLikeJson = ($rawBody !== '') && preg_match('~^\s*[\{\[]~', $rawBody);
+
+if (
+    $rawBody !== '' &&
+    (stripos($contentType, 'application/json') !== false || $looksLikeJson) &&
+    (empty($_POST) || !isset($_POST['request']))
+) {
+    $decoded = json_decode($rawBody, true);
+    if (is_array($decoded)) {
+        // JSON имеет приоритет
+        $_POST = $decoded + $_POST;
+    }
+}
+
+
+/**
+ * 1) Стартуем PHP-сессию ОДИН раз (и только если она реально нужна).
+ *    Проблема: если этот файл иногда вызывается не через Laravel middleware,
+ *    то без session_start() $_SESSION пустой.
+ */
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 
-// 1) Берём lang из запроса (лучше всего) / cookie / session
+/**
+ * 2) Берём lang: POST/GET/cookie/session (после JSON merge!)
+ */
 $lang = $_POST['lang'] ?? $_GET['lang'] ?? $_COOKIE['lang'] ?? $_SESSION['lang'] ?? null;
-
-// 2) Нормализуем
 $lang = is_string($lang) ? strtolower(trim($lang)) : null;
 
-// 3) Разрешённые языки (подстрой под свои)
 $allowed = ['uk', 'ru', 'en'];
-
-// часто путают ua vs uk — подстрахуемся
 if ($lang === 'ua') $lang = 'uk';
-
 if (!in_array($lang, $allowed, true)) {
-    $lang = null; // пусть дальше выберется дефолт
+    $lang = null;
 }
 
+/**
+ * 3) Если язык пришёл — сохраняем:
+ *    - в $_SESSION (для legacy логики)
+ *    - в cookie (чтобы держался без сессии и был доступен фронту)
+ */
 if ($lang) {
     $_SESSION['lang'] = $lang;
+
+    // cookie на год
+    if (!headers_sent()) {
+        setcookie('lang', $lang, [
+            'expires'  => time() + 365 * 24 * 60 * 60,
+            'path'     => '/',
+            'secure'   => !empty($_SERVER['HTTPS']),
+            'httponly' => false,      // фронту можно читать
+            'samesite' => 'Lax',
+        ]);
+    }
+
+    // чтобы в этом же запросе $_COOKIE уже видел новое значение
+    $_COOKIE['lang'] = $lang;
 }
+
 
 
 require_once(str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT'])."/config.php");
 require_once(str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT']) . "/" . ADMIN_PANEL . "/engine/CDb.php");
 require_once(str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT'])."/". ADMIN_PANEL ."/includes.php");
+function mt_normalize_paymethod($v): string {
+    $v = strtolower(trim((string)$v));
+    if ($v === 'mono') return 'monobank';
+    return $v;
+}
+
+function mt_payment_status_from_paymethod(string $paymethod, int $fallback = 1): int {
+    return match ($paymethod) {
+        'monobank' => 3, // monobank = 3
+        default    => $fallback,
+    };
+}
 
 // если Router уже создан в includes.php — докручиваем его
 if (!empty($_SESSION['lang']) && isset($Router)) {
@@ -56,25 +115,12 @@ mysqli_set_charset($db , "utf8" );
 $toursRepository = new \App\Repository\Races\ToursRepository();
 $Db = new CDb($db, $db);
 // На всякий случай
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
-
 // debug=1 можно передать GET или POST
 $debugEnabled = (
     (isset($_GET['debug']) && (string)$_GET['debug'] === '1') ||
     (isset($_POST['debug']) && (string)$_POST['debug'] === '1')
 );
 
-// Поддержка JSON-body: если фронт шлёт application/json, $_POST будет пустой
-$rawBody = (string)file_get_contents('php://input');
-if ((empty($_POST) || !isset($_POST['request'])) && $rawBody !== '') {
-    $decoded = json_decode($rawBody, true);
-    if (is_array($decoded)) {
-        // аккуратно мёрджим (POST приоритетнее, но обычно он пуст)
-        $_POST = $decoded + $_POST;
-    }
-}
 
 // request берём из реального $_POST (после возможного decode)
 $request = $_POST['request'] ?? null;
@@ -515,7 +561,6 @@ if ($cleanPost['request'] === 'remember_ticket') {
     }
 
     if ($canOrderTicket){
-        session_start();
         $ticketDateArr = explode('-',$cleanPost['date']);
         $ticketDate = array();
         foreach ($ticketDateArr AS $k=>$value){
@@ -610,7 +655,6 @@ if ($cleanPost['request'] === 'remember_ticket_without_date') {
     $toCity = $Db->getOne("SELECT title_".$Router->getLang()." AS title FROM `" .  DB_PREFIX . "_cities`  WHERE id = '".(int)$cleanPost['toCity']."' ");
     $fromCityId = $Db->getOne("SELECT section_id FROM `" .  DB_PREFIX . "_cities`  WHERE id = '".(int)$cleanPost['departure']."' ");
     $toCityId = $Db->getOne("SELECT section_id FROM `" .  DB_PREFIX . "_cities`  WHERE id = '".(int)$cleanPost['arrival']."' ");
-    session_start();
     $ticketDateArr = explode('-',$cleanPost['date']);
     $ticketDate = array();
     foreach ($ticketDateArr AS $k=>$value){
@@ -630,8 +674,6 @@ if ($cleanPost['request'] === 'remember_ticket_without_date') {
 }
 
 if ($cleanPost['request'] === 'clear_session_data') {
-    // Начинаем сессию
-    session_start();
 
     // Удаляем данные из сессии
     unset($_SESSION['order']);

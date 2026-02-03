@@ -13,34 +13,45 @@ use Illuminate\Support\Facades\Log;
 
 class MonobankPaymentController extends Controller
 {
-    /**
-     * Старт оплаты Monobank: создаём invoice и редиректим на страницу оплаты.
-     *
-     * ВАЖНО:
-     * - Считаем, что TourStopPrice.price хранится В КОПЕЙКАХ (int).
-     *   Поэтому в mono отправляем amount = priceKop * passengers (уже копейки).
-     * - Для payments.order_id используем legacy uniqId (как у LiqPay: ORDER_xxx),
-     *   чтобы TicketService потом работал и чтобы не было дублей из-за unique.
-     */
     public function start(Order $order, MonobankAcquiringService $mono)
     {
-        // 1) Получаем цену (из таблицы цен)
+        // 1) Цена
         $priceRow = TourStopPrice::query()
             ->where('tour_id', $order->tour_id)
             ->where('from_stop', $order->from_stop)
             ->where('to_stop', $order->to_stop)
             ->first();
 
-        // 2) Цена в копейках (int)
-        $priceKop = (int)($priceRow->price ?? 0);
+        // 2) Цена -> копейки (int)
+        $priceRaw = $priceRow->price ?? 0;
+        $priceKop = 0;
 
-        // Кол-во пассажиров (в старой схеме passagers)
+        if (is_numeric($priceRaw)) {
+            $priceString = (string) $priceRaw;
+            $hasDecimals = str_contains($priceString, '.') || str_contains($priceString, ',');
+            $priceValue  = (float) str_replace(',', '.', $priceString);
+
+            if ($hasDecimals) {
+                // 1.23 => 123 коп
+                $priceKop = (int) round($priceValue * 100);
+            } elseif ($priceValue >= 1000) {
+                // если в БД уже копейки типа 9500
+                $priceKop = (int) round($priceValue);
+            } else {
+                // если в БД гривны без копеек типа 95
+                $priceKop = (int) round($priceValue * 100);
+            }
+        }
+
         $passengers = max(1, (int)($order->passagers ?? 1));
 
-        // Итог для mono в копейках
+        // 3) Итог в копейках
         $amountKop = $priceKop * $passengers;
+
+        // 4) Бонусы (тоже копейки)
         $bonusRedeemedCents = (int)($order->bonus_redeemed_cents ?? 0);
-        $useBonus = isset($order->bonus_use_requested) && (int)$order->bonus_use_requested === 1;
+        $useBonus = (int)($order->bonus_use_requested ?? 0) === 1;
+
         if ($useBonus && $bonusRedeemedCents > 0) {
             $amountKop = max(0, $amountKop - $bonusRedeemedCents);
         }
@@ -48,50 +59,89 @@ class MonobankPaymentController extends Controller
         if ($amountKop < 1) {
             Log::error('[Monobank] invalid computed amount', [
                 'order_db_id' => $order->id,
-                'tour_id' => $order->tour_id,
-                'from_stop' => $order->from_stop,
-                'to_stop' => $order->to_stop,
                 'price_raw' => $priceRow->price ?? null,
                 'price_kop' => $priceKop,
                 'passengers' => $passengers,
+                'bonus_redeemed_cents' => $bonusRedeemedCents,
                 'amount_kop' => $amountKop,
             ]);
             abort(400, 'Invalid amount');
         }
 
-        // Для записи в payments (у тебя amount кастится в float, обычно хранят UAH)
+        // Для payments.amount (UAH) — красиво 2 знака
         $amountUah = $amountKop / 100;
+        $amountUahFormatted = number_format($amountUah, 2, '.', '');
 
-        // 3) Legacy uniqId (как в LiqPay)
-        // ВАЖНО: TicketService и вся legacy-логика завязана на mt_orders.uniqId (строка ORDER_xxx)
+        // 5) legacy ID
         $legacyOrderId = (string)($order->uniqid ?: ('ORDER_' . $order->id));
 
-        // 4) URLs (GET)
-        // success/return/fail не должны быть точкой финализации! финализация только webhook.
+        // 6) Проверяем, не существует ли уже инвойс и совпадает ли сумма
+        [$existingInvoiceId, $existingPageUrl, $existingAmountKop, $existingPaymentStatus] =
+            $this->getExistingInvoiceInfo($order, $legacyOrderId);
+
+        // если инвойс есть и сумма такая же — используем его
+        if ($existingInvoiceId && $existingPageUrl && $existingAmountKop === $amountKop) {
+            Log::info('[Monobank] reuse existing invoice', [
+                'order_db_id' => $order->id,
+                'legacy_order_id' => $legacyOrderId,
+                'invoiceId' => $existingInvoiceId,
+                'amount_kop' => $amountKop,
+                'payment_status' => $existingPaymentStatus,
+            ]);
+
+            return redirect()->away($existingPageUrl);
+        }
+
+        // если инвойс был, но сумма изменилась — инвалидируем старый (если по нему не платили)
+        if ($existingInvoiceId) {
+            try {
+                // /api/merchant/invoice/remove — деактивация неоплаченного инвойса :contentReference[oaicite:3]{index=3}
+                $mono->removeInvoice($existingInvoiceId);
+
+                Log::info('[Monobank] old invoice removed (amount changed)', [
+                    'order_db_id' => $order->id,
+                    'legacy_order_id' => $legacyOrderId,
+                    'old_invoiceId' => $existingInvoiceId,
+                    'old_amount_kop' => $existingAmountKop,
+                    'new_amount_kop' => $amountKop,
+                ]);
+            } catch (\Throwable $e) {
+                // не блокируем оплату: если remove не дался (например, уже оплачено/expired) — просто создадим новый
+                Log::warning('[Monobank] failed to remove old invoice, will create new', [
+                    'order_db_id' => $order->id,
+                    'legacy_order_id' => $legacyOrderId,
+                    'old_invoiceId' => $existingInvoiceId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // 7) URL’ы
         $successUrl   = route('payment.monobank.success', ['order' => $order->id]);
         $failUrl      = route('payment.monobank.fail', ['order' => $order->id]);
         $redirectUrl  = route('payment.monobank.return', ['order' => $order->id]);
         $webHookUrl   = (string) (config('services.monobank.webhook_url') ?: route('payment.monobank.webhook'));
 
-        // 5) reference — кладём legacyOrderId (так проще дебажить + связка с mt_orders)
         $reference = $legacyOrderId;
 
-        // 6) Создаём invoice в Mono
         $requestCorrelationId = PaymentFinalizer::buildCorrelationId($order->id, $legacyOrderId, null);
+
         Log::info('[Monobank] invoice create request', [
             'correlation_id' => $requestCorrelationId,
             'order_db_id' => $order->id,
             'legacy_order_id' => $legacyOrderId,
+            'amount_kop' => $amountKop,
+            'amount_uah' => $amountUahFormatted,
             'webhook_url' => $webHookUrl,
         ]);
 
+        // 8) Создаём invoice — ВАЖНО: amount = INT в копейках :contentReference[oaicite:4]{index=4}
         $invoice = $mono->createInvoice([
-            'amount' => $amountKop, // ✅ копейки
-            'ccy'    => 980,        // UAH
+            'amount' => $amountKop, // <-- ключевой фикс
+            'ccy'    => 980,
             'merchantPaymInfo' => [
                 'reference'   => $reference,
                 'destination' => "Оплата квитка, замовлення #{$order->id}",
-                'webHookUrl'  => $webHookUrl,
             ],
             'redirectUrl' => $redirectUrl,
             'successUrl'  => $successUrl,
@@ -111,36 +161,34 @@ class MonobankPaymentController extends Controller
             abort(502, 'Monobank invoice create failed');
         }
 
-        // 7) Сохраняем связь invoice->order и создаём/обновляем payment без дублей
+        // 9) Сохраняем order + payment
         DB::transaction(function () use (
             $order,
             $legacyOrderId,
             $invoiceId,
             $pageUrl,
             $amountKop,
-            $amountUah
+            $amountUahFormatted
         ) {
-            // Связь с mono invoice
             $order->mono_invoice_id = $invoiceId;
             $order->mono_page_url   = $pageUrl;
             $order->mono_status     = 'created';
             $order->save();
 
-            // ✅ FIX: вместо create -> updateOrCreate по order_id (у тебя unique)
             Payment::updateOrCreate(
                 ['order_id' => $legacyOrderId],
                 [
                     'user_id'      => null,
                     'payment_id'   => $invoiceId,
                     'status'       => 'created',
-                    'amount'       => $amountUah, // UAH
+                    'amount'       => $amountUahFormatted, // лучше хранить как decimal(10,2)
                     'currency'     => 'UAH',
                     'description'  => "Monobank invoice #{$invoiceId}",
                     'response'     => json_encode([
                         'invoiceId'   => $invoiceId,
                         'pageUrl'     => $pageUrl,
                         'amount_kop'  => $amountKop,
-                        'amount_uah'  => $amountUah,
+                        'amount_uah'  => $amountUahFormatted,
                     ], JSON_UNESCAPED_UNICODE),
                 ]
             );
@@ -152,20 +200,41 @@ class MonobankPaymentController extends Controller
             'order_db_id' => $order->id,
             'legacy_order_id' => $legacyOrderId,
             'invoiceId' => $invoiceId,
-            'webhook_url' => $webHookUrl,
+            'amount_kop' => $amountKop,
+            'amount_uah' => $amountUahFormatted,
         ]);
 
-        // 8) Редирект на оплату
         return redirect()->away($pageUrl);
     }
 
-    /**
-     * return/success/fail — ТОЛЬКО редиректы.
-     * Финализация билета/почты делается исключительно в webhook.
-     *
-     * ВАЖНО: у тебя route('booking.thank-you') падает из-за mt_booking,
-     * поэтому ведём на реальный URL страницы.
-     */
+    private function getExistingInvoiceInfo(Order $order, string $legacyOrderId): array
+    {
+        $invoiceId = $order->mono_invoice_id ?? null;
+        $pageUrl   = $order->mono_page_url ?? null;
+
+        $amountKop = null;
+        $paymentStatus = null;
+
+        $payment = Payment::query()->where('order_id', $legacyOrderId)->first();
+        if ($payment) {
+            $paymentStatus = $payment->status;
+
+            $resp = $payment->response;
+            if (is_string($resp) && $resp !== '') {
+                $decoded = json_decode($resp, true);
+                if (is_array($decoded)) {
+                    $amountKop = isset($decoded['amount_kop']) ? (int)$decoded['amount_kop'] : null;
+
+                    // если в order нет pageUrl/invoiceId, подстрахуемся из response
+                    $invoiceId = $invoiceId ?: ($decoded['invoiceId'] ?? null);
+                    $pageUrl   = $pageUrl   ?: ($decoded['pageUrl']   ?? null);
+                }
+            }
+        }
+
+        return [$invoiceId, $pageUrl, $amountKop, $paymentStatus];
+    }
+
     public function return(Order $order)
     {
         $legacyOrderId = (string) ($order->uniqid ?: ($order->uniqId ?? null) ?: ('ORDER_' . $order->id));

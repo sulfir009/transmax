@@ -1319,7 +1319,7 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
 
         updateBonusUi();
 
-        function applyBonusPreview(useBonus) {
+       function applyBonusPreview(useBonus) {
             return $.ajax({
                 type: 'post',
                 url: AJAX_URL,
