@@ -39,6 +39,11 @@ class MonobankPaymentController extends Controller
 
         // Итог для mono в копейках
         $amountKop = $priceKop * $passengers;
+        $bonusRedeemedCents = (int)($order->bonus_redeemed_cents ?? 0);
+        $useBonus = isset($order->bonus_use_requested) && (int)$order->bonus_use_requested === 1;
+        if ($useBonus && $bonusRedeemedCents > 0) {
+            $amountKop = max(0, $amountKop - $bonusRedeemedCents);
+        }
 
         if ($amountKop < 1) {
             Log::error('[Monobank] invalid computed amount', [
