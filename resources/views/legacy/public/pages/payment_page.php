@@ -268,6 +268,16 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
         .payment_v2 .pv2_check_text a:hover{
             text-decoration:underline;
         }
+        .payment_v2 .pv2_bonus_meta{
+            display:block;
+            margin-top: 4px;
+            font-weight: 500;
+            color:#8A8E90;
+        }
+        .payment_v2 .pv2_bonus_meta span{
+            font-weight: 700;
+            color:#303233;
+        }
 
         /* Кнопка "Оплатить" как на макете */
         .payment_v2 .payment_v2__btn{
@@ -790,6 +800,13 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                     $month = $Db->getOne("SELECT title_" . $Router->lang . " AS title FROM `" . DB_PREFIX . "_months`WHERE id = '" . (int)explode('-', $_SESSION['order']['date'])[1] . "' ");
                     $paymentDateTime = (int)explode('-', $_SESSION['order']['date'])[2] . ' ' . $month['title'] . ' ' . date('H:i', strtotime($ticketInfo['departure_time']));
                     $totalPrice = $_SESSION['order']['passengers'] * $ticketInfo['price'];
+                    $bonusesAvailable = 0;
+                    if (isset($User) && !empty($User->id)) {
+                        $bonusRow = $Db->getOne("SELECT miles FROM `" . DB_PREFIX . "_clients` WHERE id = '" . (int)$User->id . "' ");
+                        $bonusesAvailable = (int)($bonusRow['miles'] ?? 0);
+                    }
+                    $bonusToApply = min($totalPrice, $bonusesAvailable);
+                    $totalPriceWithBonuses = max($totalPrice - $bonusToApply, 0);
                     ?>
 
                     <div class="payment_v2__card shadow_block">
@@ -820,7 +837,7 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                                     <img src="<?php echo asset('images/legacy/common/bank_card.svg'); ?>" alt="bank card">
                                 </span>
 
-                                <span class="pv2_method_price">
+                                <span class="pv2_method_price" data-base-price="<?php echo $totalPrice; ?>" data-bonus-price="<?php echo $totalPriceWithBonuses; ?>">
                                     <?php echo $totalPrice . ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
                                 </span>
                             </label>
@@ -841,7 +858,7 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                                     <span class="mono_badge">mono</span>
                                 </span>
 
-                                <span class="pv2_method_price">
+                                <span class="pv2_method_price" data-base-price="<?php echo $totalPrice; ?>" data-bonus-price="<?php echo $totalPriceWithBonuses; ?>">
                                     <?php echo $totalPrice . ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
                                 </span>
                             </label>
@@ -862,28 +879,7 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                                     <img src="<?php echo asset('images/legacy/common/cash.svg'); ?>" alt="cash">
                                 </span>
 
-                                <span class="pv2_method_price">
-                                    <?php echo $totalPrice . ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
-                                </span>
-                            </label>
-
-                            <label class="pv2_method">
-                                <input type="radio"
-                                       name="paymethod"
-                                       hidden
-                                       data-cardpay="false"
-                                       value="bonus">
-                                <span class="pv2_radio"></span>
-
-                                <span class="pv2_method_name">
-                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_BONUSAMI'] ?? __('dictionary.MSG_MSG_PAYMENT_PAGE_BONUSAMI'); ?>
-                                </span>
-
-                                <span class="pv2_method_logo">
-                                    <img src="<?php echo asset('images/legacy/common/bonuses.svg'); ?>" alt="bonuses">
-                                </span>
-
-                                <span class="pv2_method_price">
+                                <span class="pv2_method_price" data-base-price="<?php echo $totalPrice; ?>" data-bonus-price="<?php echo $totalPriceWithBonuses; ?>">
                                     <?php echo $totalPrice . ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
                                 </span>
                             </label>
@@ -897,6 +893,22 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                         </div>
 
                         <div class="payment_v2__checks">
+                            <label class="pv2_check">
+                                <input type="checkbox" hidden id="use_bonuses" <?php echo $bonusToApply > 0 ? '' : 'disabled'; ?>>
+                                <span class="pv2_box"></span>
+                                <span class="pv2_check_text">
+                                    <?php echo $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_USE_BONUSES'] ?? 'Использовать бонусы'; ?>
+                                    <span class="pv2_bonus_meta">
+                                        <?php echo ($GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_BONUSES_AVAILABLE'] ?? 'Доступно бонусов') . ': '; ?>
+                                        <span id="bonuses_available_value"><?php echo $bonusesAvailable; ?></span>
+                                    </span>
+                                    <span class="pv2_bonus_meta">
+                                        <?php echo ($GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_TOTAL_WITH_BONUSES'] ?? 'К оплате с бонусами') . ': '; ?>
+                                        <span id="bonuses_total_value"><?php echo $totalPriceWithBonuses; ?></span>
+                                        <?php echo ' ' . $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']; ?>
+                                    </span>
+                                </span>
+                            </label>
                             <label class="pv2_check">
                                 <input type="checkbox" hidden id="terms_accept" checked>
                                 <span class="pv2_box"></span>
@@ -971,7 +983,12 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
 
         var ticketInfo = <?php echo json_encode($ticketInfo); ?>;
         var order = <?php echo json_encode($_SESSION['order']); ?>;
-        var totalPrice = <?php echo $totalPrice; ?>;
+        var totalPriceBase = <?php echo $totalPrice; ?>;
+        var bonusesAvailable = <?php echo $bonusesAvailable; ?>;
+        var bonusToApply = <?php echo $bonusToApply; ?>;
+        var totalPriceWithBonuses = <?php echo $totalPriceWithBonuses; ?>;
+        var totalPrice = totalPriceBase;
+        var currencyLabel = <?php echo json_encode($GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']); ?>;
 
         var CSRF_TOKEN = $('meta[name="csrf-token"]').attr('content') || '';
 
@@ -1271,6 +1288,23 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
         }
         updatePayBtnUi();
 
+        function updateBonusUi(){
+            var useBonuses = $('#use_bonuses').is(':checked') && bonusToApply > 0;
+            totalPrice = useBonuses ? totalPriceWithBonuses : totalPriceBase;
+
+            $('.pv2_method_price').each(function () {
+                var basePrice = $(this).data('base-price');
+                var bonusPrice = $(this).data('bonus-price');
+                var price = useBonuses ? bonusPrice : basePrice;
+                $(this).text(price + ' ' + currencyLabel);
+            });
+
+            $('#bonuses_total_value').text(totalPriceWithBonuses);
+            $('#bonuses_available_value').text(bonusesAvailable);
+        }
+
+        updateBonusUi();
+
         $('#orderTicket').off('click.orderTicket').on('click.orderTicket', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -1283,9 +1317,13 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
 
             let paymethod = $('input[name="paymethod"]:checked').val();
             const isCardPay = !!$('input[name="paymethod"]:checked').data('cardpay');
+            const useBonuses = $('#use_bonuses').is(':checked') && bonusToApply > 0;
 
             if (order && typeof order === 'object') {
                 order.paymethod = paymethod;
+                order.use_bonuses = useBonuses ? 1 : 0;
+                order.bonus_amount = useBonuses ? bonusToApply : 0;
+                order.total_with_bonuses = useBonuses ? totalPriceWithBonuses : totalPriceBase;
             }
 
             initLoader();
@@ -1328,7 +1366,7 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                         return;
                     }
 
-                    if ((paymethod === 'cash' || paymethod === 'bonus') && !isCardPay) {
+                    if (paymethod === 'cash' && !isCardPay) {
                         $.ajax({
                             type: 'post',
                             url: AJAX_URL,
@@ -1397,6 +1435,7 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
             }
             updatePayBtnUi();
         });
+        $('#use_bonuses').on('change', updateBonusUi);
 
         function initLoader() {
             $('body').prepend('<div class="loader"></div>');
