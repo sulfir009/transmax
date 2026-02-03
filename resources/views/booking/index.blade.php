@@ -1561,36 +1561,59 @@ window.__dbgPassengers = {
         row.classList.toggle('is_hidden', !hasHidden);
     }
 
+    function parseMoneyToCents(value) {
+        var text = String(value || '').trim();
+        if (!text) return 0;
+
+        text = text.replace(/[^0-9.,]/g, '').replace(',', '.');
+        if (!text) return 0;
+
+        var parts = text.split('.');
+        var hryvnia = parts[0] ? parseInt(parts[0], 10) : 0;
+        var kop = parts[1] ? parts[1].substring(0, 2) : '';
+        if (kop.length === 1) {
+            kop = kop + '0';
+        }
+        if (kop.length === 0) {
+            kop = '00';
+        }
+
+        var kopValue = parseInt(kop, 10);
+        if (isNaN(hryvnia) || isNaN(kopValue)) return 0;
+
+        return (hryvnia * 100) + kopValue;
+    }
+
+    function formatCents(cents) {
+        var sign = cents < 0 ? '-' : '';
+        var abs = Math.abs(cents);
+        var hryvnia = Math.floor(abs / 100);
+        var kop = abs % 100;
+        var text = sign + String(hryvnia) + '.' + String(kop).padStart(2, '0');
+        return text.replace(/\.00$/, '');
+    }
+
+    window.parseMoneyToCents = parseMoneyToCents;
+    window.formatCents = formatCents;
+
     // Берём цену за 1 пассажира из route-info
-    function getPricePerPassenger(){
+    function getPricePerPassengerCents(){
         var meta = document.getElementById('js_price_meta');
         if (meta) {
-            var raw = meta.getAttribute('data-price-per-passenger');
-            if (raw) {
-                var v = parseFloat(String(raw).replace(',', '.'));
-                if (!isNaN(v) && v > 0) return v;
-            }
+            var raw = meta.getAttribute('data-price-per-passenger-cents');
+            var cents = parseInt(raw || '0', 10);
+            if (!isNaN(cents) && cents > 0) return cents;
         }
 
         // fallback: пробуем вытащить из строки "Цена"
         var priceEl = q('.route_block .b2_price_row .val');
         if (priceEl) {
             var txt = priceEl.textContent || '';
-            txt = txt.replace(/[^0-9.,]/g, '').replace(',', '.');
-            var p = parseFloat(txt);
-            if (!isNaN(p) && p > 0) return p;
+            var fallbackCents = parseMoneyToCents(txt);
+            if (fallbackCents > 0) return fallbackCents;
         }
 
         return 0;
-    }
-
-    function formatMoney(n){
-        // показываем без копеек если целое
-        var rounded = Math.round(n * 100) / 100;
-        if (Math.abs(rounded - Math.round(rounded)) < 0.00001) {
-            return String(Math.round(rounded));
-        }
-        return rounded.toFixed(2);
     }
 
     // Главное: обновляем UI справа (пассажиры + сумма)
@@ -1600,15 +1623,18 @@ window.__dbgPassengers = {
         var countEl = document.getElementById('js_passengers_count');
         if (countEl) countEl.textContent = String(passengersCount);
 
-        var pricePer = getPricePerPassenger();
-        if (pricePer > 0) {
-            var total = pricePer * passengersCount;
+        var pricePerCents = getPricePerPassengerCents();
+        if (pricePerCents > 0) {
+            var totalCents = pricePerCents * passengersCount;
 
             var totalEl = document.getElementById('js_total_price');
-            if (totalEl) totalEl.textContent = formatMoney(total);
+            if (totalEl) {
+                totalEl.textContent = formatCents(totalCents);
+                totalEl.setAttribute('data-total-cents', String(totalCents));
+            }
             
             if (typeof window.updateBonusPreview === 'function') {
-                window.updateBonusPreview(total);
+                window.updateBonusPreview(totalCents);
             }
         }
     }
@@ -1687,9 +1713,12 @@ window.__dbgPassengers = {
     var lastPayableCents = 0;
 
     function formatUah(cents) {
-        var value = (cents / 100);
-        var formatted = value.toFixed(2);
-        return formatted.replace(/\.00$/, '');
+        var abs = Math.abs(cents);
+        var hryvnia = Math.floor(abs / 100);
+        var kop = abs % 100;
+        var formatted = String(hryvnia) + '.' + String(kop).padStart(2, '0');
+        formatted = formatted.replace(/\.00$/, '');
+        return cents < 0 ? '-' + formatted : formatted;
     }
 
     function calculateMaxRedeemCents(balance, payable) {
@@ -1736,24 +1765,24 @@ window.__dbgPassengers = {
         }
     }
 
-    window.updateBonusPreview = function (payableUah) {
-        var payableCents = Math.round(parseFloat(payableUah || 0) * 100);
-        lastPayableCents = payableCents;
+    window.updateBonusPreview = function (payableCents) {
+        var safePayableCents = parseInt(payableCents || 0, 10);
+        lastPayableCents = isNaN(safePayableCents) ? 0 : safePayableCents;
 
         if (!useBonusCheckbox || !useBonusCheckbox.checked) {
-            applyRedeem(0, payableCents);
+            applyRedeem(0, lastPayableCents);
             return;
         }
 
-        var maxRedeemCents = calculateMaxRedeemCents(balanceCents, payableCents);
-        applyRedeem(maxRedeemCents, payableCents);
+        var maxRedeemCents = calculateMaxRedeemCents(balanceCents, lastPayableCents);
+        applyRedeem(maxRedeemCents, lastPayableCents);
     };
 
     if (useBonusCheckbox) {
         useBonusCheckbox.addEventListener('change', function () {
             var useBonus = useBonusCheckbox.checked;
             var totalText = totalEl ? totalEl.textContent : '0';
-            var payableCents = lastPayableCents || Math.round(parseFloat(totalText || '0') * 100);
+            var payableCents = lastPayableCents || (window.parseMoneyToCents ? window.parseMoneyToCents(totalText) : 0);
 
             syncBonusSession(useBonus, payableCents)
                 .done(function (response) {
@@ -1768,7 +1797,11 @@ window.__dbgPassengers = {
     }
 
     if (totalEl) {
-        window.updateBonusPreview(parseFloat(totalEl.textContent || '0'));
+        var initialCents = parseInt(totalEl.getAttribute('data-total-cents') || '0', 10);
+        if (isNaN(initialCents) || initialCents <= 0) {
+            initialCents = window.parseMoneyToCents ? window.parseMoneyToCents(totalEl.textContent || '0') : 0;
+        }
+        window.updateBonusPreview(initialCents);
     }
 })();
 </script>

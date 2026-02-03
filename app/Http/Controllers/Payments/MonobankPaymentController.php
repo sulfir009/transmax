@@ -6,14 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\TourStopPrice;
+use App\Services\BonusService;
 use App\Services\Payments\MonobankAcquiringService;
 use App\Services\Payments\PaymentFinalizer;
+use App\Support\Money;
+use App\Service\TicketService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class MonobankPaymentController extends Controller
 {
-    public function start(Order $order, MonobankAcquiringService $mono)
+    public function start(Order $order, MonobankAcquiringService $mono, BonusService $bonusService)
     {
         // 1) Цена
         $priceRow = TourStopPrice::query()
@@ -24,53 +27,46 @@ class MonobankPaymentController extends Controller
 
         // 2) Цена -> копейки (int)
         $priceRaw = $priceRow->price ?? 0;
-        $priceKop = 0;
-
-        if (is_numeric($priceRaw)) {
-            $priceString = (string) $priceRaw;
-            $hasDecimals = str_contains($priceString, '.') || str_contains($priceString, ',');
-            $priceValue  = (float) str_replace(',', '.', $priceString);
-
-            if ($hasDecimals) {
-                // 1.23 => 123 коп
-                $priceKop = (int) round($priceValue * 100);
-            } elseif ($priceValue >= 1000) {
-                // если в БД уже копейки типа 9500
-                $priceKop = (int) round($priceValue);
-            } else {
-                // если в БД гривны без копеек типа 95
-                $priceKop = (int) round($priceValue * 100);
-            }
-        }
+        $priceKop = Money::priceToKopeksFromDb($priceRaw);
 
         $passengers = max(1, (int)($order->passagers ?? 1));
 
         // 3) Итог в копейках
-        $amountKop = $priceKop * $passengers;
+        $totalKop = $priceKop * $passengers;
 
         // 4) Бонусы (тоже копейки)
-        $bonusRedeemedCents = (int)($order->bonus_redeemed_cents ?? 0);
         $useBonus = (int)($order->bonus_use_requested ?? 0) === 1;
+        $bonusRedeemedCents = (int)($order->bonus_redeemed_cents ?? 0);
+        $bonusToSpendKop = 0;
 
-        if ($useBonus && $bonusRedeemedCents > 0) {
-            $amountKop = max(0, $amountKop - $bonusRedeemedCents);
+        if ($useBonus) {
+            $bonusToSpendKop = $bonusRedeemedCents;
+            if ($order->client_id) {
+                $client = $order->client;
+                if ($client) {
+                    $balanceCents = (int) $client->bonus_balance_cents;
+                    $bonusToSpendKop = $bonusService->calculateMaxRedeemCents($balanceCents, $totalKop);
+                }
+            }
+
+            $bonusToSpendKop = Money::clamp($bonusToSpendKop, 0, $totalKop);
         }
 
-        if ($amountKop < 1) {
-            Log::error('[Monobank] invalid computed amount', [
+        $amountKop = max(0, $totalKop - $bonusToSpendKop);
+
+        if ($totalKop < 1) {
+            Log::error('[Monobank] invalid computed total', [
                 'order_db_id' => $order->id,
                 'price_raw' => $priceRow->price ?? null,
                 'price_kop' => $priceKop,
                 'passengers' => $passengers,
-                'bonus_redeemed_cents' => $bonusRedeemedCents,
-                'amount_kop' => $amountKop,
+                'total_kop' => $totalKop,
             ]);
             abort(400, 'Invalid amount');
         }
 
         // Для payments.amount (UAH) — красиво 2 знака
-        $amountUah = $amountKop / 100;
-        $amountUahFormatted = number_format($amountUah, 2, '.', '');
+        $amountUahFormatted = Money::kopeksToUahString($amountKop);
 
         // 5) legacy ID
         $legacyOrderId = (string)($order->uniqid ?: ('ORDER_' . $order->id));
@@ -79,8 +75,21 @@ class MonobankPaymentController extends Controller
         [$existingInvoiceId, $existingPageUrl, $existingAmountKop, $existingPaymentStatus] =
             $this->getExistingInvoiceInfo($order, $legacyOrderId);
 
+        if ($amountKop === 0 && $existingInvoiceId) {
+            try {
+                $mono->removeInvoice($existingInvoiceId);
+            } catch (\Throwable $e) {
+                Log::warning('[Monobank] failed to remove old invoice for bonus-only payment', [
+                    'order_db_id' => $order->id,
+                    'legacy_order_id' => $legacyOrderId,
+                    'old_invoiceId' => $existingInvoiceId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         // если инвойс есть и сумма такая же — используем его
-        if ($existingInvoiceId && $existingPageUrl && $existingAmountKop === $amountKop) {
+        if ($amountKop > 0 && $existingInvoiceId && $existingPageUrl && $existingAmountKop === $amountKop) {
             Log::info('[Monobank] reuse existing invoice', [
                 'order_db_id' => $order->id,
                 'legacy_order_id' => $legacyOrderId,
@@ -93,7 +102,7 @@ class MonobankPaymentController extends Controller
         }
 
         // если инвойс был, но сумма изменилась — инвалидируем старый (если по нему не платили)
-        if ($existingInvoiceId) {
+        if ($amountKop > 0 && $existingInvoiceId) {
             try {
                 // /api/merchant/invoice/remove — деактивация неоплаченного инвойса :contentReference[oaicite:3]{index=3}
                 $mono->removeInvoice($existingInvoiceId);
@@ -130,10 +139,44 @@ class MonobankPaymentController extends Controller
             'correlation_id' => $requestCorrelationId,
             'order_db_id' => $order->id,
             'legacy_order_id' => $legacyOrderId,
+            'total_kop' => $totalKop,
+            'bonus_to_spend_kop' => $bonusToSpendKop,
             'amount_kop' => $amountKop,
             'amount_uah' => $amountUahFormatted,
             'webhook_url' => $webHookUrl,
         ]);
+
+        if ($amountKop === 0) {
+            Log::info('[Monobank] bonus-only payment', [
+                'order_db_id' => $order->id,
+                'legacy_order_id' => $legacyOrderId,
+                'total_kop' => $totalKop,
+                'bonus_to_spend_kop' => $bonusToSpendKop,
+                'amount_kop' => $amountKop,
+            ]);
+
+            DB::transaction(function () use ($order, $bonusToSpendKop) {
+                if ((int) ($order->payment_status ?? 0) !== PaymentFinalizer::PAYMENT_STATUS_PAID) {
+                    $order->payment_status = PaymentFinalizer::PAYMENT_STATUS_PAID;
+                    $order->paid_at = $order->paid_at ?: now();
+                }
+
+                $order->mono_status = 'success';
+                $order->bonus_redeemed_cents = $bonusToSpendKop;
+                $order->save();
+            });
+
+            $correlationId = PaymentFinalizer::buildCorrelationId($order->id, $legacyOrderId, 'bonus-only');
+
+            /** @var TicketService $ticketService */
+            $ticketService = app(TicketService::class);
+            $ticketService->processSuccessfulPayment($legacyOrderId, [
+                'status' => 'success',
+                'payment_provider' => 'bonus',
+            ], $correlationId);
+
+            return redirect()->route('payment.monobank.success', ['order' => $order->id]);
+        }
 
         // 8) Создаём invoice — ВАЖНО: amount = INT в копейках :contentReference[oaicite:4]{index=4}
         $invoice = $mono->createInvoice([
@@ -168,11 +211,13 @@ class MonobankPaymentController extends Controller
             $invoiceId,
             $pageUrl,
             $amountKop,
-            $amountUahFormatted
+            $amountUahFormatted,
+            $bonusToSpendKop
         ) {
             $order->mono_invoice_id = $invoiceId;
             $order->mono_page_url   = $pageUrl;
             $order->mono_status     = 'created';
+            $order->bonus_redeemed_cents = $bonusToSpendKop;
             $order->save();
 
             Payment::updateOrCreate(

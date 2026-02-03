@@ -53,30 +53,13 @@
         // Валюта (оставляю "грн", как у тебя в верстке)
         $currency = 'грн';
 
-        // Цена за одного пассажира (берём ticketInfo['price'], если там число; иначе считаем totalPrice / passengers)
-        $rawPrice = $ticketInfo['price'] ?? 0;
-        if (is_string($rawPrice)) {
-            $rawPrice = preg_replace('~[^0-9\.,]~', '', $rawPrice);
-            $rawPrice = str_replace(',', '.', $rawPrice);
-        }
-        $pricePerPassenger = (float)$rawPrice;
+        $pricePerPassengerCents = isset($pricePerPassengerCents)
+            ? (int) $pricePerPassengerCents
+            : \App\Support\Money::priceToKopeksFromDb($ticketInfo['price'] ?? 0);
 
-        if ($pricePerPassenger <= 0) {
-            $rawTotal = $totalPrice ?? 0;
-            if (is_string($rawTotal)) {
-                $rawTotal = preg_replace('~[^0-9\.,]~', '', $rawTotal);
-                $rawTotal = str_replace(',', '.', $rawTotal);
-            }
-            $rawTotal = (float)$rawTotal;
-
-            $pCount = (int)($passengers ?? 0);
-            if ($pCount > 0) {
-                $pricePerPassenger = $rawTotal / $pCount;
-            }
-        }
-
-        // Чтобы JS точно парсил число как float
-        $pricePerPassengerForJs = number_format((float)$pricePerPassenger, 2, '.', '');
+        $totalPriceCents = isset($totalPriceCents)
+            ? (int) $totalPriceCents
+            : ($pricePerPassengerCents * (int) ($passengers ?? 1));
     @endphp
 
     {{-- Верхняя часть: время + 2 иконки городов + линия --}}
@@ -136,7 +119,7 @@
     <div class="b2_price_row">
         <span>К оплате:</span>
         <span class="val">
-            <span id="js_total_price">{{ $totalPrice }}</span>
+            <span id="js_total_price" data-total-cents="{{ $totalPriceCents }}">{{ $totalPrice }}</span>
             <span id="js_currency">{{ $currency }}</span>
         </span>
     </div>
@@ -164,7 +147,7 @@
 
     {{-- СКРЫТЫЕ ДАННЫЕ ДЛЯ JS-ПЕРЕСЧЁТА --}}
     <div id="js_price_meta"
-         data-price-per-passenger="{{ $pricePerPassengerForJs }}"
+         data-price-per-passenger-cents="{{ $pricePerPassengerCents }}"
          data-currency="{{ $currency }}"
          style="display:none !important;"></div>
 
