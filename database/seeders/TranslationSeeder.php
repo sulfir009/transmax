@@ -224,6 +224,12 @@ class TranslationSeeder extends Seeder
                 'title_ru' => 'Выйти',
                 'title_en' => 'Exit',
             ],
+            [
+                'code' => 'MSG_MSG_PAYMENT_PAGE_BONUSAMI',
+                'title_uk' => 'Розрахуватись бонусами',
+                'title_ru' => 'Рассчитаться бонусами',
+                'title_en' => 'Pay with bonuses',
+            ],
         ];
 
         foreach ($translations as $translation) {

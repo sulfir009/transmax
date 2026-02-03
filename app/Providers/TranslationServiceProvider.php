@@ -31,9 +31,9 @@ class TranslationServiceProvider extends ServiceProvider
             return $app['translator'];
         });
 
-        $this->app->extend('translation', function ($translator, $app) {
+        $this->app->extend('translator', function ($translator, $app) {
             return new class($translator) extends Translator {
-                public function get($key, array $replace = [], $locate = null, $fallback = true)
+                public function get($key, array $replace = [], $locale = null, $fallback = true)
                 {
                     $lang = Site::lang();
                     $table = 'mt_';
