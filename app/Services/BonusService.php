@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\BonusTransaction;
 use App\Models\Client;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
@@ -103,8 +104,6 @@ class BonusService
 
     public function formatToUah(int $amountCents): string
     {
-        $uah = $amountCents / 100;
-        $formatted = number_format($uah, 2, '.', '');
-        return preg_replace('/\.00$/', '', $formatted);
+        return Money::kopeksToUahString($amountCents, true);
     }
 }
