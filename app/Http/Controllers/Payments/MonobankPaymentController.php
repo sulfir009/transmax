@@ -35,13 +35,28 @@ class MonobankPaymentController extends Controller
         $totalKop = $priceKop * $passengers;
 
         // 4) Бонусы (тоже копейки)
-        $useBonus = (int)($order->bonus_use_requested ?? 0) === 1;
         $bonusRedeemedCents = (int)($order->bonus_redeemed_cents ?? 0);
-        $bonusToSpendKop = 0;
+        $useBonus = (int)($order->bonus_use_requested ?? 0) === 1 || $bonusRedeemedCents > 0;
+        $sessionUseBonus = false;
+        $sessionRedeemCents = 0;
 
-        if ($useBonus) {
-            $bonusToSpendKop = $bonusRedeemedCents;
-            if ($order->client_id) {
+        if (!$useBonus && session_status() === PHP_SESSION_NONE) {
+            @session_start();
+        }
+
+        if (!$useBonus && isset($_SESSION['order']) && is_array($_SESSION['order'])) {
+            $sessionUseBonus = !empty($_SESSION['order']['use_bonus']);
+            $sessionRedeemCents = (int)($_SESSION['order']['bonus_redeem_cents_preview'] ?? 0);
+            $useBonus = $sessionUseBonus || $sessionRedeemCents > 0;
+        }
+
+        $bonusToSpendKop = $bonusRedeemedCents;
+        $shouldPersistBonus = false;
+
+        if ($useBonus && $bonusToSpendKop <= 0) {
+            if ($sessionRedeemCents > 0) {
+                $bonusToSpendKop = $sessionRedeemCents;
+            } elseif ($order->client_id) {
                 $client = $order->client;
                 if ($client) {
                     $balanceCents = (int) $client->bonus_balance_cents;
@@ -49,7 +64,13 @@ class MonobankPaymentController extends Controller
                 }
             }
 
+            $shouldPersistBonus = $bonusToSpendKop > 0;
+        }
+
+        if ($useBonus) {
             $bonusToSpendKop = Money::clamp($bonusToSpendKop, 0, $totalKop);
+        } else {
+            $bonusToSpendKop = 0;
         }
 
         $amountKop = max(0, $totalKop - $bonusToSpendKop);
@@ -155,14 +176,17 @@ class MonobankPaymentController extends Controller
                 'amount_kop' => $amountKop,
             ]);
 
-            DB::transaction(function () use ($order, $bonusToSpendKop) {
+            DB::transaction(function () use ($order, $bonusToSpendKop, $useBonus, $shouldPersistBonus) {
                 if ((int) ($order->payment_status ?? 0) !== PaymentFinalizer::PAYMENT_STATUS_PAID) {
                     $order->payment_status = PaymentFinalizer::PAYMENT_STATUS_PAID;
                     $order->paid_at = $order->paid_at ?: now();
                 }
 
                 $order->mono_status = 'success';
-                $order->bonus_redeemed_cents = $bonusToSpendKop;
+                if ($useBonus || $shouldPersistBonus) {
+                    $order->bonus_use_requested = 1;
+                    $order->bonus_redeemed_cents = $bonusToSpendKop;
+                }
                 $order->save();
             });
 
@@ -212,12 +236,17 @@ class MonobankPaymentController extends Controller
             $pageUrl,
             $amountKop,
             $amountUahFormatted,
-            $bonusToSpendKop
+            $bonusToSpendKop,
+            $useBonus,
+            $shouldPersistBonus
         ) {
             $order->mono_invoice_id = $invoiceId;
             $order->mono_page_url   = $pageUrl;
             $order->mono_status     = 'created';
-            $order->bonus_redeemed_cents = $bonusToSpendKop;
+            if ($useBonus || $shouldPersistBonus) {
+                $order->bonus_use_requested = 1;
+                $order->bonus_redeemed_cents = $bonusToSpendKop;
+            }
             $order->save();
 
             Payment::updateOrCreate(
