@@ -800,13 +800,16 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                     $month = $Db->getOne("SELECT title_" . $Router->lang . " AS title FROM `" . DB_PREFIX . "_months`WHERE id = '" . (int)explode('-', $_SESSION['order']['date'])[1] . "' ");
                     $paymentDateTime = (int)explode('-', $_SESSION['order']['date'])[2] . ' ' . $month['title'] . ' ' . date('H:i', strtotime($ticketInfo['departure_time']));
                     $totalPrice = $_SESSION['order']['passengers'] * $ticketInfo['price'];
-                    $bonusesAvailable = 0.0;
+                    $bonusBalanceCents = 0;
                     if (isset($User) && !empty($User->id)) {
-                        $bonusRow = $Db->getOne("SELECT miles FROM `" . DB_PREFIX . "_clients` WHERE id = '" . (int)$User->id . "' ");
-                        $bonusesAvailable = (float)($bonusRow['miles'] ?? 0);
+                        $bonusRow = $Db->getOne("SELECT bonus_balance_cents FROM `" . DB_PREFIX . "_clients` WHERE id = '" . (int)$User->id . "' ");
+                        $bonusBalanceCents = (int)($bonusRow['bonus_balance_cents'] ?? 0);
                     }
-                    $bonusToApply = min($totalPrice, $bonusesAvailable);
-                    $totalPriceWithBonuses = max($totalPrice - $bonusToApply, 0);
+                    $bonusesAvailable = $bonusBalanceCents / 100;
+                    $bonusUseRequested = (int)($_SESSION['order']['use_bonus'] ?? 0);
+                    $bonusRedeemCentsPreview = (int)($_SESSION['order']['bonus_redeem_cents_preview'] ?? 0);
+                    $bonusToApply = $bonusUseRequested ? min($totalPrice, ($bonusRedeemCentsPreview / 100)) : 0;
+                    $totalPriceWithBonuses = $bonusUseRequested ? max($totalPrice - $bonusToApply, 0) : $totalPrice;
                     $formatBonusValue = function ($value) {
                         $formatted = number_format((float)$value, 2, '.', '');
                         return rtrim(rtrim($formatted, '0'), '.');
@@ -898,7 +901,7 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
 
                         <div class="payment_v2__checks">
                             <label class="pv2_check">
-                                <input type="checkbox" hidden id="use_bonuses" <?php echo $bonusToApply > 0 ? '' : 'disabled'; ?>>
+                                <input type="checkbox" hidden id="use_bonuses" <?php echo $bonusBalanceCents > 0 ? '' : 'disabled'; ?> <?php echo $bonusUseRequested ? 'checked' : ''; ?>>
                                 <span class="pv2_box"></span>
                                 <span class="pv2_check_text">
                                     <?php echo $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_USE_BONUSES'] ?? 'Использовать бонусы'; ?>
@@ -993,6 +996,7 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
         var totalPriceWithBonuses = <?php echo $totalPriceWithBonuses; ?>;
         var totalPrice = totalPriceBase;
         var currencyLabel = <?php echo json_encode($GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']); ?>;
+        var payableCents = <?php echo (int)round($totalPrice * 100); ?>;
 
         var CSRF_TOKEN = $('meta[name="csrf-token"]').attr('content') || '';
 
@@ -1305,8 +1309,7 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
 
             $('.pv2_method_price').each(function () {
                 var basePrice = $(this).data('base-price');
-                var bonusPrice = $(this).data('bonus-price');
-                var price = useBonuses ? bonusPrice : basePrice;
+                var price = useBonuses ? totalPriceWithBonuses : basePrice;
                 $(this).text(formatMoney(price) + ' ' + currencyLabel);
             });
 
@@ -1315,6 +1318,44 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
         }
 
         updateBonusUi();
+
+        function applyBonusPreview(useBonus) {
+            return $.ajax({
+                type: 'post',
+                url: AJAX_URL,
+                dataType: 'json',
+                headers: CSRF_TOKEN ? { 'X-CSRF-TOKEN': CSRF_TOKEN } : {},
+                data: {
+                    request: 'bonus_preview',
+                    use_bonus: useBonus ? 1 : 0,
+                    payable_cents: payableCents
+                }
+            });
+        }
+
+        $('#use_bonuses').on('change', function () {
+            var useBonus = $(this).is(':checked');
+            if (!useBonus) {
+                bonusToApply = 0;
+                totalPriceWithBonuses = totalPriceBase;
+                updateBonusUi();
+                applyBonusPreview(false);
+                return;
+            }
+
+            applyBonusPreview(true).done(function (response) {
+                var redeemCents = parseInt(response && response.redeem_cents ? response.redeem_cents : 0, 10);
+                var balanceCents = parseInt(response && response.balance_cents ? response.balance_cents : 0, 10);
+                bonusToApply = redeemCents / 100;
+                bonusesAvailable = balanceCents / 100;
+                totalPriceWithBonuses = Math.max(totalPriceBase - bonusToApply, 0);
+                updateBonusUi();
+            }).fail(function () {
+                bonusToApply = 0;
+                totalPriceWithBonuses = totalPriceBase;
+                updateBonusUi();
+            });
+        });
 
         $('#orderTicket').off('click.orderTicket').on('click.orderTicket', function (e) {
             e.preventDefault();

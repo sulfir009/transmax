@@ -125,40 +125,24 @@
         </div>
         <div class="page_content_wrapper">
             <?php
-            $getBonuses = $Db->getOne("SELECT bonus_balance_cents FROM `" . DB_PREFIX . "_clients` WHERE id = '" . (int)$User->id . "' ");
-            $bonusBalanceCents = (int)($getBonuses['bonus_balance_cents'] ?? 0);
+            $bonusRow = $Db->getOne("SELECT bonus_balance_cents FROM `" . DB_PREFIX . "_clients` WHERE id = '" . (int)$User->id . "' ");
+            $bonusBalanceCents = (int)($bonusRow['bonus_balance_cents'] ?? 0);
             $bonusBalanceUah = number_format($bonusBalanceCents / 100, 2, '.', '');
-            $bonusTransactions = [];
-            try {
-                $bonusTransactions = \Illuminate\Support\Facades\DB::table(DB_PREFIX . '_bonus_transactions')
-                    ->where('client_id', (int)$User->id)
-                    ->orderByDesc('created_at')
-                    ->limit(20)
-                    ->get();
-            } catch (\Throwable $e) {
-                $bonusTransactions = [];
-            }
-            $bonusTypeLabels = [
-                'grant_initial' => 'Стартовый бонус',
-                'manual' => 'Начисление вручную',
-                'cashback' => 'Кешбек',
-                'redeem' => 'Списание бонусов',
+            $bonusTransactions = $Db->getAll("SELECT amount_cents, type, order_id, created_at FROM `" . DB_PREFIX . "_bonus_transactions` WHERE client_id = '" . (int)$User->id . "' ORDER BY created_at DESC LIMIT 20");
+
+            $typeLabels = [
+                'initial_grant' => 'Стартовый бонус',
+                'manual_add' => 'Ручное начисление',
+                'cashback' => 'Кешбек за билет',
+                'redeem' => 'Списание бонусами',
             ];
             ?>
             <div class="container" data-bonus-user="<?php echo (int)$User->id; ?>" data-bonus-balance-cents="<?php echo $bonusBalanceCents; ?>">
                 <div class="current_bonuses_wrapper">
                     <div class="current_bonuses_txt">
-                        <div class="current_bonuses_title h2_title">
-                            <?php echo $GLOBALS['dictionary']['MSG_MSG_BONUSES_VASHI_BONUSI']?>
-                        </div>
+                        <div class="current_bonuses_title h2_title">Ваши бонусы</div>
                         <div class="current_bonuses_subtitle par">
-                            Нараховуємо 5% кешбеку за кожен оплачений квиток.
-                        </div>
-                        <div class="current_bonuses_subtitle par">
-                            Ваш бонусний баланс: <?php echo $bonusBalanceUah; ?> грн
-                        </div>
-                        <div class="current_bonuses_subtitle par">
-                            Щоб використати бонуси, на кроці 3 бронювання увімкніть «Розрахуватися бонусами» — сума до оплати зменшиться на доступний баланс.
+                            Баланс: <strong><?php echo $bonusBalanceUah; ?> грн</strong>
                         </div>
                     </div>
                     <?php if (!empty($bonusTransactions)) { ?>
@@ -178,12 +162,12 @@
                                     </thead>
                                     <tbody>
                                     <?php foreach ($bonusTransactions as $transaction) {
-                                        $amountCents = (int)($transaction->amount_cents ?? 0);
+                                        $amountCents = (int)($transaction['amount_cents'] ?? 0);
                                         $sign = $amountCents < 0 ? '-' : '+';
                                         $amountUah = number_format(abs($amountCents) / 100, 2, '.', '');
-                                        $typeLabel = $bonusTypeLabels[$transaction->type] ?? $transaction->type;
-                                        $orderId = $transaction->order_id ? (int)$transaction->order_id : '-';
-                                        $createdAt = $transaction->created_at ? date('d.m.Y H:i', strtotime($transaction->created_at)) : '-';
+                                        $typeLabel = $typeLabels[$transaction['type'] ?? ''] ?? ($transaction['type'] ?? '');
+                                        $orderId = !empty($transaction['order_id']) ? (int)$transaction['order_id'] : '-';
+                                        $createdAt = !empty($transaction['created_at']) ? date('d.m.Y H:i', strtotime($transaction['created_at'])) : '-';
                                         ?>
                                         <tr>
                                             <td><?php echo htmlspecialchars($createdAt, ENT_QUOTES, 'UTF-8'); ?></td>
