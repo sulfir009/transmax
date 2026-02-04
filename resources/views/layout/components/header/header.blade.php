@@ -14,6 +14,9 @@
     @media (max-width: 768px) {
         :root { --mt-header-h: 70px; }
     }
+      .mt_header_blue .header-link-block{
+              gap: 77px !important;
+  }
 
     /* ===========================
        HEADER BASE (STICKY)

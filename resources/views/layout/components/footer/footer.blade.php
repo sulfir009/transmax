@@ -90,11 +90,15 @@
                     </div>
                     <div>
                         @lang('dictionary.MSG_CONTACTS_TELEFON')
-                        <a href="tel:{{ __('settings.CONTACT_PHONE') }}">@lang('settings.CONTACT_PHONE')</a>
+<a href="tel:{{ preg_replace('/\s+/', '', setting('CONTACT_PHONE')) }}">
+    {{ setting('CONTACT_PHONE') }}
+</a>
+
                     </div>
                     <div>
-                        @lang('dictionary.MSG_CONTACTS_EMAIL')
-                        <a href="mailto:@lang('settings.CONTACT_EMAIL')">@lang('settings.CONTACT_EMAIL')</a>
+@lang('dictionary.MSG_CONTACTS_EMAIL')
+<a href="mailto:{{ setting('CONTACT_EMAIL') }}">{{ setting('CONTACT_EMAIL') }}</a>
+
                     </div>
                 </div>
                 <div class="footer_contacts_bottom">
@@ -102,16 +106,16 @@
                         @lang('dictionary.MSG_ALL_MI_U_SOCMEREZHAH')
                     </div>
                     <div class="footer_social">
-                        <a href="{{ __('settings.VIBER') }}" target="_blank">
+                        <a href="{{ setting('VIBER') }}" target="_blank">
                             <img src="<?php echo  asset('images/legacy/common/viber.svg'); ?>" alt="viber">
                         </a>
-                        <a href="{{ __('settings.TELEGRAM') }}" target="_blank">
+                        <a href="{{ setting('TELEGRAM') }}" target="_blank">
                             <img src="<?php echo  asset('images/legacy/common/telegram.svg'); ?>" alt="telegram">
                         </a>
-                        <a href="{{ __('settings.FB') }}" target="_blank">
+                        <a href="{{ setting('FB') }}" target="_blank">
                             <img src="<?php echo  asset('images/legacy/common/facebook.svg'); ?>" alt="facebook">
                         </a>
-                        <a href="{{ __('settings.INST') }}" target="_blank">
+                        <a href="{{ setting('INST') }}" target="_blank">
                             <img src="<?php echo  asset('images/legacy/common/instagram.svg'); ?>" alt="instagram">
                         </a>
                     </div>

@@ -194,7 +194,7 @@
     min-width:0;
 }
 .rr3_side--dep{ align-self:flex-start; }
-.rr3_side--arr{ align-self:flex-end; text-align:right; }
+.rr3_side--arr{ text-align:right; }
 
 .rr3_clock_img{
     width:18px; height:18px;
@@ -546,7 +546,6 @@
   }
 
   .rr3_scope .rr3_side--arr{
-    align-items:flex-end;
     text-align:right;
   }
   .rr3_scope .rr3_side--arr .rr3_cityline{
@@ -653,8 +652,9 @@
     font-size: 22px;
     line-height: 26px;
     margin-top: 12px;
-            margin-right: 32px;
+            margin-right: 65px;
   }
+
   .rr3_city{
     font-size: 18px;
     line-height: 22px;
