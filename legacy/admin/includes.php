@@ -1,6 +1,14 @@
 <?php
 
 if (!isset($_SESSION)) {
+    $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    $domain = getenv('SESSION_DOMAIN');
+    if ($domain === false) {
+        $domain = '';
+    }
+    if (!headers_sent()) {
+        session_set_cookie_params(0, '/', $domain, $secure, true);
+    }
     session_start();
 }
 
