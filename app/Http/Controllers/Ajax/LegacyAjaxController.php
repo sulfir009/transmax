@@ -20,7 +20,11 @@ class LegacyAjaxController extends Controller
         
         // Обработка запроса filter_date
         if ($requestType === 'filter_date') {
-            return $this->withCorrelationId($this->handleFilterDate($request), $correlationId);
+            $response = $this->handleFilterDate($request);
+            $this->logAjaxDebug($request, (string) $lang, $requestType, 'filter_date', [
+                'status' => $response->getStatusCode(),
+            ]);
+            return $this->withCorrelationId($response, $correlationId);
         }
         
         // Обработка запроса clear_session_data - перенаправляем на новый контроллер
@@ -31,9 +35,17 @@ class LegacyAjaxController extends Controller
             $content = json_decode($response->getContent(), true);
             
             if ($content && isset($content['data']) && $content['data'] === 'ok') {
-                return $this->withCorrelationId(response()->json(['data' => 'ok']), $correlationId);
+                $jsonResponse = response()->json(['data' => 'ok']);
+                $this->logAjaxDebug($request, (string) $lang, $requestType, 'json_ok', [
+                    'status' => $jsonResponse->getStatusCode(),
+                ]);
+                return $this->withCorrelationId($jsonResponse, $correlationId);
             }
-            return $this->withCorrelationId(response()->json(['data' => 'error']), $correlationId);
+            $jsonResponse = response()->json(['data' => 'error']);
+            $this->logAjaxDebug($request, (string) $lang, $requestType, 'json_error', [
+                'status' => $jsonResponse->getStatusCode(),
+            ]);
+            return $this->withCorrelationId($jsonResponse, $correlationId);
         }
         
         // Обработка запроса feedback - перенаправляем на новый контроллер
@@ -45,9 +57,17 @@ class LegacyAjaxController extends Controller
             $content = json_decode($response->getContent(), true);
             
             if ($content && isset($content['status']) && $content['status'] === 'ok') {
-                return $this->withCorrelationId(response('ok'), $correlationId);
+                $textResponse = response('ok');
+                $this->logAjaxDebug($request, (string) $lang, $requestType, 'text_ok', [
+                    'status' => $textResponse->getStatusCode(),
+                ]);
+                return $this->withCorrelationId($textResponse, $correlationId);
             }
-            return $this->withCorrelationId(response('error'), $correlationId);
+            $textResponse = response('error');
+            $this->logAjaxDebug($request, (string) $lang, $requestType, 'text_error', [
+                'status' => $textResponse->getStatusCode(),
+            ]);
+            return $this->withCorrelationId($textResponse, $correlationId);
         }
         
         // Для всех остальных запросов используем legacy код
@@ -73,7 +93,7 @@ class LegacyAjaxController extends Controller
             ]);
 
             if ($this->isDebugRequest($request)) {
-                return $this->withCorrelationId(response()->json([
+                $jsonResponse = response()->json([
                     'error' => 'legacy_ajax_php_not_found',
                     'tried_paths' => $pathCandidates,
                     'debug_meta' => [
@@ -81,10 +101,18 @@ class LegacyAjaxController extends Controller
                         'route' => '/ajax/{lang}',
                         'correlation_id' => $correlationId,
                     ],
-                ], 500), $correlationId);
+                ], 500);
+                $this->logAjaxDebug($request, (string) $lang, $requestType, 'json_missing_legacy', [
+                    'status' => $jsonResponse->getStatusCode(),
+                ]);
+                return $this->withCorrelationId($jsonResponse, $correlationId);
             }
 
-            return $this->withCorrelationId(response('', 200), $correlationId);
+            $emptyResponse = response('', 200);
+            $this->logAjaxDebug($request, (string) $lang, $requestType, 'empty_missing_legacy', [
+                'status' => $emptyResponse->getStatusCode(),
+            ]);
+            return $this->withCorrelationId($emptyResponse, $correlationId);
         }
 
         $jsonPayload = [];
@@ -120,6 +148,9 @@ class LegacyAjaxController extends Controller
                 ]);
                 $response = response()->json($decoded);
             }
+            $this->logAjaxDebug($request, (string) $lang, $requestType, 'json_decoded', [
+                'status' => $response->getStatusCode(),
+            ]);
             return $this->withCorrelationId($response, $correlationId);
         }
 
@@ -135,7 +166,11 @@ class LegacyAjaxController extends Controller
                 'legacy_path' => $legacyPath,
             ];
         }
-        return $this->withCorrelationId(response()->json($payload), $correlationId);
+        $wrappedResponse = response()->json($payload);
+        $this->logAjaxDebug($request, (string) $lang, $requestType, 'json_wrapped', [
+            'status' => $wrappedResponse->getStatusCode(),
+        ]);
+        return $this->withCorrelationId($wrappedResponse, $correlationId);
     }
 
     private function tryDecodeJson(?string $output): ?array
@@ -178,6 +213,29 @@ class LegacyAjaxController extends Controller
     private function withCorrelationId($response, string $correlationId)
     {
         return $response->header('X-Correlation-Id', $correlationId);
+    }
+
+    private function logAjaxDebug($request, string $lang, ?string $requestType, string $responseType, array $extra = []): void
+    {
+        if (!env('TICKETS_AJAX_DEBUG')) {
+            return;
+        }
+
+        if (!$request instanceof Request) {
+            $request = request();
+        }
+
+        if (!in_array($lang, ['uk', 'en'], true)) {
+            return;
+        }
+
+        Log::debug('[LegacyAjaxController] ajax debug', array_merge([
+            'lang' => $lang,
+            'request_type' => $requestType,
+            'response_type' => $responseType,
+            'expects_json' => $request->expectsJson(),
+            'is_ajax' => $request->ajax(),
+        ], $extra));
     }
     
     private function handleFilterDate(Request $request)
