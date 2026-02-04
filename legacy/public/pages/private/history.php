@@ -1,6 +1,22 @@
-<?if (!\App\Service\User::isAuth()){
-    header('Location:'.route('main'));
-}?>
+<?php
+require_once __DIR__ . '/_auth_diagnostics.php';
+mt_cabinet_auth_log($User, $Router, 'history');
+
+if (!\App\Service\User::isAuth()) {
+    header('Location:' . $Router->writelink(77));
+    exit;
+}
+
+if ((int)$User->id <= 0) {
+    \Illuminate\Support\Facades\Log::channel('cabinet')->warning('[CABINET AUTH] Missing client_id on history page', [
+        'url' => $_SERVER['REQUEST_URI'] ?? null,
+        'session_id' => session_id(),
+        'auth_source' => $User->authSource ?? null,
+    ]);
+    header('Location:' . $Router->writelink(77));
+    exit;
+}
+?>
 <?php
 $privateMenuLinks = [
     80 => ['title' => $Router->writetitle(80), 'url' => $Router->writelink(80)],
