@@ -8,6 +8,8 @@ use App\Repository\CityRepository;
 use App\Repository\Schedule\ScheduleRepository;
 use App\Repository\Races\Params\TicketParams;
 use App\Service\Tour\TicketService;
+use App\Service\Schedule\ScheduleService;
+use App\Models\Tour;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Helpers\LocaleHelper;
@@ -19,6 +21,7 @@ class TicketController extends Controller
     protected CityRepository $cityRepository;
     protected ScheduleRepository $scheduleRepository;
     protected TicketService $ticketService;
+    protected ScheduleService $scheduleService;
 
     protected $router;
     protected $db;
@@ -27,12 +30,14 @@ class TicketController extends Controller
         TicketRepository $ticketRepository,
         CityRepository $cityRepository,
         ScheduleRepository $scheduleRepository,
-        TicketService $ticketService
+        TicketService $ticketService,
+        ScheduleService $scheduleService
     ) {
         $this->ticketRepository = $ticketRepository;
         $this->cityRepository   = $cityRepository;
         $this->scheduleRepository = $scheduleRepository;
         $this->ticketService    = $ticketService;
+        $this->scheduleService  = $scheduleService;
 
         global $Router, $Db;
         $this->router = $Router;
@@ -120,6 +125,8 @@ class TicketController extends Controller
             $arrivalCityTitle   = null;
             $filterMonth        = null;
             $weekDay            = date('N');
+            $popularRoutes      = $this->scheduleService->getPopularRoutesForView($lang);
+            $seoText            = null;
 
             $Router = new \App\Service\DbRouter\Router();
 
@@ -145,7 +152,9 @@ class TicketController extends Controller
                 'Router',
                 'cities',
                 'dictionary',
-                'lang'
+                'lang',
+                'popularRoutes',
+                'seoText'
             ));
         }
 
@@ -300,6 +309,9 @@ class TicketController extends Controller
             );
         }
 
+        $popularRoutes = $this->scheduleService->getPopularRoutesForView($lang);
+        $seoText = $this->resolveTourSeoText($filterDeparture, $filterArrival, $lang);
+
         $Router = new \App\Service\DbRouter\Router();
 
         return view('ticket.index', compact(
@@ -324,8 +336,71 @@ class TicketController extends Controller
             'Router',
             'cities',
             'dictionary',
-            'lang'
+            'lang',
+            'popularRoutes',
+            'seoText'
         ));
+    }
+
+    private function resolveTourSeoText(int $departureId, int $arrivalId, string $lang): ?string
+    {
+        if ($departureId <= 0 || $arrivalId <= 0) {
+            return null;
+        }
+
+        $tour = Tour::query()
+            ->where('departure', $departureId)
+            ->where('arrival', $arrivalId)
+            ->where('active', '1')
+            ->orderBy('id')
+            ->first();
+
+        if (!$tour) {
+            return null;
+        }
+
+        $seoText = $this->selectSeoTextWithFallback($tour, $lang);
+        if ($seoText === null) {
+            return null;
+        }
+
+        $seoText = $this->sanitizeSeoHtml($seoText);
+
+        return $seoText !== '' ? $seoText : null;
+    }
+
+    private function selectSeoTextWithFallback(Tour $tour, string $lang): ?string
+    {
+        $locales = array_values(array_unique([
+            $lang,
+            'uk',
+            'ru',
+            'en',
+        ]));
+
+        foreach ($locales as $locale) {
+            $field = 'seo_text_' . $locale;
+            $value = (string) data_get($tour, $field);
+            if (trim($value) !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function sanitizeSeoHtml(?string $html): string
+    {
+        if ($html === null) {
+            return '';
+        }
+
+        $allowedTags = '<p><br><ul><ol><li><strong><em><h2><h3><h4><h5><h6>';
+        $clean = strip_tags($html, $allowedTags);
+
+        $clean = preg_replace('/<([a-z0-9]+)(\\s[^>]*)?>/i', '<$1>', $clean);
+
+        return trim($clean);
     }
 
     private function resolveCityId($value, string $lang): int

@@ -6,3 +6,8 @@
 - Перевірити, що в email/PDF квитка та в адмін-емейлі є окремий рядок зі списаними бонусами.
 - Запустити `php artisan bonuses:grant-initial --dry-run`, перевірити логи та після цього виконати реальне нарахування для клієнтів з оплаченими замовленнями.
 - В адмінці перейти на `/admin/bonuses`, знайти клієнта за email/телефоном і вручну нарахувати бонуси, потім перевірити баланс і транзакцію.
+
+## SEO-тексты для направлений (/bilety)
+- Источник: поля `seo_text_uk/ru/en` в таблице `mt_tours`, редактируются во вкладке «СЕО текст» в админке маршрута. 【F:legacy/admin/cruds/catalog/tours/edit.php†L1-L451】
+- Отображение: на странице билетов текст подставляется по выбранному `departure/arrival` и выводится с fallback по языкам (текущий → uk → ru → en), при отсутствии текста блок скрывается. 【F:app/Http/Controllers/TicketController.php†L44-L351】【F:resources/views/ticket/index.blade.php†L1-L359】
+- Безопасность: HTML очищается whitelist-фильтром при сохранении и перед показом на фронте. 【F:legacy/admin/cruds/catalog/tours/edit.php†L1-L451】【F:app/Http/Controllers/TicketController.php†L329-L351】

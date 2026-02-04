@@ -1,7 +1,17 @@
 <?php include str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT']) . '/config.php';
 include str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT']) . '/' . ADMIN_PANEL . '/guard.php';
 include str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT']) . '/' . ADMIN_PANEL . '/includes.php';
-include 'config.php' ?>
+include 'config.php';
+
+function sanitizeSeoText(?string $html): string
+{
+    $allowedTags = '<p><br><ul><ol><li><strong><em><h2><h3><h4><h5><h6>';
+    $clean = strip_tags($html ?? '', $allowedTags);
+    $clean = preg_replace('/<([a-z0-9]+)(\\s[^>]*)?>/i', '<$1>', $clean);
+
+    return trim($clean);
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -30,6 +40,8 @@ include 'config.php' ?>
         <? if (isset($_POST['ok']) && $Admin->CheckPermission($_params['access_edit'])) {
             $ar_clean = filter_input_array(INPUT_POST, FILTER_SANITIZE_SPECIAL_CHARS);
             $active = checkboxParam('active');
+            $seoFields = ['seo_text_uk', 'seo_text_ru', 'seo_text_en'];
+            $txt = $seoFields;
 
             $travelHours = (int)$ar_clean['hours'];
             $travelMinutes = (int)$ar_clean['minutes'];
@@ -48,6 +60,12 @@ include 'config.php' ?>
             $racesFutureDate = (int)$ar_clean['races_future_date'];
 
             $days = implode(',',$ar_clean['days']);
+
+            foreach ($seoFields as $field) {
+                if (array_key_exists($field, $_POST)) {
+                    $_POST[$field] = sanitizeSeoText($_POST[$field]);
+                }
+            }
 
             /* Обновим данные об остановках и их стоимости */
             $del = mysqli_query($db,"DELETE FROM `" .  DB_PREFIX . "_tours_stops_prices`WHERE tour_id = '".$id."' ");
@@ -93,6 +111,10 @@ include 'config.php' ?>
                         <li class="nav-item">
                             <a class="nav-link" data-toggle="pill" href="#tab_5" role="tab" aria-controls="tab_4"
                                aria-selected="false">Параметры</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-toggle="pill" href="#tab_6" role="tab" aria-controls="tab_6"
+                               aria-selected="false">СЕО текст</a>
                         </li>
                     </ul>
                     <div class="tab-content card-body" id="custom-content-above-tabContent">
@@ -407,6 +429,20 @@ include 'config.php' ?>
                                 </tr>
                                 </tbody>
                             </table>
+                        </div>
+                        <div class="tab-pane fade" id="tab_6" role="tabpanel" aria-labelledby="tab_6">
+                            <div class="form-group">
+                                <label>SEO текст (UA)</label>
+                                <textarea class="form-control" name="seo_text_uk" rows="6"><?= htmlspecialchars($Elem['seo_text_uk'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>SEO текст (RU)</label>
+                                <textarea class="form-control" name="seo_text_ru" rows="6"><?= htmlspecialchars($Elem['seo_text_ru'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>SEO текст (EN)</label>
+                                <textarea class="form-control" name="seo_text_en" rows="6"><?= htmlspecialchars($Elem['seo_text_en'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                            </div>
                         </div>
                     </div>
                     <div class="card-footer" style="text-align: center">
