@@ -182,6 +182,7 @@ span.flatpickr-weekday {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.17/js/intlTelInput.min.js"></script>
 
 <script>
+    const legacyAjaxUrl = @json(\App\Helpers\LocaleHelper::localizedRoute('ajax.legacy', ['lang' => app()->getLocale()]));
     $('.cb_phone_country_code').niceSelect();
     $('.cb_phone_input').mask("<?php echo $firstPhoneMask?>");
     function changeInputMask(item){
@@ -215,7 +216,7 @@ span.flatpickr-weekday {
             headers: {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
             },
-            url: '/ajax/ru',
+            url: legacyAjaxUrl,
             data:{
                 'request':'exit'
             },
@@ -711,7 +712,7 @@ span.flatpickr-weekday {
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                 },
-                url: '/ajax/ru',
+                url: legacyAjaxUrl,
                 data: {
                     request: 'filter_date',
                     departure: departure,
@@ -891,7 +892,7 @@ span.flatpickr-weekday {
 
             $.ajax({
                 type: 'post',
-                url:  '/ajax/ru',
+                url: legacyAjaxUrl,
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                 },
@@ -940,7 +941,7 @@ span.flatpickr-weekday {
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                 },
-                url: '/ajax/ru',
+                url: legacyAjaxUrl,
                 data: {
                     request: 'booking_date',
                     date: date
@@ -1052,7 +1053,7 @@ span.flatpickr-weekday {
             headers: {
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
             },
-            url: '/ajax/ru',
+            url: legacyAjaxUrl,
             data:{
                 'request':'callback',
                 'departure':departure,
