@@ -1,6 +1,24 @@
 <?if (!\App\Service\User::isAuth()){
     header('Location:'.route('main'));
 }?>
+<?php
+$privateMenuLinks = [
+    80 => ['title' => $Router->writetitle(80), 'url' => $Router->writelink(80)],
+    78 => ['title' => $Router->writetitle(78), 'url' => $Router->writelink(78)],
+    79 => ['title' => $Router->writetitle(79), 'url' => $Router->writelink(79)],
+    82 => ['title' => $Router->writetitle(82), 'url' => $Router->writelink(82)],
+    81 => ['title' => $Router->writetitle(81), 'url' => $Router->writelink(81)],
+];
+foreach ($privateMenuLinks as $pageId => $link) {
+    \Illuminate\Support\Facades\Log::channel('cabinet')->info('[CABINET_MENU_LINK]', [
+        'page_id' => $pageId,
+        'title' => $link['title'],
+        'url' => $link['url'],
+        'locale' => $Router->lang ?? app()->getLocale(),
+        'path' => $_SERVER['REQUEST_URI'] ?? null,
+    ]);
+}
+?>
 <!DOCTYPE html>
 <html lang="<?=$Router->lang?>">
 <head>
@@ -16,28 +34,28 @@
             <div class="tabs_links_container hidden-xs">
                 <div class="private_links">
                     <div class="private_link_wrapper">
-                        <a href="<?=$Router->writelink(80)?>" class="private_tab h4_title">
-                            <?=$Router->writetitle(80)?>
+                        <a href="<?=$privateMenuLinks[80]['url']?>" class="private_tab h4_title">
+                            <?=$privateMenuLinks[80]['title']?>
                         </a>
                     </div>
                     <div class="private_link_wrapper">
-                        <a href="<?=$Router->writelink(78)?>" class="private_tab h4_title active">
-                            <?=$Router->writetitle(78)?>
+                        <a href="<?=$privateMenuLinks[78]['url']?>" class="private_tab h4_title active">
+                            <?=$privateMenuLinks[78]['title']?>
                         </a>
                     </div>
                     <div class="private_link_wrapper">
-                        <a href="<?=$Router->writelink(79)?>" class="private_tab h4_title">
-                            <?=$Router->writetitle(79)?>
+                        <a href="<?=$privateMenuLinks[79]['url']?>" class="private_tab h4_title">
+                            <?=$privateMenuLinks[79]['title']?>
                         </a>
                     </div>
                     <!--div class="private_link_wrapper">
-                        <a href="<?=$Router->writelink(82)?>" class="private_tab h4_title">
-                            <?=$Router->writetitle(82)?>
+                        <a href="<?=$privateMenuLinks[82]['url']?>" class="private_tab h4_title">
+                            <?=$privateMenuLinks[82]['title']?>
                         </a>
                     </div>
                     <div class="private_link_wrapper">
-                        <a href="<?=$Router->writelink(81)?>" class="private_tab h4_title">
-                            <?=$Router->writetitle(81)?>
+                        <a href="<?=$privateMenuLinks[81]['url']?>" class="private_tab h4_title">
+                            <?=$privateMenuLinks[81]['title']?>
                         </a>
                     </div-->
                 </div>
@@ -46,7 +64,7 @@
         <div class="container hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm">
             <div class="mobile_private_links flex_ac">
                 <div class="private_link_wrapper">
-                    <a href="<?=$Router->writelink(80)?>" class="private_tab h4_title">
+                    <a href="<?=$privateMenuLinks[80]['url']?>" class="private_tab h4_title">
                         <div class="hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm private_link_icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="35" height="36" viewBox="0 0 35 36" fill="none">
                                 <path d="M25.0229 10.453C24.4542 9.88416 24.1212 9.12157 24.0905 8.31778C24.0599 7.51399 24.3338 6.72824 24.8574 6.11769C24.9007 6.06691 24.9233 6.00163 24.9205 5.93495C24.9177 5.86827 24.8898 5.8051 24.8424 5.75811L21.8257 2.738C21.7758 2.68816 21.7082 2.66016 21.6377 2.66016C21.5672 2.66016 21.4996 2.68816 21.4497 2.738L16.6413 7.5464C16.4639 7.72376 16.3303 7.94003 16.251 8.17804C16.172 8.4166 16.0385 8.63347 15.8611 8.81146C15.6837 8.98945 15.4673 9.12365 15.229 9.20343C14.9908 9.28279 14.7744 9.41641 14.5967 9.59376L2.26534 21.9224C2.2155 21.9722 2.1875 22.0399 2.1875 22.1104C2.1875 22.1809 2.2155 22.2485 2.26534 22.2983L5.28204 25.315C5.32903 25.3625 5.39219 25.3903 5.45887 25.3931C5.52556 25.3959 5.59083 25.3734 5.64161 25.3301C6.25204 24.8058 7.03796 24.5315 7.84203 24.562C8.6461 24.5925 9.40898 24.9256 9.97795 25.4945C10.5469 26.0635 10.88 26.8264 10.9105 27.6305C10.941 28.4345 10.6666 29.2204 10.1424 29.8309C10.0991 29.8816 10.0766 29.9469 10.0794 30.0136C10.0821 30.0803 10.11 30.1435 10.1574 30.1904L13.1741 33.2071C13.224 33.257 13.2916 33.285 13.3621 33.285C13.4326 33.285 13.5002 33.257 13.5501 33.2071L25.8821 20.8758C26.0595 20.6981 26.1931 20.4816 26.2725 20.2435C26.3514 20.0049 26.4849 19.788 26.6623 19.61C26.8397 19.4321 27.0561 19.2979 27.2944 19.2181C27.5325 19.1388 27.7487 19.0052 27.9261 18.8277L32.7345 14.0193C32.7843 13.9695 32.8123 13.9019 32.8123 13.8314C32.8123 13.7609 32.7843 13.6932 32.7345 13.6434L29.7178 10.6267C29.6708 10.5793 29.6076 10.5514 29.5409 10.5486C29.4743 10.5458 29.409 10.5683 29.3582 10.6116C28.7485 11.1362 27.9632 11.4113 27.1595 11.3819C26.3557 11.3525 25.5926 11.0208 25.0229 10.453Z" stroke="white" stroke-width="2" stroke-miterlimit="10"/>
@@ -56,7 +74,7 @@
                     </a>
                 </div>
                 <div class="private_link_wrapper">
-                    <a href="<?=$Router->writelink(78)?>" class="private_tab h4_title active">
+                    <a href="<?=$privateMenuLinks[78]['url']?>" class="private_tab h4_title active">
                         <div class="hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm private_link_icon">
                             <svg class="fill_stroke" xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26" fill="none">
                                 <g clip-path="url(#clip0_421_17501)">
@@ -75,7 +93,7 @@
 
                 </div>
                 <div class="private_link_wrapper">
-                    <a href="<?=$Router->writelink(79)?>" class="private_tab h4_title">
+                    <a href="<?=$privateMenuLinks[79]['url']?>" class="private_tab h4_title">
                         <div class="hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm private_link_icon">
                             <svg class="fill_stroke" xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26" fill="none">
                                 <g clip-path="url(#clip0_421_17507)">
@@ -92,7 +110,7 @@
 
                 </div>
                 <!--div class="private_link_wrapper">
-                    <a href="<?=$Router->writelink(82)?>" class="private_tab h4_title">
+                    <a href="<?=$privateMenuLinks[82]['url']?>" class="private_tab h4_title">
                         <div class="hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm private_link_icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26" fill="none">
                                 <g clip-path="url(#clip0_421_17510)">
@@ -109,7 +127,7 @@
                     </a>
                 </div>
                 <div-- class="private_link_wrapper">
-                    <a href="<?=$Router->writelink(81)?>" class="private_tab h4_title">
+                    <a href="<?=$privateMenuLinks[81]['url']?>" class="private_tab h4_title">
                         <div class="hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm private_link_icon">
                             <svg xmlns="http://www.w3.org/2000/svg" width="47" height="18" viewBox="0 0 47 18" fill="none">
                                 <path fill-rule="evenodd" clip-rule="evenodd" d="M4.42523 4.96542L1.74021 1.66329H36.6912C39.0667 1.66329 41.094 3.38602 41.4815 5.73579L41.5007 5.85238H39.7771V6.31782H41.5775L43.2206 16.2822H39.0933L38.8916 15.8434C38.3853 14.7421 37.2855 14.0361 36.0746 14.0361C34.6295 14.0361 33.3765 15.0359 33.0523 16.4459L33.007 16.6433L33.9136 16.8519L33.959 16.6545C34.1862 15.6663 35.0638 14.967 36.0746 14.967C36.9216 14.967 37.6917 15.4608 38.0464 16.2324L38.4972 17.2131H44.317L42.5203 6.31782H45.7516V9.63933H46.2168V5.85238H42.4436L42.3994 5.58424C41.9379 2.7859 39.523 0.732422 36.6912 0.732422H1.69527C0.928516 0.732422 0.508292 1.62318 0.990735 2.21651L3.84254 5.72376L3.84322 5.7246L6.08427 8.49372L8.70987 11.5415C8.88235 11.7417 9.13344 11.857 9.39777 11.857H24.7999C25.093 11.857 25.368 11.7154 25.5386 11.4769L27.6785 8.4845L33.467 8.40149L33.4536 7.47072L27.654 7.55389C27.3654 7.55801 27.0962 7.69921 26.9283 7.93387L24.7885 10.9261H9.40796L7.44284 8.64503L17.4627 8.48784L17.4481 7.55709L6.66029 7.72632L5.17924 5.89629H17.4554V4.96542H4.42523Z" fill="#40A6FF"/>

@@ -135,6 +135,20 @@ return [
             'days' => 30,
             'replace_placeholders' => true,
         ],
+        'cabinet' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/cabinet.log'),
+            'level' => 'debug',
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+        'bonus' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/bonus.log'),
+            'level' => 'debug',
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
 
     ],
 
