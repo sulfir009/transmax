@@ -1,6 +1,24 @@
 <? if (!\App\Service\User::isAuth()) {
     header('Location:' . route('main'));
 } ?>
+<?php
+$privateMenuLinks = [
+    80 => ['title' => $Router->writetitle(80), 'url' => $Router->writelink(80)],
+    78 => ['title' => $Router->writetitle(78), 'url' => $Router->writelink(78)],
+    79 => ['title' => $Router->writetitle(79), 'url' => $Router->writelink(79)],
+    82 => ['title' => $Router->writetitle(82), 'url' => $Router->writelink(82)],
+    81 => ['title' => $Router->writetitle(81), 'url' => $Router->writelink(81)],
+];
+foreach ($privateMenuLinks as $pageId => $link) {
+    \Illuminate\Support\Facades\Log::channel('cabinet')->info('[CABINET_MENU_LINK]', [
+        'page_id' => $pageId,
+        'title' => $link['title'],
+        'url' => $link['url'],
+        'locale' => $Router->lang ?? app()->getLocale(),
+        'path' => $_SERVER['REQUEST_URI'] ?? null,
+    ]);
+}
+?>
 
 <!DOCTYPE html>
 <html lang="<?= $Router->lang ?>">
@@ -17,28 +35,28 @@
             <div class="tabs_links_container hidden-xs">
                 <div class="private_links">
                     <div class="private_link_wrapper">
-                        <a href="<?= $Router->writelink(80) ?>" class="private_tab h4_title active">
-                            <?= $Router->writetitle(80) ?>
+                        <a href="<?= $privateMenuLinks[80]['url'] ?>" class="private_tab h4_title active">
+                            <?= $privateMenuLinks[80]['title'] ?>
                         </a>
                     </div>
                     <div class="private_link_wrapper">
-                        <a href="<?= $Router->writelink(78) ?>" class="private_tab h4_title">
-                            <?= $Router->writetitle(78) ?>
+                        <a href="<?= $privateMenuLinks[78]['url'] ?>" class="private_tab h4_title">
+                            <?= $privateMenuLinks[78]['title'] ?>
                         </a>
                     </div>
                     <div class="private_link_wrapper">
-                        <a href="<?= $Router->writelink(79) ?>" class="private_tab h4_title">
-                            <?= $Router->writetitle(79) ?>
+                        <a href="<?= $privateMenuLinks[79]['url'] ?>" class="private_tab h4_title">
+                            <?= $privateMenuLinks[79]['title'] ?>
                         </a>
                     </div>
                     <!--div class="private_link_wrapper">
-                        <a href="<?=$Router->writelink(82)?>" class="private_tab h4_title">
-                            <?=$Router->writetitle(82)?>
+                        <a href="<?=$privateMenuLinks[82]['url']?>" class="private_tab h4_title">
+                            <?=$privateMenuLinks[82]['title']?>
                         </a>
                     </div>
                     <div class="private_link_wrapper">
-                        <a href="<?=$Router->writelink(81)?>" class="private_tab h4_title">
-                            <?=$Router->writetitle(81)?>
+                        <a href="<?=$privateMenuLinks[81]['url']?>" class="private_tab h4_title">
+                            <?=$privateMenuLinks[81]['title']?>
                         </a>
                     </div-->
                 </div>
@@ -46,7 +64,7 @@
             <div class="container hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm">
                 <div class="mobile_private_links flex_ac">
                     <div class="private_link_wrapper">
-                        <a href="<?= $Router->writelink(80) ?>" class="private_tab h4_title active">
+                        <a href="<?= $privateMenuLinks[80]['url'] ?>" class="private_tab h4_title active">
                             <div class="hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm private_link_icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="35" height="36" viewBox="0 0 35 36"
                                      fill="none">
@@ -60,7 +78,7 @@
                         </a>
                     </div>
                     <div class="private_link_wrapper">
-                        <a href="<?= $Router->writelink(78) ?>" class="private_tab h4_title">
+                        <a href="<?= $privateMenuLinks[78]['url'] ?>" class="private_tab h4_title">
                             <div class="hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm private_link_icon">
                                 <svg class="fill_stroke" xmlns="http://www.w3.org/2000/svg" width="26" height="26"
                                      viewBox="0 0 26 26" fill="none">
@@ -83,7 +101,7 @@
                         </a>
                     </div>
                     <div class="private_link_wrapper">
-                        <a href="<?= $Router->writelink(79) ?>" class="private_tab h4_title">
+                        <a href="<?= $privateMenuLinks[79]['url'] ?>" class="private_tab h4_title">
                             <div class="hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm private_link_icon">
                                 <svg class="fill_stroke" xmlns="http://www.w3.org/2000/svg" width="26" height="26"
                                      viewBox="0 0 26 26" fill="none">
@@ -103,7 +121,7 @@
 
                     </div>
                     <!--div class="private_link_wrapper">
-                        <a href="<?= $Router->writelink(82) ?>" class="private_tab h4_title">
+                        <a href="<?= $privateMenuLinks[82]['url'] ?>" class="private_tab h4_title">
                             <div class="hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm private_link_icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26"
                                      fill="none">
@@ -125,7 +143,7 @@
                         </a>
                     </div>
                     <div class="private_link_wrapper">
-                        <a href="<?= $Router->writelink(81) ?>" class="private_tab h4_title">
+                        <a href="<?= $privateMenuLinks[81]['url'] ?>" class="private_tab h4_title">
                             <div class="hidden-xxl hidden-xl hidden-lg hidden-md hidden-sm private_link_icon">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="47" height="18" viewBox="0 0 47 18"
                                      fill="none">
