@@ -33,21 +33,7 @@
                     <img src="{{ asset('images/legacy/mob_pin.png') }}" alt="tpb">
                 </div>
                 <h1 class="element" style="margin-top: 55px;">@lang('dictionary.ROUTE_AND_SCHEDULE')</h1>
-                <div class="container-fluid schedule">
-                    <div class="custom-select-schedule-container">
-                        <div class="custom-schedule-select-wrapper">
-                            <select class="custom-schedule-styled-select" id="stationSelect" data-tour="{{ $tour }}">
-                                <option value="0">@lang('dictionary.ALL_ROUTES')</option>
-                                @foreach($regularRaces as $alias => $races)
-                                    @foreach($races as $race)
-                                        <option
-                                            value="{{ $race->stops->first()->stop_id }}">@lang('bus_from') {!! $race->stops->first()->stopCity !!} {!! $race->stops->first()->stopTitle !!}</option>
-                                    @endforeach
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-                </div>
+                
                 <div data-content-way>
                     @include('regular-races.components.regular-races',
                         [

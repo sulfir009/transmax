@@ -75,14 +75,14 @@
             <div class="b2_route_city">{{ $depTitle }}</div>
         </div>
 
-        {{-- MID --}}
-        <div class="b2_route_mid">
-            <div class="b2_route_duration">
-                Время в пути<br>
-                <span class="b2_route_duration_val">{{ $durationText }}</span>
-            </div>
-            <div class="b2_route_line"></div>
-        </div>
+{{-- MID --}}
+<div class="b2_route_mid">
+    <div class="b2_route_duration">
+        Время в пути <span class="b2_route_duration_val">{{ $durationText }}</span>
+    </div>
+    <div class="b2_route_line"></div>
+</div>
+
 
         {{-- RIGHT --}}
         <div class="b2_route_side right">
@@ -306,4 +306,144 @@
         background: linear-gradient(180deg,#63D5F8,#34B9F0);
         border-radius: 999px;
     }
+    
+    /* ===== ROUTE TOP (как на дизайне) ===== */
+.booking_v2 .b2_route_top--mobileLike{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    margin-top:10px;
+}
+
+/* Левая/правая колонка */
+.booking_v2 .b2_route_side{
+    flex:0 0 165px;              /* ширина колонки как “в дизайне” */
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    text-align:left;
+}
+
+.booking_v2 .b2_route_side.right{
+    align-items:flex-end;
+    text-align:right;
+}
+
+/* Время сверху */
+.booking_v2 .b2_route_time{
+    font-weight:800;
+    font-size:20px;              /* на макете заметно больше чем 14 */
+    line-height:1;
+    color:#303233;
+}
+
+/* Подчеркивание времени */
+.booking_v2 .b2_route_time_underline{
+    width:74px;                  /* как на картинке — длиннее чем “46px” */
+    height:3px;
+    background:#A3E8F9;
+    border-radius:999px;
+    margin-top:8px;
+    margin-bottom:16px;
+}
+
+/* Иконка города */
+.booking_v2 .b2_route_city_icon{
+    width:46px;
+    height:46px;
+    object-fit:contain;
+    display:block;
+    margin:0 0 10px;
+}
+
+/* Название станции/города */
+.booking_v2 .b2_route_city{
+    font-weight:600;
+    font-size:14px;              /* у тебя было 10 — слишком мелко */
+    color:#6E7172;
+    line-height:1.2;
+    max-width:165px;
+    word-break:break-word;
+}
+
+/* Средняя часть растягивается */
+.booking_v2 .b2_route_mid{
+    flex:1 1 auto;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:0 10px;
+    padding-top:clamp(26px, 4vw, 42px);  /* выравнивает “Время в пути” по высоте с иконками */
+}
+
+/* Текст “Время в пути 8 ч. 48 мин.” */
+.booking_v2 .b2_route_duration{
+    font-weight:600;
+    font-size:14px;
+    color:#303233;
+    line-height:1.2;
+    display:flex;
+    gap:6px;
+    align-items:baseline;
+    justify-content:center;
+    text-align:center;
+    white-space:nowrap;          /* как на дизайне — одной строкой */
+}
+
+.booking_v2 .b2_route_duration_val{
+    font-weight:800;
+    font-size:15px;              /* чуть выразительнее */
+}
+
+/* Линия маршрута + стрелка справа */
+.booking_v2 .b2_route_line{
+    position:relative;
+    height:3px;
+    margin-top:18px;
+
+    /* делаем шире, чтобы почти доходила до иконок */
+    width:calc(100% + 195px);
+    margin-left:-8px;
+    margin-right:-8px;
+
+    background:linear-gradient(90deg, #63D5F8, #34B9F0);
+    border-radius:999px;
+}
+
+/* Стрелка */
+.booking_v2 .b2_route_line:after{
+    content:"";
+    position:absolute;
+    right:-1px;
+    top:50%;
+    transform:translateY(-50%);
+    width:0;
+    height:0;
+    border-left:10px solid #34B9F0;
+    border-top:6px solid transparent;
+    border-bottom:6px solid transparent;
+}
+
+/* Адаптация под узкие экраны (если вдруг этот блок реально на мобиле) */
+@media (max-width: 480px){
+    .booking_v2 .b2_route_line{
+    width:calc(100% + 24px);
+}
+.booking_v2 .b2_route_duration{
+            width: 100px;
+}
+    .booking_v2 .b2_route_side{ flex-basis:130px; }
+    .booking_v2 .b2_route_time{ font-size:18px; }
+    .booking_v2 .b2_route_city{ font-size:12px; max-width:130px; }
+    .booking_v2 .b2_route_city_icon{ width:40px; height:40px; }
+    .booking_v2 .b2_route_duration{
+        font-size:12px;
+        white-space:normal;      /* на мобиле можно переносить, чтобы не ломало */
+        flex-wrap:wrap;
+        row-gap:4px;
+    }
+}
+
 </style>

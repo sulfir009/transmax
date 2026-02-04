@@ -1,7 +1,18 @@
-<?php include str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT']) . '/config.php';
+<?php include_once str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT']) . '/config.php';
 include str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT']) . '/' . ADMIN_PANEL . '/guard.php';
 include str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT']) . '/' . ADMIN_PANEL . '/includes.php';
-include 'config.php';
+include_once __DIR__ . '/config.php';
+
+if (!isset($GLOBALS['CPLANG']) || !is_array($GLOBALS['CPLANG'])) {
+    $GLOBALS['CPLANG'] = [];
+}
+
+$confirmDelete = $GLOBALS['CPLANG']['SURE_TO_DELETE'] ?? 'Точно удалить?';
+$confirmDeleteJs = json_encode($confirmDelete, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
 if ($Admin->CheckPermission($_params['access'])) {
     ?>
     <!DOCTYPE html>
@@ -57,7 +68,7 @@ if ($Admin->CheckPermission($_params['access'])) {
                                                title="Редактировать">
                                                 <i class="fas fa-pencil-alt"></i>
                                             </a>
-                                            <a onclick="return confirm('<?= $GLOBALS['CPLANG']['SURE_TO_DELETE'] ?>')"
+                                            <a onclick="return confirm(<?= $confirmDeleteJs ?>)"
                                                href="<?= $_SERVER['REQUEST_URI'] . '/delete.php' ?>?id=<?= $Elem['id'] ?>" class="btn btn-danger"
                                                title="Удалить">
                                                 <i class="fas fa-times"></i>

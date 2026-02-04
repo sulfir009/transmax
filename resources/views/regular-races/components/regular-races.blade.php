@@ -370,34 +370,60 @@
 }
 
 /* Details button */
+/* Details button */
 .rr3_details_btn{
-    all:unset;
-    box-sizing:border-box;
-    cursor:pointer;
-    width:100%;
-    background:rgba(110,113,114,0.55);
-    color:#fff;
-    border-radius:100px;
-    padding:20px 20px;
-    box-shadow:0px 4px 12px rgba(162,162,162,.25);
-    font-size:14px;
-    font-weight:500;
-    line-height:16.8px;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    gap:12px;
+    all: unset;
+    box-sizing: border-box;
+    cursor: pointer;
+    width: 100%;
+
+    /* НЕактивная */
+    background: #F5F5F5;
+    color: #6E7172;
+
+    border-radius: 100px;
+    padding: 20px 20px;
+    box-shadow: 0px 4px 12px rgba(162,162,162,.25);
+
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 16.8px;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+
+    transition: background .2s ease, color .2s ease;
 }
-.rr3_card.is-open .rr3_details_btn{ background:#6E7172; }
+
+/* Активная */
+.rr3_card.is-open .rr3_details_btn,
+.rr3_details_btn[aria-expanded="true"]{
+    background: #6E7172;
+    color: #fff;
+}
 
 .rr3_chev{
-    width:10px; height:10px;
-    display:inline-block;
-    border-right:3px solid #fff;
-    border-bottom:3px solid #fff;
+    width: 10px;
+    height: 10px;
+    display: inline-block;
+
+    /* шеврон = цвет текста кнопки */
+    border-right: 3px solid currentColor;
+    border-bottom: 3px solid currentColor;
+
     transform: rotate(225deg);
-    margin-top:2px;
+    margin-top: 2px;
+
+    transition: transform .2s ease, margin-top .2s ease;
 }
+
+.rr3_card:not(.is-open) .rr3_chev{
+    transform: rotate(45deg);
+    margin-top: -2px;
+}
+
 .rr3_card:not(.is-open) .rr3_chev{ transform: rotate(45deg); margin-top:-2px; }
 
 .rr3_details_body{ padding: 0; }
