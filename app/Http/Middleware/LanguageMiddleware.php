@@ -27,6 +27,29 @@ class LanguageMiddleware
     public function handle(Request $request, Closure $next): Response
     {
         $segment = $request->segment(1);
+        $isAjax = $request->ajax() || $request->expectsJson();
+
+        if ($isAjax) {
+            $routeLocale = $request->route('lang');
+            if (is_string($routeLocale) && in_array($routeLocale, $this->supportedLocales, true)) {
+                $locale = $routeLocale;
+            } elseif (in_array($segment, $this->supportedLocales, true)) {
+                $locale = $segment;
+            } else {
+                $locale = session('lang', $this->defaultLocale);
+            }
+
+            Site::setLang($locale);
+            app()->setLocale($locale);
+
+            $request->attributes->set('locale', $locale);
+
+            view()->share('currentLocale', $locale);
+            view()->share('supportedLocales', $this->supportedLocales);
+            view()->share('defaultLocale', $this->defaultLocale);
+
+            return $next($request);
+        }
         
                 if ($segment === 'ua') {
             $path = ltrim($request->path(), '/');

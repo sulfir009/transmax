@@ -170,13 +170,13 @@ class TicketController extends Controller
                 'kids'      => (int)$request->input('kids', 0),
             ];
 
-            return redirect()->route('tickets.index', [
-                'from'      => $_SESSION['filter']['departure'],
-                'to'        => $_SESSION['filter']['arrival'],
-                'date'      => $_SESSION['filter']['date'],
-                'adults'    => $_SESSION['filter']['adults'],
-                'kids'      => $_SESSION['filter']['kids'],
-            ]);
+            return redirect()->to(LocaleHelper::localizedRoute('tickets.index', [
+                'from' => $_SESSION['filter']['departure'],
+                'to' => $_SESSION['filter']['arrival'],
+                'date' => $_SESSION['filter']['date'],
+                'adults' => $_SESSION['filter']['adults'],
+                'kids' => $_SESSION['filter']['kids'],
+            ], true, $lang));
         }
 
         /**
@@ -675,7 +675,7 @@ class TicketController extends Controller
         }
 
         if (!isset($_SESSION['selected_ticket'])) {
-            return redirect()->route('tickets.index')
+            return redirect()->to(LocaleHelper::localizedRoute('tickets.index'))
                 ->with('error', 'Пожалуйста, сначала выберите билет');
         }
 
@@ -729,7 +729,7 @@ return view('ticket.data', compact(
         }
 
         if (!isset($_SESSION['selected_ticket']) || !isset($_SESSION['passenger_data'])) {
-            return redirect()->route('tickets.index')
+            return redirect()->to(LocaleHelper::localizedRoute('tickets.index'))
                 ->with('error', 'Пожалуйста, сначала выберите билет и введите данные пассажиров');
         }
 

@@ -2,6 +2,7 @@
 
 namespace App\Services\Home;
 
+use App\Helpers\LocaleHelper;
 use App\Repository\Home\HomeContentRepository;
 use App\Repository\Races\ToursRepository;
 use App\Repository\CityRepository;
@@ -70,7 +71,7 @@ class HomePageService
             'filterDate' => $filterDate,
             'filterAdults' => $filterAdults,
             'filterKids' => $filterKids,
-            'formAction' => route('tickets.index') // Указываем action для формы
+            'formAction' => LocaleHelper::localizedRoute('tickets.index', [], true, $lang) // Указываем action для формы
         ];
     }
 

@@ -84,7 +84,7 @@
         const orderId = urlParams.get('order_id') || '';
         const uniqid = urlParams.get('uniqid') || '';
         const lang = '{{ app()->getLocale() }}';
-        const pollingEndpoint = `/ajax/payment/${encodeURIComponent(lang)}`;
+        const pollingEndpoint = @json(\App\Helpers\LocaleHelper::localizedRoute('payment.page.ajax', ['lang' => app()->getLocale()]));
         const debugEnabled = urlParams.get('debug') === '1';
         const note = document.getElementById('payment-status-note');
 
@@ -127,7 +127,9 @@
             fetch(pollingEndpoint, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: payload.toString()
             })
