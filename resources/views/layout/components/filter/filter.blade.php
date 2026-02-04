@@ -1,7 +1,7 @@
 <form class="main_filter"
       autocomplete="off"
       method="GET"
-      action="{{ $formAction ?? route('tickets.index') }}"
+      action="{{ $formAction ?? \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
       data-reset-url="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}">
 
     <div class="flex-row gap-8">
@@ -21,7 +21,7 @@
                         @foreach($cities as $city)
                             <option value="{{ $city['id'] }}"
                                 {{ !empty($filterDeparture) && (int)$filterDeparture === (int)$city['id'] ? 'selected' : '' }}>
-                                {{ $city['title'] }}
+                                {!! html_entity_decode($city['title']) !!}
                             </option>
                         @endforeach
                     </select>
@@ -48,7 +48,7 @@
                         @foreach($cities as $city)
                             <option value="{{ $city['id'] }}"
                                 {{ !empty($filterArrival) && (int)$filterArrival === (int)$city['id'] ? 'selected' : '' }}>
-                                {{ $city['title'] }}
+                                {!! html_entity_decode($city['title']) !!}
                             </option>
                         @endforeach
                     </select>

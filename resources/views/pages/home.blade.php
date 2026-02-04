@@ -23,7 +23,7 @@
                         'filterKids' => $filterKids,
                         'dictionary' => $dictionary,
                         'lang' => $lang,
-                        'formAction' => $formAction ?? route('tickets.index')
+                        'formAction' => $formAction ?? \App\Helpers\LocaleHelper::localizedRoute('tickets.index')
                     ])
                 </div>
             </div>
