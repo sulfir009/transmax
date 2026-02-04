@@ -38,10 +38,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $Admin->CheckPermission($_params['a
         if (!$client) {
             $error = 'Клиент не найден.';
         } else {
-            $bonusService = app(BonusService::class);
-            $bonusService->credit($client, $amountCents, 'manual_add', [
-                'comment' => strip_tags($comment),
-            ], null, (int)($Admin->id ?? 0));
+            $bonusCredited = false;
+            $adminId = (int)($Admin->id ?? 0);
+            $commentClean = strip_tags($comment);
+
+            if (function_exists('app')) {
+                try {
+                    $bonusService = app(BonusService::class);
+                    $bonusService->credit($client, $amountCents, 'manual_add', [
+                        'comment' => $commentClean,
+                    ], null, $adminId);
+                    $bonusCredited = true;
+                } catch (Exception $e) {
+                    $bonusCredited = false;
+                }
+            }
+
+            if (!$bonusCredited) {
+                $commentSafe = mysqli_real_escape_string($db, $commentClean);
+                $meta = json_encode(['comment' => $commentClean], JSON_UNESCAPED_UNICODE);
+                $metaSafe = mysqli_real_escape_string($db, (string)$meta);
+                $Db->query("UPDATE `" . DB_PREFIX . "_clients` SET bonus_balance_cents = bonus_balance_cents + " . (int)$amountCents . " WHERE id = '" . (int)$clientId . "' LIMIT 1");
+                $Db->query("INSERT INTO `" . DB_PREFIX . "_bonus_transactions` (`client_id`,`amount_cents`,`type`,`order_id`,`admin_id`,`meta`,`created_at`,`updated_at`) VALUES ('" . (int)$clientId . "','" . (int)$amountCents . "','manual_add',NULL,'" . (int)$adminId . "','" . $metaSafe . "',NOW(),NOW())");
+            }
+
             $success = 'Бонусы успешно начислены.';
             $selectedClient = $client->fresh();
         }
