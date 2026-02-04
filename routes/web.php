@@ -134,12 +134,12 @@ Route::get('/debug/session', [\App\Http\Controllers\DebugController::class, 'ses
 
         // AJAX для страницы оплаты (Monobank/LiqPay)
         Route::post('/ajax/payment/{lang}', '\App\Http\Controllers\PaymentPageController@ajax')
-            ->where('lang', 'ru|ru|ru|en')
+            ->where('lang', 'ru|en|uk')
             ->name('payment.page.ajax');
 
         // Legacy AJAX route - должен быть перед вторыми ajax маршрутами
         Route::match(['GET', 'POST'], '/ajax/{lang}', '\App\Http\Controllers\Ajax\LegacyAjaxController@handleRequest')
-            ->where('lang', 'ru|ru|ru|en')
+            ->where('lang', 'ru|en|uk')
             ->name('ajax.legacy');
 
         Route::post('/ajax/booking/{lang}', '\App\Http\Controllers\BookingController@ajax')->name('booking.ajax');

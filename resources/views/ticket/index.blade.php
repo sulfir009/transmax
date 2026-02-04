@@ -135,9 +135,9 @@
          data-min-price="{{ $minTicketsPrice }}"
          data-max-price="{{ $maxTicketsPrice }}"
          data-current-date="{{ date('Y-m-d') }}"
-         data-ajax-url="/ajax/ru"
-         data-route-tickets="{{ route('tickets.index') }}"
-         data-route-next="{{ rtrim(url($Router->writelink(85)), '/') }}"
+         data-ajax-url="{{ \App\Helpers\LocaleHelper::localizedRoute('ajax.legacy', ['lang' => app()->getLocale()]) }}"
+         data-route-tickets="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
+         data-route-next="{{ \App\Helpers\LocaleHelper::localizedRoute('booking.index') }}"
          data-csrf-token="{{ csrf_token() }}"
          data-msg-ticket-expired="{{ __('dictionary.MSG_MSG_TICKETS_ETOT_BILET_BOLISHE_KUPITI_NELIZYA_TK_ETOT_REJS_UZHE_UEHAL') }}">
         @include('ticket.partials.main_filter_wrapper', [
@@ -149,7 +149,7 @@
             'kids' => $kids ?? 0,
             'dictionary' => $dictionary ?? [],
             'lang' => $lang ?? 'uk',
-            'formAction' => route('tickets.index'),
+            'formAction' => \App\Helpers\LocaleHelper::localizedRoute('tickets.index'),
         ])
 
         <div class="purchase_steps_wrapper">
