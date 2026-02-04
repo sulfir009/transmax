@@ -2,6 +2,7 @@
 
 @section('page-styles')
     <link rel="stylesheet" href="{{ asset('css/ticket_filter_hero.css') }}?v=1">
+    @include('schedule.partials.popular-routes-styles')
     <style>
         .mt_schedule_scope {
             font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
@@ -99,70 +100,6 @@
             color: #ffffff;
         }
 
-        .mt_schedule_scope .mt_schedule_popular {
-            padding: 40px 0 20px;
-        }
-
-        .mt_schedule_scope .mt_schedule_popular_title {
-            font-size: 20px;
-            font-weight: 700;
-            text-transform: uppercase;
-            margin-bottom: 18px;
-        }
-
-        .mt_schedule_scope .mt_schedule_popular_grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 18px;
-        }
-
-        .mt_schedule_scope .mt_schedule_popular_card {
-            background: #ffffff;
-            border-radius: 16px;
-            box-shadow: 0 12px 26px rgba(20, 24, 57, 0.08);
-            padding: 18px 20px;
-        }
-
-        .mt_schedule_scope .mt_schedule_popular_card_title {
-            font-size: 14px;
-            font-weight: 700;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-        }
-
-        .mt_schedule_scope .mt_schedule_popular_list {
-            display: grid;
-            gap: 6px;
-
-            /* ✅ чтобы "все маршруты" не делали карточку бесконечной */
-            max-height: 320px;
-            overflow: auto;
-            padding-right: 6px;
-        }
-
-        .mt_schedule_scope .mt_schedule_popular_item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            font-size: 13px;
-        }
-
-        .mt_schedule_scope .mt_schedule_popular_item a {
-            color: #ff7a00;
-            text-decoration: none;
-        }
-
-        .mt_schedule_scope .mt_schedule_popular_item a:hover {
-            text-decoration: underline;
-        }
-
-        .mt_schedule_scope .mt_schedule_popular_price {
-            font-weight: 600;
-            color: #2c3163;
-            white-space: nowrap;
-        }
-
         .mt_schedule_scope .mt_schedule_seo {
             padding: 28px 0 60px;
         }
@@ -186,18 +123,6 @@
             gap: 16px;
         }
 
-        /* ✅ на больших экранах 3 колонки удобнее */
-        @media (min-width: 1200px) {
-            .mt_schedule_scope .mt_schedule_popular_grid {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-            }
-        }
-
-        @media (max-width: 768px) {
-            .mt_schedule_scope .mt_schedule_popular_grid {
-                grid-template-columns: 1fr;
-            }
-        }
     </style>
 @endsection
 
@@ -225,15 +150,6 @@
         'popular' => 'ПОПУЛЯРНІСТЬ',
     ];
 
-    /**
-     * ✅ ВАЖНО:
-     * $popularRoutes теперь приходит из контроллера.
-     * Тут только страховка, чтобы Blade не упал, если переменную не передали.
-     */
-    $popularRoutes = $popularRoutes ?? collect();
-    if (is_array($popularRoutes)) {
-        $popularRoutes = collect($popularRoutes);
-    }
 @endphp
 
 <div class="content mt_schedule_scope">
@@ -280,36 +196,7 @@
             </div>
         </div>
 
-        <section class="mt_schedule_popular">
-            <div class="container">
-                <div class="mt_schedule_popular_title">ПОПУЛЯРНІ РЕЙСИ</div>
-
-                @if($popularRoutes->isEmpty())
-                    <p class="mt_schedule_intro">@lang('dictionary.MSG_MSG_SCHEDULE_NET_MARSHRUTOV')</p>
-                @else
-                    <div class="mt_schedule_popular_grid">
-                        @foreach($popularRoutes as $popular)
-                            @php
-                                $items = collect($popular['items'] ?? []);
-                            @endphp
-
-                            <div class="mt_schedule_popular_card">
-                                <div class="mt_schedule_popular_card_title">{{ $popular['title'] ?? '' }}</div>
-
-                                <div class="mt_schedule_popular_list">
-                                    @foreach($items as $item)
-                                        <div class="mt_schedule_popular_item">
-                                            <a href="{{ $item['url'] ?? '#' }}">{{ $item['label'] ?? '' }}</a>
-                                            <span class="mt_schedule_popular_price">{{ $item['price'] ?? '—' }}</span>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                @endif
-            </div>
-        </section>
+        @include('schedule.partials.popular-routes', ['popularRoutes' => $popularRoutes ?? collect()])
 
         <section class="mt_schedule_seo">
             <div class="container">

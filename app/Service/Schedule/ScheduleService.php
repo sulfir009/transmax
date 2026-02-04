@@ -8,6 +8,7 @@ use App\Service\Site;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Cache;
 
 class ScheduleService
 {
@@ -226,6 +227,163 @@ class ScheduleService
         }
         
         return __('alias_schedule');
+    }
+
+    /**
+     * Собираем "ПОПУЛЯРНІ РЕЙСИ" как:
+     * - все уникальные пары departure+arrival
+     * - цена = минимальная (от ...)
+     * - дата для ссылки = ближайшая (если есть)
+     *
+     * Почему так:
+     * - $routes это пагинация и не содержит все маршруты
+     * - здесь мы собираем полный список и кэшируем, чтобы не убивать сервер
+     */
+    public function getPopularRoutesForView(string $lang)
+    {
+        // ключ кэша на язык, чтобы не мешать uk/ru/en
+        $cacheKey = "schedule:popular_routes_cards:v1:{$lang}";
+
+        // моё мнение: 30-60 минут идеальный TTL.
+        // Цены/рейсы меняются не каждую минуту, а нагрузку срезаем сильно.
+        $ttlSeconds = 60 * 30;
+
+        return Cache::remember($cacheKey, $ttlSeconds, function () {
+            // Берём все маршруты через тот же сервис, но без фильтров.
+            // Это важно: мы не привязываемся к таблицам/SQL — используем вашу текущую логику.
+            $filtersAll = [
+                'departure' => null,
+                'arrival'   => null,
+                'country'   => null,
+                'city'      => null,
+            ];
+
+            // Чтобы не было 1000 запросов, берём крупными страницами.
+            // Если станет тяжело — уменьшай до 100.
+            $perPage = 200;
+
+            $page          = 1;
+            $maxPagesSafe  = 300; // защита от бесконечного цикла, если что-то пойдёт не так
+            $allRoutesFlat = collect();
+
+            while ($page <= $maxPagesSafe) {
+                $paginator = $this->getFilteredRoutes($filtersAll, $page, $perPage);
+
+                // Важно: getFilteredRoutes возвращает пагинатор (ты уже используешь getCollection/setCollection),
+                // значит getCollection() есть.
+                $collection = method_exists($paginator, 'getCollection')
+                    ? $paginator->getCollection()
+                    : collect($paginator);
+
+                if ($collection->isEmpty()) {
+                    break;
+                }
+
+                // У тебя в Blade уже есть логика: коллекция может быть массивом групп.
+                $flat = is_array($collection->first())
+                    ? $collection->flatten(1)
+                    : $collection;
+
+                $allRoutesFlat = $allRoutesFlat->merge($flat);
+
+                // Если пагинатор знает lastPage — останавливаемся корректно.
+                if (method_exists($paginator, 'lastPage')) {
+                    $last = (int) $paginator->lastPage();
+                    if ($page >= $last) {
+                        break;
+                    }
+                }
+
+                $page++;
+            }
+
+            // 1) Аггрегируем по паре departure+arrival
+            // 2) Считаем min_price
+            $pairs = [];
+
+            foreach ($allRoutesFlat as $route) {
+                $depId = data_get($route, 'departure');
+                $arrId = data_get($route, 'arrival');
+
+                // без id-шек маршрут бессмысленный для ссылки
+                if (!$depId || !$arrId) {
+                    continue;
+                }
+
+                $depCity = (string) data_get($route, 'departure_city', '');
+                $arrCity = (string) data_get($route, 'arrival_city', '');
+
+                if ($depCity === '' || $arrCity === '') {
+                    continue;
+                }
+
+                $key = $depId . '_' . $arrId;
+
+                $priceRaw = data_get($route, 'ticket_price', null);
+                $price    = is_numeric($priceRaw) ? (float) $priceRaw : null;
+
+                $date = data_get($route, 'nearest_departure_date', null);
+                $date = $date ?: null;
+
+                if (!isset($pairs[$key])) {
+                    $pairs[$key] = [
+                        'departure'              => (int) $depId,
+                        'arrival'                => (int) $arrId,
+                        'departure_city'         => $depCity,
+                        'arrival_city'           => $arrCity,
+                        'min_price'              => $price,
+                        'nearest_departure_date' => $date,
+                    ];
+                } else {
+                    // min price
+                    if ($price !== null) {
+                        $prev = $pairs[$key]['min_price'];
+                        $pairs[$key]['min_price'] = ($prev === null) ? $price : min($prev, $price);
+                    }
+
+                    // дата: берём самую раннюю (если обе есть)
+                    $prevDate = $pairs[$key]['nearest_departure_date'];
+                    if ($prevDate === null && $date !== null) {
+                        $pairs[$key]['nearest_departure_date'] = $date;
+                    } elseif ($prevDate !== null && $date !== null) {
+                        $pairs[$key]['nearest_departure_date'] = min($prevDate, $date);
+                    }
+                }
+            }
+
+            $pairsCollection = collect(array_values($pairs))
+                ->sortBy(fn ($r) => $r['departure_city'] . '|' . $r['arrival_city'])
+                ->values();
+
+            // Группируем по городу отправления → карточки
+            return $pairsCollection
+                ->groupBy('departure_city')
+                ->map(function ($group, $departureCity) {
+                    return [
+                        'title' => 'З МІСТА ' . mb_strtoupper($departureCity, 'UTF-8'),
+                        'items' => $group->map(function ($r) {
+                            $price = $r['min_price'] !== null
+                                ? number_format((float) $r['min_price'], 0, '.', ' ') . ' грн'
+                                : '—';
+
+                            $date = $r['nearest_departure_date'] ?: now()->format('Y-m-d');
+
+                            return [
+                                'label' => $r['departure_city'] . ' → ' . $r['arrival_city'],
+                                'price' => $price,
+                                'url'   => route('tickets.index', [
+                                    'from'      => $r['departure'],
+                                    'to'        => $r['arrival'],
+                                    'date'      => $date,
+                                    'adults'    => 1,
+                                    'kids'      => 0,
+                                ]),
+                            ];
+                        })->values(),
+                    ];
+                })
+                ->values();
+        });
     }
 
     /**
