@@ -14,28 +14,29 @@ class TranslationSeeder extends Seeder
      */
     public function run(): void
     {
-        // Проверяем существование таблиц
+        // mt_dictionary: создаём только если нет
         if (!Schema::hasTable('mt_dictionary')) {
             $this->command->info('Table mt_dictionary does not exist. Creating...');
             $this->createDictionaryTable();
         }
 
+        // mt_settings: создаём только если нет
+        // ВАЖНО: схема создаётся в том виде, как у тебя на сервере (title/value/description/active/sort)
         if (!Schema::hasTable('mt_settings')) {
             $this->command->info('Table mt_settings does not exist. Creating...');
             $this->createSettingsTable();
         }
 
-        // Заполняем переводы для словаря
         $this->seedDictionary();
-        
-        // Заполняем настройки
         $this->seedSettings();
-        
-        // Заполняем переводы страниц
         $this->seedPagesTitles();
     }
 
-    private function createDictionaryTable()
+    /**
+     * Создаёт mt_dictionary в "новой" схеме (если таблицы нет).
+     * На сервере таблица уже может быть другая — тогда сидер просто подстроится через hasColumn().
+     */
+    private function createDictionaryTable(): void
     {
         Schema::create('mt_dictionary', function (Blueprint $table) {
             $table->id();
@@ -44,25 +45,30 @@ class TranslationSeeder extends Seeder
             $table->text('title_uk')->nullable();
             $table->text('title_ru')->nullable();
             $table->text('title_en')->nullable();
-            $table->text('comments')->nullable();
+            $table->text('comments')->nullable(); // если в твоей реальной БД NOT NULL — сидер всё равно будет давать ''
             $table->integer('edit_by_user')->default(1);
             $table->timestamps();
         });
     }
 
-    private function createSettingsTable()
+    /**
+     * Создаёт mt_settings в схеме как у тебя на сервере (со скрина):
+     * id, active, title(32), code(255), value, description, sort
+     */
+    private function createSettingsTable(): void
     {
         Schema::create('mt_settings', function (Blueprint $table) {
-            $table->id();
-            $table->string('code')->unique();
-            $table->text('title_uk')->nullable();
-            $table->text('title_ru')->nullable();
-            $table->text('title_en')->nullable();
-            $table->timestamps();
+            $table->increments('id');
+            $table->tinyInteger('active')->default(1);
+            $table->string('title', 32);
+            $table->string('code', 255)->unique();
+            $table->text('value');
+            $table->text('description');
+            $table->integer('sort')->default(500);
         });
     }
 
-    private function seedDictionary()
+    private function seedDictionary(): void
     {
         $translations = [
             // Header translations
@@ -96,7 +102,7 @@ class TranslationSeeder extends Seeder
                 'title_ru' => 'Личный кабинет',
                 'title_en' => 'Personal account',
             ],
-            
+
             // Home page translations
             [
                 'code' => 'MSG__MAX_TRANS_TEPER_BLABLACAR',
@@ -215,7 +221,7 @@ class TranslationSeeder extends Seeder
             [
                 'code' => 'MSG_ALL_KVITKI_ONLAJN_U_BUDI-YAKIJ_CHAS_NA_NASHOMU_SAJTI_DLYA_ZRUCHNOGO_PRIDBANNYA_ABO_BRONYUVANNYA',
                 'title_uk' => 'Квитки онлайн у будь-який час на нашому сайті для зручного придбання або бронювання',
-                'title_ru' => 'Билеты онлайн в любое время на нашем сайте для удобной покупки или бронирования',
+                'title_ru' => 'Билеты онлайн в любое время на нашем сайте for convenient purchase or booking',
                 'title_en' => 'Tickets online at any time on our website for convenient purchase or booking',
             ],
             [
@@ -281,10 +287,17 @@ class TranslationSeeder extends Seeder
         ];
 
         foreach ($translations as $translation) {
-            $payload = array_merge($translation, [
+            $payload = [
+                'title_uk' => $translation['title_uk'] ?? null,
+                'title_ru' => $translation['title_ru'] ?? null,
+                'title_en' => $translation['title_en'] ?? null,
+
+                // ВАЖНО: comments может быть NOT NULL в старой схеме -> всегда строка
+                'comments' => (string)($translation['comments'] ?? ''),
+
                 'section_id' => 1,
                 'edit_by_user' => 1,
-            ]);
+            ];
 
             $payload = $this->withTimestampsIfAvailable('mt_dictionary', $payload);
 
@@ -295,49 +308,74 @@ class TranslationSeeder extends Seeder
         }
     }
 
-    private function seedSettings()
+    /**
+     * mt_settings (как на твоём скрине) НЕ мультиязычные:
+     * title(32), value, description NOT NULL.
+     */
+    private function seedSettings(): void
     {
         $settings = [
             [
                 'code' => 'SUPPORT_PHONE_1',
-                'title_uk' => '+38 (097) 000-00-00',
-                'title_ru' => '+38 (097) 000-00-00',
-                'title_en' => '+38 (097) 000-00-00',
+                'title' => 'Support phone 1',
+                'value' => '+38 (097) 000-00-00',
+                'description' => '',
+                'active' => 1,
+                'sort' => 500,
             ],
             [
                 'code' => 'SUPPORT_PHONE_2',
-                'title_uk' => '+38 (068) 000-00-00',
-                'title_ru' => '+38 (068) 000-00-00',
-                'title_en' => '+38 (068) 000-00-00',
+                'title' => 'Support phone 2',
+                'value' => '+38 (068) 000-00-00',
+                'description' => '',
+                'active' => 1,
+                'sort' => 500,
             ],
             [
                 'code' => 'VIBER',
-                'title_uk' => 'https://viber.com',
-                'title_ru' => 'https://viber.com',
-                'title_en' => 'https://viber.com',
+                'title' => 'Viber link',
+                'value' => 'https://viber.com',
+                'description' => '',
+                'active' => 1,
+                'sort' => 500,
             ],
             [
                 'code' => 'TELEGRAM',
-                'title_uk' => 'https://t.me/maxtrans',
-                'title_ru' => 'https://t.me/maxtrans',
-                'title_en' => 'https://t.me/maxtrans',
+                'title' => 'Telegram link',
+                'value' => 'https://t.me/maxtrans',
+                'description' => '',
+                'active' => 1,
+                'sort' => 500,
             ],
             [
                 'code' => 'FB',
-                'title_uk' => 'https://facebook.com/maxtrans',
-                'title_ru' => 'https://facebook.com/maxtrans',
-                'title_en' => 'https://facebook.com/maxtrans',
+                'title' => 'Facebook link',
+                'value' => 'https://facebook.com/maxtrans',
+                'description' => '',
+                'active' => 1,
+                'sort' => 500,
             ],
             [
                 'code' => 'INST',
-                'title_uk' => 'https://instagram.com/maxtrans',
-                'title_ru' => 'https://instagram.com/maxtrans',
-                'title_en' => 'https://instagram.com/maxtrans',
+                'title' => 'Instagram link',
+                'value' => 'https://instagram.com/maxtrans',
+                'description' => '',
+                'active' => 1,
+                'sort' => 500,
             ],
         ];
 
         foreach ($settings as $setting) {
-            $payload = $this->withTimestampsIfAvailable('mt_settings', $setting);
+            $payload = [
+                'title' => mb_substr((string)$setting['title'], 0, 32),
+                'value' => (string)$setting['value'],
+                'description' => (string)($setting['description'] ?? ''),
+                'active' => (int)($setting['active'] ?? 1),
+                'sort' => (int)($setting['sort'] ?? 500),
+            ];
+
+            // timestamps в твоей таблице нет, но пусть будет защита
+            $payload = $this->withTimestampsIfAvailable('mt_settings', $payload);
 
             DB::table('mt_settings')->updateOrInsert(
                 ['code' => $setting['code']],
@@ -346,7 +384,7 @@ class TranslationSeeder extends Seeder
         }
     }
 
-    private function seedPagesTitles()
+    private function seedPagesTitles(): void
     {
         // Таблица pages_title
         if (Schema::hasTable('mt_pages_title')) {
@@ -447,9 +485,14 @@ class TranslationSeeder extends Seeder
         }
     }
 
+    /**
+     * Добавляет timestamps только если они реально есть в таблице.
+     */
     private function withTimestampsIfAvailable(string $table, array $payload): array
     {
         if (Schema::hasColumn($table, 'created_at') && Schema::hasColumn($table, 'updated_at')) {
+            // created_at лучше не перетирать при update, но updateOrInsert не различает insert/update
+            // поэтому даём оба поля, если они существуют
             $payload['created_at'] = now();
             $payload['updated_at'] = now();
         }

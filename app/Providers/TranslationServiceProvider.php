@@ -4,39 +4,37 @@ namespace App\Providers;
 
 use App\Translation\DatabaseTranslationLoader;
 use App\Translation\DatabaseTranslator;
-use Illuminate\Contracts\Translation\Loader;
-use Illuminate\Translation\FileLoader;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Translation\FileLoader;
 
 class TranslationServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        // 1) Подменяем стандартный translation.loader на наш (который подмешивает БД)
         $this->app->singleton('translation.loader', function ($app) {
-            $fileLoader = new FileLoader($app['files'], $app['path.lang']);
-            return new DatabaseTranslationLoader($fileLoader, (string) env('DB_PREFIX', 'mt'));
+            $files = $app->make(Filesystem::class);
+
+            // стандартный file loader
+            $fileLoader = new FileLoader($files, lang_path());
+
+            // наш декоратор поверх file loader
+            return new DatabaseTranslationLoader($fileLoader, 'mt');
         });
 
+        // 2) Подменяем translator на наш DatabaseTranslator (чтобы работали ключи без точки)
         $this->app->singleton('translator', function ($app) {
-            /** @var Loader $loader */
-            $loader = $app['translation.loader'];
+            $loader = $app->make('translation.loader');
 
-            $locale = (string) $app['config']['app.locale'];
-            $fallback = (string) $app['config']['app.fallback_locale'];
+            $translator = new DatabaseTranslator($loader, $app['config']['app.locale']);
 
-            $translator = new DatabaseTranslator($loader, $locale);
-            $translator->setFallback($fallback);
+            $translator->setFallback($app['config']['app.fallback_locale']);
 
             return $translator;
         });
 
-        // НИЧЕГО больше не надо:
-        // - НЕ extend('translator') (он и ломал всё)
-        // - НЕ bind(self::class) (это не контракт переводчика и только путает контейнер)
-    }
-
-    public function boot(): void
-    {
-        //
+        // 3) alias для контракта
+        $this->app->alias('translator', \Illuminate\Contracts\Translation\Translator::class);
     }
 }

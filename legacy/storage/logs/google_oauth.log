@@ -420,3 +420,20 @@
     [id] => 353
 )
 
+[2026-02-03 22:26:57] Google OAuth: Script accessed with URL: /social/google.php?authuser=0&code=4%2F0ASc3gC2QkL-1ylH3FbMWdKk_GQi_munRg3MBHFaFuJv0TeuvSZlRIVGNIzWSL8WKr9dSIg&prompt=none&scope=email%20profile%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile&state=123
+[2026-02-03 22:26:57] Google OAuth: Processing authentication with code: 4/0ASc3gC2QkL-1ylH3F...
+[2026-02-03 22:26:57] Google OAuth: Successfully got user info for: alagorya21@gmail.com
+[2026-02-03 22:26:57] Google OAuth: Legacy path: /home/vv513819/maxtransltd.com/www/legacy/
+[2026-02-04 00:26:57] Google OAuth: Legacy config loaded successfully
+[2026-02-04 00:26:57] Google OAuth: User exists: Yes (ID: 341)
+[2026-02-04 00:26:57] Google OAuth: User updated successfully. Redirecting to: /majbutni-pozdki
+[2026-02-04 00:26:57] Google OAuth: Session data: Array
+(
+    [auth] => 
+    [crypt] => af160b660cfb4dfac4117b4c600715f618ccc5c65dd7fbdac7e42f598211280525eb5636af6224bf015db1dab3ca201cc61dd4b0cc662020912170e2a5da3d34
+    [isAuth] => 1
+    [email] => alagorya21@gmail.com
+    [name] => rita
+    [id] => 341
+)
+

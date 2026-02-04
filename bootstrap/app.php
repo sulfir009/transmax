@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
             '/payment/legacy/*',
             '/public/pages/private/*'
         ]);
+        $middleware->append(\App\Http\Middleware\InjectLegacyDictionary::class);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
