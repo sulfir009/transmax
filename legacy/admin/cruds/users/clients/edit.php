@@ -22,6 +22,8 @@ include 'config.php'; ?>
                     <div class="col-sm-6">
                         <h1 class="m-0"><?= $_params['title'] ?></h1>
                         <a href="<?= dirname(parse_url(url()->current(), PHP_URL_PATH)) ?>" class="btn btn-info mt-2">Назад</a>
+                        <a href="/<?= ADMIN_PANEL ?>/cruds/users/clients/bonuses/index.php?client_id=<?= (int)$id ?>"
+                           class="btn btn-success mt-2">Бонусы клиента</a>
                         <a href="#" class="btn btn-info mt-2" id="reload-link">Отменить</a>
                     </div>
                 </div>
@@ -110,4 +112,3 @@ include 'config.php'; ?>
 </script>
 </body>
 </html>
-
