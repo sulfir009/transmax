@@ -30,7 +30,18 @@ class Router
     public function writelink($pageId, $elemId = 0)
     {
         $Url = $this->getURLs($pageId, $elemId);
-        return rtrim($Url[$this->lang], '/');
+        $route = $Url[$this->lang] ?? null;
+        $fallback = $this->getPrivateFallbackRoute($pageId);
+
+        if ($route && $fallback && $this->shouldUsePrivateFallback($route)) {
+            return $fallback;
+        }
+
+        if (!empty($route)) {
+            return rtrim($route, '/');
+        }
+
+        return $fallback ?? '/';
     }
 
     public function GetCPU()
@@ -45,13 +56,45 @@ class Router
         /* Вариант со слэшем */
 
         $cpu = $this->routerRepository->getByUrl($url);
+        if (!$cpu) {
+            return ['status' => '404'];
+        }
+
         $page_data = $this->routerRepository->getPageById($cpu->page_id ?? 0);
         if (!$page_data) {
-            return null;
+            return ['status' => '404'];
         }
         $this->lang = $cpu['lang'];
         $result = array("lang" => $cpu['lang'], "page" => $page_data['page'], "page_id" => $cpu['page_id'], "cpu" => $url, "elem_id" => $cpu['elem_id'], 'status' => 'ok');
         return $result;
+    }
+
+    protected function getPrivateFallbackRoute($pageId): ?string
+    {
+        $map = [
+            78 => '/public/pages/private/history.php',
+            79 => '/public/pages/private/contacts.php',
+            80 => '/public/pages/private/future.php',
+            81 => '/public/pages/private/bonuses.php',
+            82 => '/public/pages/private/payment_data.php',
+        ];
+
+        return $map[$pageId] ?? null;
+    }
+
+    protected function shouldUsePrivateFallback(string $route): bool
+    {
+        $normalized = ltrim($route, '/');
+        if (str_starts_with($normalized, 'public/pages/private/')) {
+            return false;
+        }
+
+        $langPrefix = $this->lang ? $this->lang . '/' : '';
+        if ($langPrefix && str_starts_with($normalized, $langPrefix)) {
+            $normalized = substr($normalized, strlen($langPrefix));
+        }
+
+        return (bool) preg_match('/^[a-z0-9_]{12,}$/i', $normalized);
     }
 
     public function isCurrentPage()
