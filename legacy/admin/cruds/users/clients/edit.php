@@ -44,12 +44,16 @@ include 'config.php'; ?>
             <div class="container-fluid">
                 <?out("SELECT * FROM `" . $_params['table'] . "` WHERE id = '" . $id . "' ")?>
                 <form method="post" enctype="multipart/form-data" class="card">
-                    <ul class="nav nav-tabs card-header" id="custom-content-above-tab" role="tablist">
-                        <li class="nav-item">
-                            <a class="nav-link active" id="custom-content-above-home-tab" data-toggle="pill"
-                               href="#tab_1" role="tab" aria-controls="tab_1" aria-selected="true">Общие данные</a>
-                        </li>
-                    </ul>
+                    <div class="card-header d-flex align-items-center justify-content-between flex-wrap">
+                        <ul class="nav nav-tabs card-header-tabs" id="custom-content-above-tab" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active" id="custom-content-above-home-tab" data-toggle="pill"
+                                   href="#tab_1" role="tab" aria-controls="tab_1" aria-selected="true">Общие данные</a>
+                            </li>
+                        </ul>
+                        <a href="/<?= ADMIN_PANEL ?>/cruds/users/clients/bonuses/index.php?client_id=<?= (int)$id ?>"
+                           class="btn btn-success btn-sm mt-2 mt-md-0">Бонусы клиента</a>
+                    </div>
                     <div class="tab-content card-body" id="custom-content-above-tabContent">
                         <div class="tab-pane fade show active" id="tab_1" role="tabpanel" aria-labelledby="tab_1">
                             <? editElem('active', 'Активный', '3', $Elem, '', 'edit'); ?>
