@@ -4,6 +4,11 @@ namespace App\Service;
 
 use Illuminate\Support\Facades\Session;
 if (session_status() !== PHP_SESSION_ACTIVE) {
+    $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    $domain = function_exists('config') ? config('session.domain') : (getenv('SESSION_DOMAIN') ?: '');
+    if (!headers_sent()) {
+        session_set_cookie_params(0, '/', $domain ?: '', $secure, true);
+    }
     session_start();
 }
 
