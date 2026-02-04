@@ -48,7 +48,7 @@
                         'filterKids' => $kids ?? 0,
                         'dictionary' => $dictionary ?? [],
                         'lang' => $lang ?? 'uk',
-                        'formAction' => $formAction ?? route('tickets.index'),
+                        'formAction' => $formAction ?? \App\Helpers\LocaleHelper::localizedRoute('tickets.index'),
                     ])
                 </div>
             </div>
