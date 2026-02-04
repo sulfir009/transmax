@@ -5,16 +5,19 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Repository\TicketRepository;
 use App\Repository\CityRepository;
+use App\Repository\Schedule\ScheduleRepository;
 use App\Repository\Races\Params\TicketParams;
 use App\Service\Tour\TicketService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Helpers\LocaleHelper;
+use Illuminate\Support\Facades\Log;
 
 class TicketController extends Controller
 {
     protected TicketRepository $ticketRepository;
     protected CityRepository $cityRepository;
+    protected ScheduleRepository $scheduleRepository;
     protected TicketService $ticketService;
 
     protected $router;
@@ -23,10 +26,12 @@ class TicketController extends Controller
     public function __construct(
         TicketRepository $ticketRepository,
         CityRepository $cityRepository,
+        ScheduleRepository $scheduleRepository,
         TicketService $ticketService
     ) {
         $this->ticketRepository = $ticketRepository;
         $this->cityRepository   = $cityRepository;
+        $this->scheduleRepository = $scheduleRepository;
         $this->ticketService    = $ticketService;
 
         global $Router, $Db;
@@ -52,15 +57,28 @@ class TicketController extends Controller
         $this->ticketRepository->setLanguage($lang);
         $this->cityRepository->setLanguage($lang);
 
+        if (config('app.debug') || env('TICKETS_LOG_PARAMS')) {
+            Log::debug('tickets.index request params', [
+                'method' => $request->method(),
+                'query' => $request->query->all(),
+            ]);
+        }
+
         /**
          * ✅ ГЛАВНОЕ ИСПРАВЛЕНИЕ:
          * "Чистый заход" — это когда в URL НЕТ параметров departure и arrival ВООБЩЕ.
          * Тогда мы НЕ ИМЕЕМ ПРАВА тянуть их из сессии, иначе плейсхолдер никогда не покажется.
          */
+        $hasFromInUrl      = $request->query->has('from');
+        $hasToInUrl        = $request->query->has('to');
         $hasDepartureInUrl = $request->query->has('departure');
         $hasArrivalInUrl   = $request->query->has('arrival');
 
-        $isCleanLanding = $request->isMethod('get') && !$hasDepartureInUrl && !$hasArrivalInUrl;
+        $isCleanLanding = $request->isMethod('get')
+            && !$hasFromInUrl
+            && !$hasToInUrl
+            && !$hasDepartureInUrl
+            && !$hasArrivalInUrl;
 
         if ($isCleanLanding) {
             // чистим только фильтр — чтобы не "липли" города
@@ -135,21 +153,26 @@ class TicketController extends Controller
          * POST от формы фильтра → сохраняем в сессию → redirect на GET
          */
         if ($request->isMethod('post')) {
-            if (!$request->filled(['departure', 'arrival'])) {
+            $rawFrom = $request->input('from', $request->input('departure'));
+            $rawTo = $request->input('to', $request->input('arrival'));
+            $departureId = $this->resolveCityId($rawFrom, $lang);
+            $arrivalId = $this->resolveCityId($rawTo, $lang);
+
+            if ($departureId <= 0 || $arrivalId <= 0) {
                 return redirect(LocaleHelper::localizedRoute('schedule'));
             }
 
             $_SESSION['filter'] = [
-                'departure' => (int)$request->input('departure', 0),
-                'arrival'   => (int)$request->input('arrival', 0),
+                'departure' => $departureId,
+                'arrival'   => $arrivalId,
                 'date'      => $request->input('date', date('Y-m-d')),
                 'adults'    => (int)$request->input('adults', 1),
                 'kids'      => (int)$request->input('kids', 0),
             ];
 
             return redirect()->route('tickets.index', [
-                'departure' => $_SESSION['filter']['departure'],
-                'arrival'   => $_SESSION['filter']['arrival'],
+                'from'      => $_SESSION['filter']['departure'],
+                'to'        => $_SESSION['filter']['arrival'],
                 'date'      => $_SESSION['filter']['date'],
                 'adults'    => $_SESSION['filter']['adults'],
                 'kids'      => $_SESSION['filter']['kids'],
@@ -161,8 +184,15 @@ class TicketController extends Controller
          * ВАЖНО: если параметры есть в URL — используем ТОЛЬКО их, без "подмешивания" сессии.
          * Это важно для корректной работы плейсхолдера.
          */
-        $filterDeparture = $hasDepartureInUrl ? (int)$request->query('departure', 0) : 0;
-        $filterArrival   = $hasArrivalInUrl   ? (int)$request->query('arrival', 0)   : 0;
+        $rawFrom = $request->query('from', $request->query('departure'));
+        $rawTo = $request->query('to', $request->query('arrival'));
+
+        $filterDeparture = ($hasFromInUrl || $hasDepartureInUrl)
+            ? $this->resolveCityId($rawFrom, $lang)
+            : 0;
+        $filterArrival = ($hasToInUrl || $hasArrivalInUrl)
+            ? $this->resolveCityId($rawTo, $lang)
+            : 0;
 
         // Остальные поля — дефолты (не тянем из session, чтобы не было "магии")
         $filterDate = (string)$request->query('date', date('Y-m-d'));
@@ -296,6 +326,21 @@ class TicketController extends Controller
             'dictionary',
             'lang'
         ));
+    }
+
+    private function resolveCityId($value, string $lang): int
+    {
+        if ($value === null || $value === '') {
+            return 0;
+        }
+
+        if (is_numeric($value)) {
+            return (int)$value;
+        }
+
+        $city = $this->scheduleRepository->getCityBySlug((string)$value, $lang);
+
+        return $city ? (int)$city->id : 0;
     }
 
     /**

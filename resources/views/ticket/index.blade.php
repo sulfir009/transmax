@@ -766,7 +766,7 @@
             $('.tour_date_link').on('click', function(e) {
                 e.preventDefault();
                 const selectedDate = $(this).data('date');
-                window.location.href = filterData.routeTickets + '?departure=' + filterData.departure + '&arrival=' + filterData.arrival + '&date=' + selectedDate;
+                window.location.href = filterData.routeTickets + '?from=' + filterData.departure + '&to=' + filterData.arrival + '&date=' + selectedDate;
             });
         });
     </script>

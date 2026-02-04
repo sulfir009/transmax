@@ -1,9 +1,8 @@
 <form class="main_filter"
       autocomplete="off"
-      method="POST"
+      method="GET"
       action="{{ $formAction ?? route('tickets.index') }}"
       data-reset-url="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}">
-    @csrf
 
     <div class="flex-row gap-8">
 
@@ -15,7 +14,7 @@
                         @lang('dictionary.MSG_ALL_ZVIDKI')
                     </div>
 
-                    <select class="filter_city_select" id="filter_departure" name="departure">
+                    <select class="filter_city_select" id="filter_departure" name="from">
                         {{-- ВАЖНО: НЕ disabled. Это реальный пункт, который можно выбрать обратно --}}
                         <option value="" {{ empty($filterDeparture) ? 'selected' : '' }}>Выберите город</option>
 
@@ -43,7 +42,7 @@
                     </div>
 
                     {{-- ВАЖНО: name="arrival" --}}
-                    <select class="filter_city_select" id="filter_arrival" name="arrival">
+                    <select class="filter_city_select" id="filter_arrival" name="to">
                         <option value="" {{ empty($filterArrival) ? 'selected' : '' }}>Выберите город</option>
 
                         @foreach($cities as $city)
@@ -193,8 +192,8 @@
     function forceDefaultIfNoParams() {
         const params = new URLSearchParams(window.location.search);
 
-        const dep = params.get('departure');
-        const arr = params.get('arrival');
+        const dep = params.get('from') ?? params.get('departure');
+        const arr = params.get('to') ?? params.get('arrival');
 
         const noDep = !dep || dep === '0';
         const noArr = !arr || arr === '0';

@@ -261,8 +261,8 @@ class ScheduleController extends Controller
                                 'label' => $r['departure_city'] . ' → ' . $r['arrival_city'],
                                 'price' => $price,
                                 'url'   => route('tickets.index', [
-                                    'departure' => $r['departure'],
-                                    'arrival'   => $r['arrival'],
+                                    'from'      => $r['departure'],
+                                    'to'        => $r['arrival'],
                                     'date'      => $date,
                                     'adults'    => 1,
                                     'kids'      => 0,

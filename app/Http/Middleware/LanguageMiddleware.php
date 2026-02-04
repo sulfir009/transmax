@@ -33,7 +33,10 @@ class LanguageMiddleware
             $path = substr($path, strlen('ua'));
             $path = ltrim($path, '/');
 
-            return redirect('/uk' . ($path !== '' ? '/' . $path : ''), 301);
+            $queryString = $request->getQueryString();
+            $querySuffix = $queryString ? '?' . $queryString : '';
+
+            return redirect('/uk' . ($path !== '' ? '/' . $path : '') . $querySuffix, 301);
         }
         
         // Проверяем, есть ли языковой префикс в URL
@@ -47,11 +50,17 @@ class LanguageMiddleware
             if ($locale !== $this->defaultLocale) {
                 $path = $request->path();
                 if ($path === '/') {
-                    return redirect('/' . $locale);
+                    $queryString = $request->getQueryString();
+                    $querySuffix = $queryString ? '?' . $queryString : '';
+
+                    return redirect('/' . $locale . $querySuffix);
                 }
                 // Для других путей без префикса, добавляем префикс если язык не по умолчанию
                 if (!in_array($request->segment(1), $this->supportedLocales)) {
-                    return redirect('/' . $locale . '/' . $path);
+                    $queryString = $request->getQueryString();
+                    $querySuffix = $queryString ? '?' . $queryString : '';
+
+                    return redirect('/' . $locale . '/' . $path . $querySuffix);
                 }
             }
         }
