@@ -808,6 +808,10 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                     $bonusesAvailable = $bonusBalanceCents / 100;
                     $bonusUseRequested = (int)($_SESSION['order']['use_bonus'] ?? 0);
                     $bonusRedeemCentsPreview = (int)($_SESSION['order']['bonus_redeem_cents_preview'] ?? 0);
+                    if ($bonusBalanceCents <= 0) {
+                        $bonusUseRequested = 0;
+                        $bonusRedeemCentsPreview = 0;
+                    }
                     $bonusToApply = $bonusUseRequested ? min($totalPrice, ($bonusRedeemCentsPreview / 100)) : 0;
                     $totalPriceWithBonuses = $bonusUseRequested ? max($totalPrice - $bonusToApply, 0) : $totalPrice;
                     $formatBonusValue = function ($value) {
@@ -993,6 +997,7 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
         var totalPriceBase = <?php echo $totalPrice; ?>;
         var bonusesAvailable = <?php echo $bonusesAvailable; ?>;
         var bonusToApply = <?php echo $bonusToApply; ?>;
+        var bonusBalanceCents = <?php echo (int)$bonusBalanceCents; ?>;
         var totalPriceWithBonuses = <?php echo $totalPriceWithBonuses; ?>;
         var totalPrice = totalPriceBase;
         var currencyLabel = <?php echo json_encode($GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_GRN']); ?>;
@@ -1315,6 +1320,13 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
 
             $('#bonuses_total_value').text(formatMoney(totalPriceWithBonuses));
             $('#bonuses_available_value').text(formatMoney(bonusesAvailable));
+        }
+
+        if (bonusBalanceCents <= 0) {
+            $('#use_bonuses').prop('checked', false).prop('disabled', true);
+            bonusToApply = 0;
+            bonusesAvailable = 0;
+            totalPriceWithBonuses = totalPriceBase;
         }
 
         updateBonusUi();
