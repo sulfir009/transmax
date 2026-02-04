@@ -1711,6 +1711,7 @@ window.__dbgPassengers = {
     var totalEl = document.getElementById('js_total_price');
     var currencyEl = document.getElementById('js_currency');
     var lastPayableCents = 0;
+    var bonusAvailable = balanceCents > 0;
 
     function formatUah(cents) {
         var abs = Math.abs(cents);
@@ -1778,11 +1779,21 @@ window.__dbgPassengers = {
         applyRedeem(maxRedeemCents, lastPayableCents);
     };
 
+    if (useBonusCheckbox && !bonusAvailable) {
+        useBonusCheckbox.checked = false;
+        useBonusCheckbox.disabled = true;
+    }
+
     if (useBonusCheckbox) {
         useBonusCheckbox.addEventListener('change', function () {
             var useBonus = useBonusCheckbox.checked;
             var totalText = totalEl ? totalEl.textContent : '0';
             var payableCents = lastPayableCents || (window.parseMoneyToCents ? window.parseMoneyToCents(totalText) : 0);
+
+            if (!bonusAvailable) {
+                applyRedeem(0, payableCents);
+                return;
+            }
 
             syncBonusSession(useBonus, payableCents)
                 .done(function (response) {

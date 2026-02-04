@@ -18,6 +18,9 @@
             $arrTitle = trim($ticketInfo['arrival_city'] ?? '');
         }
 
+        $depTitle = html_entity_decode($depTitle, ENT_QUOTES, 'UTF-8');
+        $arrTitle = html_entity_decode($arrTitle, ENT_QUOTES, 'UTF-8');
+
         // Длительность: пытаемся взять из данных, иначе считаем по времени
         $durationText = $ticketInfo['duration'] ?? $ticketInfo['travel_time'] ?? '';
 
@@ -134,7 +137,9 @@
                 <strong>{{ $bonusBalanceFormatted ?? '0' }} грн</strong>
             </div>
             <label class="b2_bonus_checkbox">
-                <input type="checkbox" id="js_use_bonus" />
+                <input type="checkbox"
+                       id="js_use_bonus"
+                       {{ ($bonusBalanceCents ?? 0) > 0 ? '' : 'disabled' }} />
                 <span>Рассчитаться бонусами</span>
             </label>
             <div class="b2_row b2_bonus_row">

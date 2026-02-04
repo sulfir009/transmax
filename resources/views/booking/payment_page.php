@@ -228,6 +228,16 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
             gap:10px;
             cursor:pointer;
             user-select:none;
+            position:relative;
+        }
+        .payment_v2 .pv2_check input{
+            position:absolute;
+            opacity:0;
+            width:1px;
+            height:1px;
+            margin:-1px;
+            padding:0;
+            border:0;
         }
         .payment_v2 .pv2_box{
             width:16px;
@@ -757,7 +767,11 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                     if (isset($User->id) && (int)$User->id > 0) {
                         $bonusEligible = true;
                         $bonusRow = $Db->getOne("SELECT bonus_balance_cents FROM `" . DB_PREFIX . "_clients` WHERE id = '" . (int)$User->id . "'");
-                        $bonusBalanceCents = (int)($bonusRow['bonus_balance_cents'] ?? 0);
+                    $bonusBalanceCents = (int)($bonusRow['bonus_balance_cents'] ?? 0);
+                }
+
+                    if ($bonusBalanceCents <= 0) {
+                        $bonusUseRequested = 0;
                     }
 
                     $payableCents = $totalPrice * 100;
@@ -838,7 +852,10 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                                     <strong><?php echo number_format($bonusBalanceCents / 100, 2, '.', ''); ?> грн</strong>
                                 </div>
                                 <label class="pv2_check payment_v2__bonus_check">
-                                    <input type="checkbox" hidden id="use_bonus" <?php echo $bonusUseRequested ? 'checked' : ''; ?>>
+                                    <input type="checkbox"
+                                           id="use_bonus"
+                                           <?php echo $bonusUseRequested ? 'checked' : ''; ?>
+                                           <?php echo $bonusBalanceCents > 0 ? '' : 'disabled'; ?>>
                                     <span class="pv2_box"></span>
                                     <span class="pv2_check_text">Рассчитаться бонусами</span>
                                 </label>
@@ -855,7 +872,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 
                         <div class="payment_v2__checks">
                             <label class="pv2_check">
-                                <input type="checkbox" hidden id="terms_accept">
+                                <input type="checkbox" id="terms_accept">
                                 <span class="pv2_box"></span>
                                 <span class="pv2_check_text">
                                     <?php echo $GLOBALS['dictionary']['MSG_MSG_BOOKING_YA_PRIJMAYU_UMOVI']; ?>
@@ -867,7 +884,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                             </label>
 
                             <label class="pv2_check">
-                                <input type="checkbox" hidden id="personal_data_process">
+                                <input type="checkbox" id="personal_data_process">
                                 <span class="pv2_box"></span>
                                 <span class="pv2_check_text">
                                     <?php echo $GLOBALS['dictionary']['MSG_MSG_BOOKING_YA_DAYU_ZGODU_NA_OBROBKU_PERSONALINIH_DANIH']; ?>
@@ -915,7 +932,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
         function deleteOrderTourId() {
             $.ajax({
                 type: 'post',
-                url: '/ajax/ru',
+                url: '/ajax/<?php echo $Router->lang; ?>',
                 data: {
                     'request': 'delete_order_tour_id'
                 }
@@ -968,7 +985,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 
             return $.ajax({
                 type: 'post',
-                url: '/ajax/ru',
+                url: '/ajax/<?php echo $Router->lang; ?>',
                 data: {
                     'request': 'bonus_preview',
                     'use_bonus': useBonus ? 1 : 0,
@@ -977,7 +994,10 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
             });
         }
 
-        if (bonusUseRequested && bonusBalanceCents > 0) {
+        if (bonusBalanceCents <= 0) {
+            $('#use_bonus').prop('checked', false).prop('disabled', true);
+            updatePayableUi(0);
+        } else if (bonusUseRequested && bonusBalanceCents > 0) {
             updatePayableUi(bonusRedeemCents);
         }
 
@@ -1017,7 +1037,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                 },
-                url: '/ajax/ru',
+                url: '/ajax/<?php echo $Router->lang; ?>',
                 data: {
                     'request': 'order_route',
                     'paymethod': paymethod,
@@ -1037,7 +1057,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                         if (paymethod === 'cash') {
                             $.ajax({
                                 type: 'post',
-                                url: '/ajax/ru',
+                                url: '/ajax/<?php echo $Router->lang; ?>',
                                 data: {
                                     'request': 'order_mail',
                                     'ticket_info': ticketInfo,
