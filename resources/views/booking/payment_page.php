@@ -1025,6 +1025,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
             let cardholder_name = $.trim($('#cardholder_name').val());
             let saveCard = 0;
             let paymethod = $('input[name="paymethod"]:checked').val();
+            let useBonus = $('#use_bonus').is(':checked') && bonusBalanceCents > 0;
 
             if ($('#save_card').is(':checked')) {
                 saveCard = 1;
@@ -1032,7 +1033,8 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 
             initLoader();
 
-            $.ajax({
+            $.when(syncBonusSession(useBonus)).always(function () {
+                $.ajax({
                 type: 'post',
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
@@ -1122,6 +1124,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                     out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PAYMENT_PAGE_NE_UDALOSI_OFORMITI_ZAKAZ_POPROBUJTE_POZZHE')?>');
                 }
             })
+            });
         });
 
         function initStepsSlick(){
