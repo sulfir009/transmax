@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="{{ mix('css/legacy/libs/jquery_ui_slider/jquery-ui.min.css') }}">
     <link rel="stylesheet" href="{{ mix('css/legacy/style_table.css') }}">
     <link rel="stylesheet" href="{{ mix('css/responsive.css') }}">
+    @include('schedule.partials.popular-routes-styles')
 
     {{-- ✅ FIX: mobile UX — скрываем QR и увеличиваем кнопки --}}
     <style>
@@ -119,6 +120,62 @@
                 min-height: 44px !important;
                 padding: 10px 14px !important;
                 font-size: 14px !important;
+            }
+        }
+
+        .tour-seo-section {
+            padding: 20px 0 60px;
+        }
+
+        .tour-seo-text-wrapper {
+            width: 100%;
+            max-width: 1650px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .tour-seo-text {
+            max-height: 424px;
+            height: 424px;
+            overflow-y: auto;
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e6e9f2;
+            padding: 24px 28px;
+            color: #3a3f51;
+            line-height: 1.6;
+        }
+
+        .tour-seo-title {
+            font-size: 20px;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin: 0 0 16px;
+            color: #1d1f2b;
+        }
+
+        .tour-seo-text h2,
+        .tour-seo-text h3 {
+            margin: 0 0 12px;
+            font-weight: 700;
+        }
+
+        .tour-seo-text p,
+        .tour-seo-text ul,
+        .tour-seo-text ol {
+            margin: 0 0 12px;
+        }
+
+        .tour-seo-text ul,
+        .tour-seo-text ol {
+            padding-left: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .tour-seo-text {
+                height: 300px;
+                max-height: 300px;
+                padding: 18px 20px;
             }
         }
         
@@ -404,6 +461,23 @@
                     </div>
                 </div>
             </div>
+
+            <div class="mt_schedule_scope">
+                @include('schedule.partials.popular-routes', ['popularRoutes' => $popularRoutes ?? collect()])
+            </div>
+
+            @if(!empty($seoText))
+                <section class="tour-seo-section">
+                    <div class="tour-seo-text-wrapper">
+                        @if(!empty($seoTitle))
+                            <div class="tour-seo-title">{{ $seoTitle }}</div>
+                        @endif
+                        <div class="tour-seo-text">
+                            {!! $seoText !!}
+                        </div>
+                    </div>
+                </section>
+            @endif
         </div>
     </div>
 
