@@ -130,34 +130,42 @@
             $bonusBalanceUah = number_format($bonusBalanceCents / 100, 2, '.', '');
             $bonusTransactions = $Db->getAll("SELECT amount_cents, type, order_id, created_at FROM `" . DB_PREFIX . "_bonus_transactions` WHERE client_id = '" . (int)$User->id . "' ORDER BY created_at DESC LIMIT 20");
 
+            $bonusTitle = $GLOBALS['dictionary']['BONUSES_TITLE'] ?? __('dictionary.BONUSES_TITLE');
+            $bonusBalanceLabel = $GLOBALS['dictionary']['BONUSES_BALANCE'] ?? __('dictionary.BONUSES_BALANCE');
+            $bonusRecentLabel = $GLOBALS['dictionary']['BONUSES_RECENT_TRANSACTIONS'] ?? __('dictionary.BONUSES_RECENT_TRANSACTIONS');
+            $bonusTableDate = $GLOBALS['dictionary']['BONUSES_TABLE_DATE'] ?? __('dictionary.BONUSES_TABLE_DATE');
+            $bonusTableType = $GLOBALS['dictionary']['BONUSES_TABLE_TYPE'] ?? __('dictionary.BONUSES_TABLE_TYPE');
+            $bonusTableAmount = $GLOBALS['dictionary']['BONUSES_TABLE_AMOUNT'] ?? __('dictionary.BONUSES_TABLE_AMOUNT');
+            $bonusTableOrder = $GLOBALS['dictionary']['BONUSES_TABLE_ORDER'] ?? __('dictionary.BONUSES_TABLE_ORDER');
+
             $typeLabels = [
-                'initial_grant' => 'Стартовый бонус',
-                'manual_add' => 'Ручное начисление',
-                'cashback' => 'Кешбек за билет',
-                'redeem' => 'Списание бонусами',
+                'initial_grant' => $GLOBALS['dictionary']['BONUS_TYPE_INITIAL_GRANT'] ?? __('dictionary.BONUS_TYPE_INITIAL_GRANT'),
+                'manual_add' => $GLOBALS['dictionary']['BONUS_TYPE_MANUAL_ADD'] ?? __('dictionary.BONUS_TYPE_MANUAL_ADD'),
+                'cashback' => $GLOBALS['dictionary']['BONUS_TYPE_CASHBACK'] ?? __('dictionary.BONUS_TYPE_CASHBACK'),
+                'redeem' => $GLOBALS['dictionary']['BONUS_TYPE_REDEEM'] ?? __('dictionary.BONUS_TYPE_REDEEM'),
             ];
             ?>
             <div class="container" data-bonus-user="<?php echo (int)$User->id; ?>" data-bonus-balance-cents="<?php echo $bonusBalanceCents; ?>">
                 <div class="current_bonuses_wrapper">
                     <div class="current_bonuses_txt">
-                        <div class="current_bonuses_title h2_title">Ваши бонусы</div>
+                        <div class="current_bonuses_title h2_title"><?php echo $bonusTitle; ?></div>
                         <div class="current_bonuses_subtitle par">
-                            Баланс: <strong><?php echo $bonusBalanceUah; ?> грн</strong>
+                            <?php echo $bonusBalanceLabel; ?>: <strong><?php echo $bonusBalanceUah; ?> грн</strong>
                         </div>
                     </div>
                     <?php if (!empty($bonusTransactions)) { ?>
                         <div class="current_bonuses_path_wrapper">
                             <div class="bonuses_block_title par">
-                                Останні бонусні операції
+                                <?php echo $bonusRecentLabel; ?>
                             </div>
                             <div class="table-responsive">
                                 <table class="table">
                                     <thead>
                                     <tr>
-                                        <th>Дата</th>
-                                        <th>Тип</th>
-                                        <th>Сума</th>
-                                        <th>Замовлення</th>
+                                        <th><?php echo $bonusTableDate; ?></th>
+                                        <th><?php echo $bonusTableType; ?></th>
+                                        <th><?php echo $bonusTableAmount; ?></th>
+                                        <th><?php echo $bonusTableOrder; ?></th>
                                     </tr>
                                     </thead>
                                     <tbody>
