@@ -21,7 +21,7 @@
                         @foreach($cities as $city)
                             <option value="{{ $city['id'] }}"
                                 {{ !empty($filterDeparture) && (int)$filterDeparture === (int)$city['id'] ? 'selected' : '' }}>
-                                {{ $city['title'] }}
+                                {!! html_entity_decode($city['title']) !!}
                             </option>
                         @endforeach
                     </select>
@@ -48,7 +48,7 @@
                         @foreach($cities as $city)
                             <option value="{{ $city['id'] }}"
                                 {{ !empty($filterArrival) && (int)$filterArrival === (int)$city['id'] ? 'selected' : '' }}>
-                                {{ $city['title'] }}
+                                {!! html_entity_decode($city['title']) !!}
                             </option>
                         @endforeach
                     </select>
