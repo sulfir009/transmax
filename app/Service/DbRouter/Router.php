@@ -89,6 +89,11 @@ class Router
             return false;
         }
 
+        $langPrefix = $this->lang ? $this->lang . '/' : '';
+        if ($langPrefix && str_starts_with($normalized, $langPrefix)) {
+            $normalized = substr($normalized, strlen($langPrefix));
+        }
+
         return (bool) preg_match('/^[a-z0-9_]{12,}$/i', $normalized);
     }
 
