@@ -215,10 +215,14 @@ class LegacyAjaxController extends Controller
         return $response->header('X-Correlation-Id', $correlationId);
     }
 
-    private function logAjaxDebug(Request $request, string $lang, ?string $requestType, string $responseType, array $extra = []): void
+    private function logAjaxDebug($request, string $lang, ?string $requestType, string $responseType, array $extra = []): void
     {
         if (!env('TICKETS_AJAX_DEBUG')) {
             return;
+        }
+
+        if (!$request instanceof Request) {
+            $request = request();
         }
 
         if (!in_array($lang, ['uk', 'en'], true)) {
