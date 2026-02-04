@@ -146,6 +146,14 @@
             line-height: 1.6;
         }
 
+        .tour-seo-title {
+            font-size: 20px;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin: 0 0 16px;
+            color: #1d1f2b;
+        }
+
         .tour-seo-text h2,
         .tour-seo-text h3 {
             margin: 0 0 12px;
@@ -461,6 +469,9 @@
             @if(!empty($seoText))
                 <section class="tour-seo-section">
                     <div class="tour-seo-text-wrapper">
+                        @if(!empty($seoTitle))
+                            <div class="tour-seo-title">{{ $seoTitle }}</div>
+                        @endif
                         <div class="tour-seo-text">
                             {!! $seoText !!}
                         </div>

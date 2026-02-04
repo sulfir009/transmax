@@ -446,7 +446,7 @@ function sanitizeSeoText(?string $html): string
                         </div>
                     </div>
                     <div class="card-footer" style="text-align: center">
-                        <input type="submit" class="btn btn-success btn-lg" value="Сохранить" name="ok" onclick="saveData()"/>
+                        <input type="submit" class="btn btn-success btn-lg" value="Сохранить" name="ok"/>
                     </div>
                 </form>
             </div><!-- /.container-fluid -->

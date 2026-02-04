@@ -127,6 +127,7 @@ class TicketController extends Controller
             $weekDay            = date('N');
             $popularRoutes      = $this->scheduleService->getPopularRoutesForView($lang);
             $seoText            = null;
+            $seoTitle           = null;
 
             $Router = new \App\Service\DbRouter\Router();
 
@@ -154,7 +155,8 @@ class TicketController extends Controller
                 'dictionary',
                 'lang',
                 'popularRoutes',
-                'seoText'
+                'seoText',
+                'seoTitle'
             ));
         }
 
@@ -311,6 +313,7 @@ class TicketController extends Controller
 
         $popularRoutes = $this->scheduleService->getPopularRoutesForView($lang);
         $seoText = $this->resolveTourSeoText($filterDeparture, $filterArrival, $lang);
+        $seoTitle = $this->buildSeoTitle($departureCityTitle, $arrivalCityTitle);
 
         $Router = new \App\Service\DbRouter\Router();
 
@@ -338,8 +341,21 @@ class TicketController extends Controller
             'dictionary',
             'lang',
             'popularRoutes',
-            'seoText'
+            'seoText',
+            'seoTitle'
         ));
+    }
+
+    private function buildSeoTitle(?array $departureCityTitle, ?array $arrivalCityTitle): ?string
+    {
+        $departure = trim((string) data_get($departureCityTitle, 'title', ''));
+        $arrival = trim((string) data_get($arrivalCityTitle, 'title', ''));
+
+        if ($departure === '' || $arrival === '') {
+            return null;
+        }
+
+        return 'Автобус ' . mb_strtoupper($departure . ' — ' . $arrival, 'UTF-8');
     }
 
     private function resolveTourSeoText(int $departureId, int $arrivalId, string $lang): ?string
