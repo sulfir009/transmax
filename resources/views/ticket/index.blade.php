@@ -135,7 +135,7 @@
          data-min-price="{{ $minTicketsPrice }}"
          data-max-price="{{ $maxTicketsPrice }}"
          data-current-date="{{ date('Y-m-d') }}"
-         data-ajax-url="{{ \App\Helpers\LocaleHelper::localizedRoute('ajax.legacy', ['lang' => app()->getLocale()]) }}"
+         data-ajax-url="{{ url('/ajax/' . app()->getLocale()) }}"
          data-route-tickets="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
          data-route-next="{{ \App\Helpers\LocaleHelper::localizedRoute('booking.index') }}"
          data-csrf-token="{{ csrf_token() }}"

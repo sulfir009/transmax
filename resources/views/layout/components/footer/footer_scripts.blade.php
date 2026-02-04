@@ -182,7 +182,7 @@ span.flatpickr-weekday {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.17/js/intlTelInput.min.js"></script>
 
 <script>
-    const legacyAjaxUrl = @json(\App\Helpers\LocaleHelper::localizedRoute('ajax.legacy', ['lang' => app()->getLocale()]));
+    const legacyAjaxUrl = @json(url('/ajax/' . app()->getLocale()));
     $('.cb_phone_country_code').niceSelect();
     $('.cb_phone_input').mask("<?php echo $firstPhoneMask?>");
     function changeInputMask(item){
