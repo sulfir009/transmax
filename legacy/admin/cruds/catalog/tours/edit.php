@@ -1,7 +1,17 @@
 <?php include str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT']) . '/config.php';
 include str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT']) . '/' . ADMIN_PANEL . '/guard.php';
 include str_replace('public', 'legacy', $_SERVER['DOCUMENT_ROOT']) . '/' . ADMIN_PANEL . '/includes.php';
-include 'config.php' ?>
+include 'config.php';
+
+function sanitizeSeoText(?string $html): string
+{
+    $allowedTags = '<p><br><ul><ol><li><strong><em><h2><h3><h4><h5><h6>';
+    $clean = strip_tags($html ?? '', $allowedTags);
+    $clean = preg_replace('/<([a-z0-9]+)(\\s[^>]*)?>/i', '<$1>', $clean);
+
+    return trim($clean);
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -30,6 +40,16 @@ include 'config.php' ?>
         <? if (isset($_POST['ok']) && $Admin->CheckPermission($_params['access_edit'])) {
             $ar_clean = filter_input_array(INPUT_POST, FILTER_SANITIZE_SPECIAL_CHARS);
             $active = checkboxParam('active');
+            $seoFields = ['seo_text_uk', 'seo_text_ru', 'seo_text_en'];
+            $availableSeoFields = [];
+            foreach ($seoFields as $field) {
+                $columnCheck = mysqli_query($db, "SHOW COLUMNS FROM `" . $_params['table'] . "` LIKE '" . $field . "'");
+                if ($columnCheck && mysqli_num_rows($columnCheck) > 0) {
+                    $availableSeoFields[] = $field;
+                }
+            }
+            $seoFields = $availableSeoFields;
+            $txt = $seoFields;
 
             $travelHours = (int)$ar_clean['hours'];
             $travelMinutes = (int)$ar_clean['minutes'];
@@ -49,6 +69,12 @@ include 'config.php' ?>
 
             $days = implode(',',$ar_clean['days']);
 
+            foreach ($seoFields as $field) {
+                if (array_key_exists($field, $_POST)) {
+                    $_POST[$field] = sanitizeSeoText($_POST[$field]);
+                }
+            }
+
             /* Обновим данные об остановках и их стоимости */
             $del = mysqli_query($db,"DELETE FROM `" .  DB_PREFIX . "_tours_stops_prices`WHERE tour_id = '".$id."' ");
             foreach ($ar_clean['stops'] AS $stopKey=>$stopValues){
@@ -67,6 +93,14 @@ include 'config.php' ?>
 
         $db_element = mysqli_query($db, "SELECT * FROM `" . $_params['table'] . "` WHERE id='" . $id . "'");
         $Elem = mysqli_fetch_array($db_element);
+        $seoColumns = ['seo_text_uk', 'seo_text_ru', 'seo_text_en'];
+        $seoColumnsAvailable = [];
+        foreach ($seoColumns as $field) {
+            $columnCheck = mysqli_query($db, "SHOW COLUMNS FROM `" . $_params['table'] . "` LIKE '" . $field . "'");
+            if ($columnCheck && mysqli_num_rows($columnCheck) > 0) {
+                $seoColumnsAvailable[] = $field;
+            }
+        }
         ?>
 
         <!-- Main content -->
@@ -93,6 +127,10 @@ include 'config.php' ?>
                         <li class="nav-item">
                             <a class="nav-link" data-toggle="pill" href="#tab_5" role="tab" aria-controls="tab_4"
                                aria-selected="false">Параметры</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-toggle="pill" href="#tab_6" role="tab" aria-controls="tab_6"
+                               aria-selected="false">СЕО текст</a>
                         </li>
                     </ul>
                     <div class="tab-content card-body" id="custom-content-above-tabContent">
@@ -408,9 +446,29 @@ include 'config.php' ?>
                                 </tbody>
                             </table>
                         </div>
+                        <div class="tab-pane fade" id="tab_6" role="tabpanel" aria-labelledby="tab_6">
+                            <? if (count($seoColumnsAvailable) < count($seoColumns)) { ?>
+                                <div class="alert alert-warning">
+                                    Отсутствуют колонки SEO текста в таблице маршрутов. Выполните миграцию/ALTER TABLE,
+                                    чтобы включить сохранение SEO текстов.
+                                </div>
+                            <? } ?>
+                            <div class="form-group">
+                                <label>SEO текст (UA)</label>
+                                <textarea class="form-control" name="seo_text_uk" rows="6"><?= htmlspecialchars($Elem['seo_text_uk'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>SEO текст (RU)</label>
+                                <textarea class="form-control" name="seo_text_ru" rows="6"><?= htmlspecialchars($Elem['seo_text_ru'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>SEO текст (EN)</label>
+                                <textarea class="form-control" name="seo_text_en" rows="6"><?= htmlspecialchars($Elem['seo_text_en'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                            </div>
+                        </div>
                     </div>
                     <div class="card-footer" style="text-align: center">
-                        <input type="submit" class="btn btn-success btn-lg" value="Сохранить" name="ok" onclick="saveData()"/>
+                        <input type="submit" class="btn btn-success btn-lg" value="Сохранить" name="ok"/>
                     </div>
                 </form>
             </div><!-- /.container-fluid -->
