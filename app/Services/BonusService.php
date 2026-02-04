@@ -6,6 +6,7 @@ use App\Models\BonusTransaction;
 use App\Models\Client;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -56,6 +57,16 @@ class BonusService
             $locked->bonus_balance_cents = $newBalance;
             $locked->save();
 
+            Log::channel('bonus')->info('[BONUS_CREDIT]', [
+                'transaction_id' => $transaction->id,
+                'client_id' => $locked->id,
+                'order_id' => $orderId,
+                'type' => $type,
+                'amount_cents' => $amountCents,
+                'balance_cents' => $newBalance,
+                'admin_id' => $adminId,
+            ]);
+
             return $transaction;
         });
     }
@@ -89,6 +100,15 @@ class BonusService
 
             $locked->bonus_balance_cents = $current - $amountCents;
             $locked->save();
+
+            Log::channel('bonus')->info('[BONUS_DEBIT]', [
+                'transaction_id' => $transaction->id,
+                'client_id' => $locked->id,
+                'order_id' => $orderId,
+                'type' => $type,
+                'amount_cents' => -$amountCents,
+                'balance_cents' => $locked->bonus_balance_cents,
+            ]);
 
             return $transaction;
         });

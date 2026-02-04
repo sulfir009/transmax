@@ -402,12 +402,27 @@ class CRouter
 
         $defaultLocale = \App\Helpers\LocaleHelper::getDefaultLocale();
         $defaultRoute = $urls[$defaultLocale] ?? null;
+        $candidates = $urls;
 
-        if (!$defaultRoute || $this->isTokenRoute($defaultRoute)) {
-            return null;
+        if (!empty($defaultRoute)) {
+            $candidates = array_merge([$defaultLocale => $defaultRoute], $urls);
         }
 
-        return \App\Helpers\LocaleHelper::localizedUrl($defaultRoute, $this->lang);
+        foreach ($candidates as $candidate) {
+            if (empty($candidate)) {
+                continue;
+            }
+            if ($this->isPrivateFallbackRoute($candidate)) {
+                continue;
+            }
+            if ($this->isTokenRoute($candidate)) {
+                continue;
+            }
+
+            return \App\Helpers\LocaleHelper::localizedUrl($candidate, $this->lang);
+        }
+
+        return null;
     }
 
     protected function isTokenRoute(string $route): bool
@@ -425,10 +440,17 @@ class CRouter
         return (bool) preg_match('/^[a-z0-9_]{12,}$/i', $normalized);
     }
 
+    protected function isPrivateFallbackRoute(string $route): bool
+    {
+        $normalized = ltrim($route, '/');
+
+        return str_starts_with($normalized, 'public/pages/private/');
+    }
+
     protected function logTokenFallback(int $pageId, string $tokenRoute, string $resolvedRoute): void
     {
         if (class_exists(\Illuminate\Support\Facades\Log::class)) {
-            \Illuminate\Support\Facades\Log::info('[LegacyRouter] Private route token fallback', [
+            \Illuminate\Support\Facades\Log::channel('cabinet')->info('[LegacyRouter] Private route token fallback', [
                 'page_id' => $pageId,
                 'lang' => $this->lang ?: $this->mainLang,
                 'token_route' => $tokenRoute,

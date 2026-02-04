@@ -854,7 +854,7 @@ class TicketService
 
             if (!$alreadyCashback) {
                 $cashbackBaseCents = max($payableCents - $redeemCents, 0);
-                $cashbackCents = (int) floor((($cashbackBaseCents * 5) + 50) / 100);
+                $cashbackCents = intdiv(($cashbackBaseCents * 5) + 50, 100);
 
                 if ($cashbackCents > 0) {
                     try {

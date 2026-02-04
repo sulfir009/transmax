@@ -1,6 +1,7 @@
 <?php
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 Route::any('/admin/catalog/tours/ajax.php', function(Request $request) {
     $path = base_path('legacy/admin/cruds/catalog/tours/ajax.php');
@@ -28,7 +29,12 @@ Route::post('/ajax/site/lang', '\App\Http\Controllers\Ajax\SiteController@change
 //Route::get('/voprosi-i-otveti', '\App\Http\Controllers\LegacyController@index')->name('faq');//74
 //Route::get('/kontakti', '\App\Http\Controllers\LegacyController@index')->name('kontakti');
 Route::get('/avtorizaciya', '\App\Http\Controllers\LegacyController@index')->name('auth'); //77
-Route::get('/majbutni-pozdki', '\App\Http\Controllers\LegacyController@index')->name('future_races'); //80
+Route::get('/majbutni-pozdki', '\App\Http\Controllers\LegacyController@index')
+    ->middleware('cabinet.trace')
+    ->name('future_races'); //80
+Route::get('/{locale}/majbutni-pozdki', '\App\Http\Controllers\LegacyController@index')
+    ->where('locale', 'en|uk')
+    ->middleware('cabinet.trace');
 //Route::get('/politika-konfidencijnosti', '\App\Http\Controllers\LegacyController@index')->name('privacy.policy');//83
 //Route::get('/dogovir-oferti', '\App\Http\Controllers\LegacyController@index')->name('offer_agreement');//84
 //Route::get('/dyakuyu-za-bronyuvannya-biletu', '\App\Http\Controllers\LegacyController@index')->name('thanks');//90
@@ -85,7 +91,8 @@ Route::any('/public/pages/private/{file}', function(Request $request, $file) {
     }
 
     return response()->json(['error' => 'File not found'], 404);
-})->where('file', '.*\.php$');
+})->where('file', '.*\.php$')
+    ->middleware('cabinet.trace');
 
 Route::any('/admin', '\App\Http\Controllers\LegacyController@admin');
 Route::any('/public/pages/{file}', function(string $file) {
@@ -314,5 +321,21 @@ Route::get('/social/facebook.php', function(Request $request) {
     abort(404, 'File not found');
 });
 
+Route::any('/{token}', function (Request $request, string $token) {
+    $route = $request->route();
+    Log::channel('cabinet')->info('[TOKEN_ROUTE_HIT]', [
+        'token' => $token,
+        'full_url' => $request->fullUrl(),
+        'referer' => $request->headers->get('referer'),
+        'locale' => $request->attributes->get('locale', app()->getLocale()),
+        'matched_action' => $route?->getActionName(),
+    ]);
+
+    return app(\App\Http\Controllers\LegacyController::class)->index();
+})->where('token', '[A-Za-z0-9_]{12,}')
+    ->middleware('cabinet.trace');
+
 Route::any('/admin/{path}', '\App\Http\Controllers\LegacyController@admin')->where('path', '.*');
-Route::any('{path}', '\App\Http\Controllers\LegacyController@index')->where('path', '.*');
+Route::any('{path}', '\App\Http\Controllers\LegacyController@index')
+    ->middleware('cabinet.trace')
+    ->where('path', '.*');
