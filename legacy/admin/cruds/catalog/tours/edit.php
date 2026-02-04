@@ -41,6 +41,14 @@ function sanitizeSeoText(?string $html): string
             $ar_clean = filter_input_array(INPUT_POST, FILTER_SANITIZE_SPECIAL_CHARS);
             $active = checkboxParam('active');
             $seoFields = ['seo_text_uk', 'seo_text_ru', 'seo_text_en'];
+            $availableSeoFields = [];
+            foreach ($seoFields as $field) {
+                $columnCheck = mysqli_query($db, "SHOW COLUMNS FROM `" . $_params['table'] . "` LIKE '" . $field . "'");
+                if ($columnCheck && mysqli_num_rows($columnCheck) > 0) {
+                    $availableSeoFields[] = $field;
+                }
+            }
+            $seoFields = $availableSeoFields;
             $txt = $seoFields;
 
             $travelHours = (int)$ar_clean['hours'];
@@ -85,6 +93,14 @@ function sanitizeSeoText(?string $html): string
 
         $db_element = mysqli_query($db, "SELECT * FROM `" . $_params['table'] . "` WHERE id='" . $id . "'");
         $Elem = mysqli_fetch_array($db_element);
+        $seoColumns = ['seo_text_uk', 'seo_text_ru', 'seo_text_en'];
+        $seoColumnsAvailable = [];
+        foreach ($seoColumns as $field) {
+            $columnCheck = mysqli_query($db, "SHOW COLUMNS FROM `" . $_params['table'] . "` LIKE '" . $field . "'");
+            if ($columnCheck && mysqli_num_rows($columnCheck) > 0) {
+                $seoColumnsAvailable[] = $field;
+            }
+        }
         ?>
 
         <!-- Main content -->
@@ -431,6 +447,12 @@ function sanitizeSeoText(?string $html): string
                             </table>
                         </div>
                         <div class="tab-pane fade" id="tab_6" role="tabpanel" aria-labelledby="tab_6">
+                            <? if (count($seoColumnsAvailable) < count($seoColumns)) { ?>
+                                <div class="alert alert-warning">
+                                    Отсутствуют колонки SEO текста в таблице маршрутов. Выполните миграцию/ALTER TABLE,
+                                    чтобы включить сохранение SEO текстов.
+                                </div>
+                            <? } ?>
                             <div class="form-group">
                                 <label>SEO текст (UA)</label>
                                 <textarea class="form-control" name="seo_text_uk" rows="6"><?= htmlspecialchars($Elem['seo_text_uk'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
