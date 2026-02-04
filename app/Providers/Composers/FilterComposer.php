@@ -2,6 +2,7 @@
 
 namespace App\Providers\Composers;
 
+use App\Helpers\LocaleHelper;
 use App\Repository\FilterRepository;
 use App\Service\Site;
 use Illuminate\View\View;
@@ -46,7 +47,7 @@ class FilterComposer
 
         // Формируем action URL для формы
         global $Router;
-        $formAction = $Router ? $Router->writelink(76) : route('tickets.index');
+        $formAction = $Router ? $Router->writelink(76) : LocaleHelper::localizedRoute('tickets.index');
 
         // Передаем данные во view
         $view->with([
