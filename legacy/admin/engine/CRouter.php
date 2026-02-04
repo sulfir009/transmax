@@ -341,7 +341,33 @@ class CRouter
     public function writelink($page_id, $elem_id = 0)
     {
         $Url = $this->getURLs($page_id, $elem_id);
-        return rtrim($Url[$this->lang], '/');
+        $route = $Url[$this->lang] ?? null;
+        $fallback = $this->getPrivateFallbackRoute((int) $page_id);
+
+        if ($route && $fallback && $this->isTokenRoute($route)) {
+            $localized = $this->getPrivateLocalizedRoute($Url);
+            if ($localized) {
+                $this->logTokenFallback((int) $page_id, $route, $localized);
+                return rtrim($localized, '/');
+            }
+
+            $this->logTokenFallback((int) $page_id, $route, $fallback);
+            return $fallback;
+        }
+
+        if (!empty($route)) {
+            return rtrim($route, '/');
+        }
+
+        if ($fallback) {
+            $localized = $this->getPrivateLocalizedRoute($Url);
+            if ($localized) {
+                return rtrim($localized, '/');
+            }
+            return $fallback;
+        }
+
+        return '/';
     }
 
     public function getURLs($page_id, $elem_id = 0)
@@ -353,6 +379,62 @@ class CRouter
 
         }
         return $URLs;
+    }
+
+    protected function getPrivateFallbackRoute(int $pageId): ?string
+    {
+        $map = [
+            78 => '/public/pages/private/history.php',
+            79 => '/public/pages/private/contacts.php',
+            80 => '/public/pages/private/future.php',
+            81 => '/public/pages/private/bonuses.php',
+            82 => '/public/pages/private/payment_data.php',
+        ];
+
+        return $map[$pageId] ?? null;
+    }
+
+    protected function getPrivateLocalizedRoute(array $urls): ?string
+    {
+        if (!class_exists(\App\Helpers\LocaleHelper::class)) {
+            return null;
+        }
+
+        $defaultLocale = \App\Helpers\LocaleHelper::getDefaultLocale();
+        $defaultRoute = $urls[$defaultLocale] ?? null;
+
+        if (!$defaultRoute || $this->isTokenRoute($defaultRoute)) {
+            return null;
+        }
+
+        return \App\Helpers\LocaleHelper::localizedUrl($defaultRoute, $this->lang);
+    }
+
+    protected function isTokenRoute(string $route): bool
+    {
+        $normalized = ltrim($route, '/');
+
+        if (str_starts_with($normalized, 'public/pages/private/')) {
+            return false;
+        }
+
+        if (!empty($this->lang) && str_starts_with($normalized, $this->lang . '/')) {
+            $normalized = substr($normalized, strlen($this->lang) + 1);
+        }
+
+        return (bool) preg_match('/^[a-z0-9_]{12,}$/i', $normalized);
+    }
+
+    protected function logTokenFallback(int $pageId, string $tokenRoute, string $resolvedRoute): void
+    {
+        if (class_exists(\Illuminate\Support\Facades\Log::class)) {
+            \Illuminate\Support\Facades\Log::info('[LegacyRouter] Private route token fallback', [
+                'page_id' => $pageId,
+                'lang' => $this->lang ?: $this->mainLang,
+                'token_route' => $tokenRoute,
+                'resolved_route' => $resolvedRoute,
+            ]);
+        }
     }
 
 

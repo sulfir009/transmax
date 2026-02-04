@@ -35,6 +35,42 @@ if ($data && $signature) {
         if ($json_data && $json_data['status'] === 'success') {
             // Получение информации о заказе
             $order_id = $json_data['order_id'];
+            $handledByTicketService = false;
+
+            try {
+                /** @var \App\Service\TicketService $ticketService */
+                $ticketService = app(\App\Service\TicketService::class);
+                $correlationId = 'legacy-liqpay|' . (string) $order_id;
+                $paymentData = array_merge($json_data, [
+                    'status' => 'success',
+                    'payment_provider' => 'liqpay',
+                    'liqpay_order_id' => $order_id,
+                ]);
+
+                $handledByTicketService = $ticketService->processSuccessfulPayment(
+                    $order_id,
+                    $paymentData,
+                    $correlationId
+                );
+
+                Log::info('[LiqPay] TicketService handled callback', [
+                    'order_id' => $order_id,
+                    'handled' => $handledByTicketService ? 1 : 0,
+                    'correlation_id' => $correlationId,
+                ]);
+            } catch (Throwable $e) {
+                Log::warning('[LiqPay] TicketService failed, fallback to legacy flow', [
+                    'order_id' => $order_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            if ($handledByTicketService) {
+                echo 'ok';
+                http_response_code(200); // OK
+                return;
+            }
+
             $order_id_safe = addslashes($order_id); // Защита от SQL-инъекций
             $tour_info = $Db->getOne("SELECT tour_id AS tour_id, tour_date AS tour_date, passagers AS passagers FROM `" .  DB_PREFIX . "_orders`WHERE uniqId = '$order_id_safe'");
             $orderInfo = $Db->getOne("SELECT id, date AS order_date, from_stop, to_stop, tour_date, passagers, client_name, client_surname, client_email, client_phone FROM `" .  DB_PREFIX . "_orders`WHERE uniqid = '$order_id_safe'");
@@ -1121,4 +1157,3 @@ function sendEmailWithAttachment($pdf_files, $orderInfo, $ticketInfo, $from_city
     logToFile('Tickets sent to' . print_r($adminEmail, true));
 }
 ?>
-

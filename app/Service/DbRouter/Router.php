@@ -2,8 +2,10 @@
 
 namespace App\Service\DbRouter;
 
+use App\Helpers\LocaleHelper;
 use App\Repository\Site\RouterRepository;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Log;
 
 class Router
 {
@@ -34,11 +36,25 @@ class Router
         $fallback = $this->getPrivateFallbackRoute($pageId);
 
         if ($route && $fallback && $this->shouldUsePrivateFallback($route)) {
+            $localized = $this->getPrivateLocalizedRoute($Url);
+            if ($localized) {
+                $this->logTokenFallback($pageId, $route, $localized);
+                return rtrim($localized, '/');
+            }
+
+            $this->logTokenFallback($pageId, $route, $fallback);
             return $fallback;
         }
 
         if (!empty($route)) {
             return rtrim($route, '/');
+        }
+
+        if ($fallback) {
+            $localized = $this->getPrivateLocalizedRoute($Url);
+            if ($localized) {
+                return rtrim($localized, '/');
+            }
         }
 
         return $fallback ?? '/';
@@ -80,6 +96,32 @@ class Router
         ];
 
         return $map[$pageId] ?? null;
+    }
+
+    protected function getPrivateLocalizedRoute(array $urls): ?string
+    {
+        $defaultLocale = LocaleHelper::getDefaultLocale();
+        $defaultRoute = $urls[$defaultLocale] ?? null;
+
+        if (empty($defaultRoute)) {
+            return null;
+        }
+
+        if ($this->shouldUsePrivateFallback($defaultRoute)) {
+            return null;
+        }
+
+        return LocaleHelper::localizedUrl($defaultRoute, $this->lang);
+    }
+
+    protected function logTokenFallback(int $pageId, string $tokenRoute, string $resolvedRoute): void
+    {
+        Log::info('[Router] Private route token fallback', [
+            'page_id' => $pageId,
+            'lang' => $this->lang,
+            'token_route' => $tokenRoute,
+            'resolved_route' => $resolvedRoute,
+        ]);
     }
 
     protected function shouldUsePrivateFallback(string $route): bool
