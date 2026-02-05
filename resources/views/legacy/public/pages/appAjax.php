@@ -15,12 +15,40 @@ mysqli_set_charset($db , "utf8" );
 $Db = new CDb($db, $db);
 $User = new User($Db);
 
-$cleanPost = json_decode(file_get_contents('php://input'), true);
-$cleanPost = $_REQUEST;
+$rawBody = (string) file_get_contents('php://input');
+$cleanPost = json_decode($rawBody, true);
+$jsonError = json_last_error_msg();
+$usedFallback = false;
 
 if ($cleanPost === null) {
+    $usedFallback = true;
+    $cleanPost = is_array($_REQUEST) ? $_REQUEST : [];
+}
+
+if (!is_array($cleanPost) || $cleanPost === []) {
+    error_log('[appAjax] invalid json: ' . json_encode([
+        'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+        'uri' => $_SERVER['REQUEST_URI'] ?? '',
+        'content_type' => $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? ''),
+        'raw_body' => mb_substr($rawBody, 0, 4096),
+        'json_error' => $jsonError,
+        'request' => $cleanPost['request'] ?? null,
+        'lang' => $cleanPost['lang'] ?? null,
+    ], JSON_UNESCAPED_UNICODE));
     echo  json_encode(['error' => 'Invalid JSON']);
     exit;
+}
+
+if ($usedFallback) {
+    error_log('[appAjax] json_decode failed, using fallback: ' . json_encode([
+        'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+        'uri' => $_SERVER['REQUEST_URI'] ?? '',
+        'content_type' => $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? ''),
+        'raw_body' => mb_substr($rawBody, 0, 4096),
+        'json_error' => $jsonError,
+        'request' => $cleanPost['request'] ?? null,
+        'lang' => $cleanPost['lang'] ?? null,
+    ], JSON_UNESCAPED_UNICODE));
 }
 
 
@@ -359,7 +387,7 @@ if($cleanPost['request'] === 'getCities') {
     $get_cities = $Db->getall("SELECT id,title_".$lang." AS title FROM `" .  DB_PREFIX . "_cities`WHERE active = 1 AND section_id > 0 AND station = 0 ORDER BY sort DESC,title_".$lang." ASC");
 
     if ($get_cities) {
-        echo  json_encode($get_cities);
+        echo  json_encode($get_cities, JSON_UNESCAPED_UNICODE);
     } else {
         echo  json_encode(['error' => 'Wrong query']);
     }
