@@ -58,7 +58,7 @@ class TicketController extends Controller
     {
         $this->startSession();
 
-        $lang = $this->router->lang ?? 'ru';
+        $lang = $this->normalizeLang($this->router->lang ?? 'ru');
         $this->ticketRepository->setLanguage($lang);
         $this->cityRepository->setLanguage($lang);
 
@@ -375,7 +375,7 @@ class TicketController extends Controller
             return null;
         }
 
-        $seoText = $this->selectSeoTextWithFallback($tour, $lang);
+        $seoText = $this->getTourSeoText($tour, $lang);
         if ($seoText === null) {
             return null;
         }
@@ -385,14 +385,11 @@ class TicketController extends Controller
         return $seoText !== '' ? $seoText : null;
     }
 
-    private function selectSeoTextWithFallback(Tour $tour, string $lang): ?string
+    private function getTourSeoText(Tour $tour, string $lang): ?string
     {
-        $locales = array_values(array_unique([
-            $lang,
-            'uk',
-            'ru',
-            'en',
-        ]));
+        $normalizedLang = $this->normalizeLang($lang);
+        $fallbacks = ['ru', 'uk', 'en'];
+        $locales = array_values(array_unique(array_merge([$normalizedLang], $fallbacks)));
 
         foreach ($locales as $locale) {
             $field = 'seo_text_' . $locale;
@@ -403,6 +400,16 @@ class TicketController extends Controller
         }
 
         return null;
+    }
+
+    private function normalizeLang(string $lang): string
+    {
+        $lang = strtolower($lang);
+
+        return match ($lang) {
+            'ua' => 'uk',
+            default => $lang,
+        };
     }
 
     private function sanitizeSeoHtml(?string $html): string
