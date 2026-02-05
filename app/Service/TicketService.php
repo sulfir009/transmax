@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use App\Models\BonusTransaction;
 use App\Models\Client;
+use Illuminate\Support\Str;
 use App\Services\BonusService;
 use App\Support\Money;
 use Mpdf\Mpdf;
@@ -44,6 +45,9 @@ class TicketService
     {
         $paymentData = is_array($paymentData) ? $paymentData : (array)$paymentData;
         $correlationId = $correlationId ?: (string)($paymentData['correlation_id'] ?? '');
+        if ($correlationId === '') {
+            $correlationId = (string) Str::uuid();
+        }
 
         Log::channel('payment')->info('========================================');
         Log::channel('payment')->info('=== TICKET SERVICE: START PROCESSING ===');
@@ -170,18 +174,6 @@ class TicketService
                 ]);
                 return false;
             }
-
-            /**
-             * 4) Пассажиры
-             *    ВАЖНО: order_id в mt_orders_passangers обычно = numeric mt_orders.id.
-             *    Но на всякий пробуем и legacy uniqId.
-             */
-            $passengers = $this->loadPassengers($orderIdNumeric, $legacyUniq);
-
-            Log::channel('payment')->info('Passengers retrieved', [
-                'correlation_id' => $correlationId,
-                'count'          => $passengers->count(),
-            ]);
             
             $this->applyBonusOperations($orderInfo, $ticketInfo, $passengersCount, $paymentData, $correlationId);
 
@@ -264,6 +256,150 @@ class TicketService
     }
 
     /**
+     * Генерация и отправка билетов для заказа с оплатой наличными при посадке.
+     *
+     * @param int|string $orderIdOrUniq
+     */
+    /**
+     * Генерация и отправка билетов для заказа с оплатой наличными при посадке.
+     *
+     * @param int|string $orderIdOrUniq
+     */
+    public function sendCashOrderTickets($orderIdOrUniq, $paymentData = [], ?string $correlationId = null): bool
+    {
+        $paymentData = is_array($paymentData) ? $paymentData : (array)$paymentData;
+        $paymentData['payment_method'] = $paymentData['payment_method'] ?? 'cash';
+        $paymentData['payment_provider'] = $paymentData['payment_provider'] ?? 'cash';
+        $correlationId = $correlationId ?: (string)($paymentData['correlation_id'] ?? '');
+        if ($correlationId === '') {
+            $correlationId = (string) Str::uuid();
+        }
+
+        Log::channel('payment')->info('========================================');
+        Log::channel('payment')->info('=== TICKET SERVICE: CASH START ===');
+        Log::channel('payment')->info('========================================', [
+            'correlation_id' => $correlationId,
+            'order_input'    => $orderIdOrUniq,
+            'payment_data'   => $paymentData,
+            'timestamp'      => now()->toIso8601String(),
+            'db_prefix'      => $this->dbPrefix,
+        ]);
+
+        try {
+            $orderInfo = $this->findOrder($orderIdOrUniq);
+
+            if (!$orderInfo) {
+                Log::channel('payment')->error('=== TICKET SERVICE: CASH FAILED - ORDER NOT FOUND ===', [
+                    'correlation_id' => $correlationId,
+                    'order_input'    => $orderIdOrUniq,
+                ]);
+                return false;
+            }
+
+            $orderIdNumeric = (int)($orderInfo->id ?? 0);
+            $legacyUniq     = $this->getLegacyUniqId($orderInfo, $orderIdOrUniq);
+
+            Log::channel('payment')->info('=== CASH ORDER FOUND ===', [
+                'correlation_id' => $correlationId,
+                'order_id'       => $orderIdNumeric,
+                'uniqId'         => $legacyUniq,
+                'tour_id'        => $orderInfo->tour_id ?? null,
+                'tour_date'      => $orderInfo->tour_date ?? null,
+                'from_stop'      => $orderInfo->from_stop ?? null,
+                'to_stop'        => $orderInfo->to_stop ?? null,
+                'passagers'      => $orderInfo->passagers ?? null,
+                'client_email'   => $orderInfo->client_email ?? null,
+                'payment_status' => $orderInfo->payment_status ?? null,
+            ]);
+
+            $ticketInfo = $this->getTicketInfo($orderInfo);
+            if (!$ticketInfo) {
+                Log::channel('payment')->error('=== CASH TICKET INFO NOT FOUND ===', [
+                    'correlation_id' => $correlationId,
+                    'tour_id'        => $orderInfo->tour_id ?? null,
+                    'from_stop'      => $orderInfo->from_stop ?? null,
+                    'to_stop'        => $orderInfo->to_stop ?? null,
+                ]);
+                return false;
+            }
+
+            $passengers = $this->loadPassengers($orderIdNumeric, $legacyUniq, $orderInfo);
+
+            Log::channel('payment')->info('Cash passengers retrieved', [
+                'correlation_id' => $correlationId,
+                'count'          => $passengers->count(),
+            ]);
+
+            Log::channel('payment')->info('=== GENERATING CASH PDF TICKETS ===', [
+                'correlation_id' => $correlationId,
+            ]);
+
+            $pdfFiles = $this->generateTickets($orderInfo, $ticketInfo, $passengers);
+
+            Log::channel('payment')->info('Cash PDF tickets generated', [
+                'correlation_id' => $correlationId,
+                'count'          => count($pdfFiles),
+                'files'          => $pdfFiles,
+            ]);
+
+            Log::channel('payment')->info('=== SENDING CASH EMAILS ===', [
+                'correlation_id' => $correlationId,
+                'client_email'   => $orderInfo->client_email ?? 'N/A',
+            ]);
+
+            $emailOk = $this->sendTicketsEmail($orderInfo, $ticketInfo, $passengers, $pdfFiles, $paymentData);
+
+            if ($emailOk) {
+                foreach ($pdfFiles as $file) {
+                    if (is_string($file) && $file !== '' && file_exists($file)) {
+                        @unlink($file);
+                    }
+                }
+
+                $this->markTicketsSentIfPossible($orderIdNumeric);
+
+                Log::channel('payment')->info('========================================');
+                Log::channel('payment')->info('=== TICKET SERVICE: CASH SUCCESS ===');
+                Log::channel('payment')->info('========================================', [
+                    'correlation_id' => $correlationId,
+                    'order_id'       => $orderIdNumeric,
+                    'uniqId'         => $legacyUniq,
+                ]);
+
+                return true;
+            }
+
+            Log::channel('payment')->warning('Cash email not sent - keep PDF files for retry', [
+                'correlation_id' => $correlationId,
+                'files'          => $pdfFiles,
+                'client_email'   => $orderInfo->client_email ?? null,
+            ]);
+
+            Log::channel('payment')->error('========================================');
+            Log::channel('payment')->error('=== TICKET SERVICE: CASH FAILED (EMAIL) ===');
+            Log::channel('payment')->error('========================================', [
+                'correlation_id' => $correlationId,
+                'order_id'       => $orderIdNumeric,
+                'uniqId'         => $legacyUniq,
+            ]);
+
+            return false;
+
+        } catch (Throwable $e) {
+            Log::channel('payment')->error('========================================');
+            Log::channel('payment')->error('=== TICKET SERVICE: CASH EXCEPTION ===');
+            Log::channel('payment')->error('========================================', [
+                'correlation_id' => $correlationId,
+                'error'          => $e->getMessage(),
+                'file'           => $e->getFile(),
+                'line'           => $e->getLine(),
+                'trace'          => $e->getTraceAsString(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
      * Поиск заказа по id/uniqId/uniqid
      */
     private function findOrder($orderIdOrUniq)
@@ -333,7 +469,7 @@ class TicketService
         return max(1, min(10, $cnt));
     }
 
-    private function loadPassengers(int $orderIdNumeric, string $legacyUniq)
+    private function loadPassengers(int $orderIdNumeric, string $legacyUniq, $orderInfo = null)
     {
         $table = $this->dbPrefix . '_orders_passangers';
 
@@ -346,7 +482,59 @@ class TicketService
             $rows = DB::table($table)->where('order_id', $legacyUniq)->get();
         }
 
-        return $rows;
+        if ($rows->count() > 0) {
+            return $rows;
+        }
+
+        $fallback = $this->buildPassengersFromOrderInfo($orderInfo);
+        if ($fallback->count() === 0) {
+            Log::channel('payment')->warning('Passengers missing for order', [
+                'order_id' => $orderIdNumeric,
+                'uniqid' => $legacyUniq,
+            ]);
+        }
+
+        return $fallback;
+    }
+
+    private function buildPassengersFromOrderInfo($orderInfo)
+    {
+        $passengers = [];
+        if (!$orderInfo) {
+            return collect();
+        }
+
+        $raw = null;
+        if (isset($orderInfo->passengers_data)) {
+            $raw = $orderInfo->passengers_data;
+        } elseif (isset($orderInfo->passenger_data)) {
+            $raw = $orderInfo->passenger_data;
+        }
+
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $raw = $decoded;
+            }
+        }
+
+        if (is_array($raw)) {
+            foreach ($raw as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $name = trim((string)($row['name'] ?? $row['first_name'] ?? ''));
+                $surname = trim((string)($row['family_name'] ?? $row['second_name'] ?? $row['last_name'] ?? ''));
+                $passengers[] = (object) [
+                    'name' => $name,
+                    'second_name' => $surname,
+                    'patronymic' => $row['patronymic'] ?? null,
+                    'birthdate' => $row['birthdate'] ?? null,
+                ];
+            }
+        }
+
+        return collect($passengers);
     }
 
     /**
@@ -554,6 +742,7 @@ class TicketService
         $depTime  = isset($ticketInfo->departure_time) ? substr((string)$ticketInfo->departure_time, 0, 5) : '';
         $tourDate = (string)($orderInfo->tour_date ?? '');
         $price    = (string)($ticketInfo->price ?? '');
+        $paymentLabel = $this->buildTicketPaymentLabel($orderInfo);
         
                 $bonusRedeemedCents = (int)($orderInfo->bonus_redeemed_cents ?? 0);
         $bonusCashbackCents = (int)($orderInfo->bonus_cashback_cents ?? 0);
@@ -594,7 +783,7 @@ class TicketService
             <img style="max-width:100%; height:auto;" src="https://www.maxtransltd.com/public/upload/logos/maxTransLogo.png" alt="">
           </div>
           <div class="date_title title">Продано/Sales</div>
-          <div class="date_info">' . htmlspecialchars($saleDate, ENT_QUOTES, 'UTF-8') . '</div>
+          <div class="date_info">' . $this->pdfText($saleDate) . '</div>
           <div class="tiket_id" style="margin-bottom:30px;">№' . (int)$orderInfo->id . '</div>
           <div class="qr-code" style="margin-top:30px;">
             <img style="max-width:200px;" src="https://www.maxtransltd.com/public/upload/logos/qr-code.png" alt="">
@@ -606,18 +795,18 @@ class TicketService
           <table>
             <tr>
               <td><b>Рейс/Flight</b>
-                <div>' . htmlspecialchars((string)($ticketInfo->departure_city ?? ''), ENT_QUOTES, 'UTF-8') . ' - ' . htmlspecialchars((string)($ticketInfo->arrival_city ?? ''), ENT_QUOTES, 'UTF-8') . '</div>
+                <div>' . $this->pdfText((string)($ticketInfo->departure_city ?? '')) . ' - ' . $this->pdfText((string)($ticketInfo->arrival_city ?? '')) . '</div>
               </td>
               <td><b>Відправлення/Departure</b>
-                <div>' . htmlspecialchars($tourDate, ENT_QUOTES, 'UTF-8') . ' ' . htmlspecialchars($depTime, ENT_QUOTES, 'UTF-8') . '<br>' . htmlspecialchars($fromCity . ' ' . $fromStop, ENT_QUOTES, 'UTF-8') . '</div>
+                <div>' . $this->pdfText($tourDate) . ' ' . $this->pdfText($depTime) . '<br>' . $this->pdfText($fromCity . ' ' . $fromStop) . '</div>
               </td>
               <td><b>Прибуття/Arrival</b>
-                <div>' . htmlspecialchars($toCity . ' ' . $toStop, ENT_QUOTES, 'UTF-8') . '</div>
+                <div>' . $this->pdfText($toCity . ' ' . $toStop) . '</div>
               </td>
             </tr>
             <tr>
               <td><b>Пасажир/Passenger</b>
-                <div>' . htmlspecialchars($passengerName, ENT_QUOTES, 'UTF-8') . '</div>
+                <div>' . $this->pdfText($passengerName) . '</div>
               </td>
               <td><b>Місце/Seat</b>
                 <div>На вільне місце</div>
@@ -631,18 +820,26 @@ class TicketService
           <table>
             <tr>
               <td></td>
-              <td><div>Тариф<br>Tariff</div><div>' . htmlspecialchars($price, ENT_QUOTES, 'UTF-8') . '</div></td>
+               <td><div>Тариф<br>Tariff</div><div>' . $this->pdfText($price) . '</div></td>
               <td><div>Страховий збір<br>Insurance fee</div><div>0.00</div></td>
               <td><div>В т.ч. ПДВ<br>Including VAT</div><div>0.00</div></td>
               <td></td><td></td>
             </tr>
             <tr>
-              <td><b>Збір/Послуга<br>Fee/Service</b><div>' . htmlspecialchars($price, ENT_QUOTES, 'UTF-8') . '</div></td>
-              <td><b>Проїзд<br>Passage</b><div>' . htmlspecialchars($price, ENT_QUOTES, 'UTF-8') . '</div></td>
+              <td><b>Збір/Послуга<br>Fee/Service</b><div>' . $this->pdfText($price) . '</div></td>
+              <td><b>Проїзд<br>Passage</b><div>' . $this->pdfText($price) . '</div></td>
               <td><b>Багаж<br>Luggage</b><div></div></td>
               <td><b>Тип<br>Type</b><div>ПОВНИЙ</div></td>
               <td><b>Знижка<br>Discount</b><div></div></td>
-              <td><b>Всього, грн<br>Total, UAH</b><div>' . htmlspecialchars($price, ENT_QUOTES, 'UTF-8') . '</div></td>
+              <td><b>Всього, грн<br>Total, UAH</b><div>' . $this->pdfText($price) . '</div></td>
+            </tr>
+          </table>
+
+          <table>
+            <tr>
+              <td><b>Оплата/Payment</b>
+                <div>' . $this->pdfText($paymentLabel) . '</div>
+              </td>
             </tr>
           </table>
           
@@ -712,6 +909,74 @@ class TicketService
             return date('Y-m-d');
         }
     }
+
+     private function pdfText($value): string
+    {
+        $text = (string)$value;
+        $prev = null;
+        for ($i = 0; $i < 3 && $text !== $prev; $i++) {
+            $prev = $text;
+            $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
+        $text = str_replace(["\r", "\n"], ' ', $text);
+        $text = str_replace("\xC2\xA0", ' ', $text);
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+        $text = trim($text);
+
+        return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    }
+
+    private function buildTicketPaymentLabel($orderInfo): string
+    {
+        $methodRaw = (string)($orderInfo->payment_method
+            ?? $orderInfo->payment_type
+            ?? $orderInfo->pay_type
+            ?? $orderInfo->payment_provider
+            ?? $orderInfo->provider
+            ?? '');
+        $method = strtolower(trim($methodRaw));
+
+        $cashMethods = [
+            'cash',
+            'pay_on_board',
+            'pay-on-board',
+            'on_board',
+            'onboard',
+            'cash_on_board',
+            'cash_on_bus',
+            'pay_on_bus',
+        ];
+
+        $isCash = $method !== '' && in_array($method, $cashMethods, true);
+
+        $statusRaw = $orderInfo->payment_status ?? null;
+        $status = strtolower(trim((string)$statusRaw));
+        $isPaid = !empty($orderInfo->paid_at)
+            || in_array($status, ['paid', 'success', 'ok', '1', '2'], true);
+
+        if ($isCash) {
+            return 'Наличными при посадке';
+        }
+
+        if ($isPaid) {
+            $provider = '';
+            if ($method !== '') {
+                if (in_array($method, ['monobank', 'mono', 'mono_bank', 'mono-bank'], true)) {
+                    $provider = 'monobank';
+                } elseif (in_array($method, ['liqpay', 'liq_pay', 'liq-pay'], true)) {
+                    $provider = 'liqpay';
+                } else {
+                    $provider = $method;
+                }
+            }
+
+            return $provider !== '' ? "Оплачено ({$provider})" : 'Оплачено';
+        }
+
+        return 'Не оплачено';
+    }
+
 
     /**
      * Отправка email с билетами (возвращает true только если ушло клиенту и админу (если не test))
@@ -1238,6 +1503,14 @@ class TicketService
      */
     private function detectPaymentProvider(array $paymentData): string
     {
+        if (!empty($paymentData['payment_method']) && $paymentData['payment_method'] === 'cash') {
+            return 'cash';
+        }
+
+        if (!empty($paymentData['payment_provider']) && $paymentData['payment_provider'] === 'cash') {
+            return 'cash';
+        }
+
         if (!empty($paymentData['invoiceId']) || !empty($paymentData['invoice_id'])) {
             return 'monobank';
         }
@@ -1253,6 +1526,7 @@ class TicketService
     {
         $provider = $this->detectPaymentProvider($paymentData);
 
+        if ($provider === 'cash') return 'Наличными при посадке';
         if ($provider === 'monobank') return 'Онлайн Monobank';
         if ($provider === 'liqpay')   return 'Онлайн LiqPay';
         return 'Онлайн';
