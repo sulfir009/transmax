@@ -312,6 +312,37 @@ class TicketService
                 'payment_status' => $orderInfo->payment_status ?? null,
             ]);
 
+            $cashProvider = $this->normalizePaymentValue($paymentData['payment_provider'] ?? $paymentData['payment_method'] ?? 'cash');
+            if ($cashProvider === '' || !$this->isCashPaymentValue($cashProvider)) {
+                $cashProvider = 'cash';
+            }
+            $cashUpdate = $this->buildLegacyCashFieldsUpdate($cashProvider);
+            if (!empty($cashUpdate)) {
+                Log::channel('payment')->info('Updating cash order payment fields', [
+                    'correlation_id' => $correlationId,
+                    'where'          => ['id' => $orderIdNumeric, 'uniqId' => $legacyUniq],
+                    'update'         => $cashUpdate,
+                ]);
+
+                $updatedRows = DB::table($this->dbPrefix . '_orders')
+                    ->where('id', $orderIdNumeric)
+                    ->update($cashUpdate);
+
+                if ($updatedRows === 0 && is_string($legacyUniq) && $legacyUniq !== '') {
+                    DB::table($this->dbPrefix . '_orders')
+                        ->where(function ($q) use ($legacyUniq) {
+                            $q->where('uniqId', $legacyUniq)->orWhere('uniqid', $legacyUniq);
+                        })
+                        ->update($cashUpdate);
+                }
+
+                foreach (['payment_method', 'payment_provider', 'payment_type', 'pay_type', 'provider'] as $field) {
+                    if (array_key_exists($field, $cashUpdate)) {
+                        $orderInfo->{$field} = $cashUpdate[$field];
+                    }
+                }
+            }
+
             $ticketInfo = $this->getTicketInfo($orderInfo);
             if (!$ticketInfo) {
                 Log::channel('payment')->error('=== CASH TICKET INFO NOT FOUND ===', [
@@ -743,6 +774,9 @@ class TicketService
         $tourDate = (string)($orderInfo->tour_date ?? '');
         $price    = (string)($ticketInfo->price ?? '');
         $paymentLabel = $this->buildTicketPaymentLabel($orderInfo);
+        if (trim($paymentLabel) === '') {
+            $paymentLabel = $this->isCashPayment($orderInfo) ? 'Наличными при посадке' : 'Онлайн';
+        }
         
                 $bonusRedeemedCents = (int)($orderInfo->bonus_redeemed_cents ?? 0);
         $bonusCashbackCents = (int)($orderInfo->bonus_cashback_cents ?? 0);
@@ -927,20 +961,25 @@ class TicketService
         return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
     }
 
-    private function buildTicketPaymentLabel($orderInfo): string
+    private function normalizePaymentValue($value): string
     {
-        $methodRaw = (string)($orderInfo->payment_method
-            ?? $orderInfo->payment_type
-            ?? $orderInfo->pay_type
-            ?? $orderInfo->payment_provider
-            ?? $orderInfo->provider
-            ?? '');
-        $method = strtolower(trim($methodRaw));
+        $normalized = strtolower(trim((string)$value));
+        if ($normalized === '') {
+            return '';
+        }
 
+        $normalized = str_replace(['-', ' '], '_', $normalized);
+        $normalized = preg_replace('/_+/u', '_', $normalized) ?? $normalized;
+
+        return $normalized;
+    }
+
+    private function isCashPaymentValue(string $value): bool
+    {
         $cashMethods = [
             'cash',
+            'cash_booking',
             'pay_on_board',
-            'pay-on-board',
             'on_board',
             'onboard',
             'cash_on_board',
@@ -948,30 +987,62 @@ class TicketService
             'pay_on_bus',
         ];
 
-        $isCash = $method !== '' && in_array($method, $cashMethods, true);
+        return in_array($value, $cashMethods, true);
+    }
+
+    private function isCashPayment($orderInfo): bool
+    {
+        $values = [
+            $this->normalizePaymentValue($orderInfo->payment_method ?? ''),
+            $this->normalizePaymentValue($orderInfo->payment_provider ?? ''),
+            $this->normalizePaymentValue($orderInfo->payment_type ?? ''),
+            $this->normalizePaymentValue($orderInfo->pay_type ?? ''),
+            $this->normalizePaymentValue($orderInfo->provider ?? ''),
+        ];
+
+        foreach ($values as $value) {
+            if ($value !== '' && $this->isCashPaymentValue($value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function buildTicketPaymentLabel($orderInfo): string
+    {
+        $methodRaw = (string)($orderInfo->payment_method
+            ?? $orderInfo->payment_type
+            ?? $orderInfo->pay_type
+            ?? '');
+        $providerRaw = (string)($orderInfo->payment_provider
+            ?? $orderInfo->provider
+            ?? '');
+        $method = $this->normalizePaymentValue($methodRaw);
+        $provider = $this->normalizePaymentValue($providerRaw);
+
+        $isCash = $this->isCashPayment($orderInfo);
 
         $statusRaw = $orderInfo->payment_status ?? null;
         $status = strtolower(trim((string)$statusRaw));
         $isPaid = !empty($orderInfo->paid_at)
-            || in_array($status, ['paid', 'success', 'ok', '1', '2'], true);
+            || in_array($status, ['paid', 'success', 'ok', '2'], true);
 
         if ($isCash) {
             return 'Наличными при посадке';
         }
 
         if ($isPaid) {
-            $provider = '';
-            if ($method !== '') {
-                if (in_array($method, ['monobank', 'mono', 'mono_bank', 'mono-bank'], true)) {
-                    $provider = 'monobank';
-                } elseif (in_array($method, ['liqpay', 'liq_pay', 'liq-pay'], true)) {
-                    $provider = 'liqpay';
-                } else {
-                    $provider = $method;
+            $paidProvider = $method !== '' ? $method : $provider;
+            if ($paidProvider !== '') {
+                if (in_array($paidProvider, ['monobank', 'mono', 'mono_bank'], true)) {
+                    $paidProvider = 'monobank';
+                } elseif (in_array($paidProvider, ['liqpay', 'liq_pay'], true)) {
+                    $paidProvider = 'liqpay';
                 }
             }
 
-            return $provider !== '' ? "Оплачено ({$provider})" : 'Оплачено';
+            return $paidProvider !== '' ? "Оплачено ({$paidProvider})" : 'Оплачено';
         }
 
         return 'Не оплачено';
@@ -1595,6 +1666,69 @@ class TicketService
 
         if ($has('paid_online')) {
             $u['paid_online'] = 1;
+        }
+
+        return $u;
+    }
+
+    /**
+     * Выставляем “cash” в релевантные legacy колонки, если они существуют.
+     */
+    private function buildLegacyCashFieldsUpdate(string $provider): array
+    {
+        $table = $this->dbPrefix . '_orders';
+
+        $columns = [];
+        try {
+            $cols = DB::select("SHOW COLUMNS FROM `{$table}`");
+            foreach ($cols as $c) {
+                $columns[(string)$c->Field] = strtolower((string)$c->Type);
+            }
+        } catch (Throwable $e) {
+            // fallback below
+        }
+
+        $has = function (string $col) use ($table, $columns): bool {
+            if (!empty($columns)) return array_key_exists($col, $columns);
+            return Schema::hasColumn($table, $col);
+        };
+
+        $isNumeric = function (string $col) use ($columns): bool {
+            if (empty($columns[$col])) return false;
+            $t = $columns[$col];
+            return str_contains($t, 'int') || str_contains($t, 'decimal') || str_contains($t, 'float') || str_contains($t, 'double');
+        };
+
+        $cashNumeric  = 1;
+        $cashString   = $provider;
+
+        $u = [];
+
+        $candidates = [
+            'payment_type',
+            'pay_type',
+            'payment_method',
+            'pay_method',
+            'payment_provider',
+            'provider',
+            'payment_form',
+            'type_pay',
+            'payment_way',
+            'payment_kind',
+        ];
+
+        foreach ($candidates as $col) {
+            if (!$has($col)) continue;
+
+            if ($isNumeric($col)) {
+                $u[$col] = $cashNumeric;
+            } else {
+                $u[$col] = $cashString;
+            }
+        }
+
+        if ($has('paid_online')) {
+            $u['paid_online'] = 0;
         }
 
         return $u;
