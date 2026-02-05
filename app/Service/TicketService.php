@@ -264,6 +264,142 @@ class TicketService
     }
 
     /**
+     * Генерация и отправка билетов для заказа с оплатой наличными при посадке.
+     *
+     * @param int|string $orderIdOrUniq
+     */
+    public function sendCashOrderTickets($orderIdOrUniq, $paymentData = [], ?string $correlationId = null): bool
+    {
+        $paymentData = is_array($paymentData) ? $paymentData : (array)$paymentData;
+        $paymentData['payment_method'] = $paymentData['payment_method'] ?? 'cash';
+        $paymentData['payment_provider'] = $paymentData['payment_provider'] ?? 'cash';
+        $correlationId = $correlationId ?: (string)($paymentData['correlation_id'] ?? '');
+
+        Log::channel('payment')->info('========================================');
+        Log::channel('payment')->info('=== TICKET SERVICE: CASH START ===');
+        Log::channel('payment')->info('========================================', [
+            'correlation_id' => $correlationId,
+            'order_input'    => $orderIdOrUniq,
+            'payment_data'   => $paymentData,
+            'timestamp'      => now()->toIso8601String(),
+            'db_prefix'      => $this->dbPrefix,
+        ]);
+
+        try {
+            $orderInfo = $this->findOrder($orderIdOrUniq);
+
+            if (!$orderInfo) {
+                Log::channel('payment')->error('=== TICKET SERVICE: CASH FAILED - ORDER NOT FOUND ===', [
+                    'correlation_id' => $correlationId,
+                    'order_input'    => $orderIdOrUniq,
+                ]);
+                return false;
+            }
+
+            $orderIdNumeric = (int)($orderInfo->id ?? 0);
+            $legacyUniq     = $this->getLegacyUniqId($orderInfo, $orderIdOrUniq);
+
+            Log::channel('payment')->info('=== CASH ORDER FOUND ===', [
+                'correlation_id' => $correlationId,
+                'order_id'       => $orderIdNumeric,
+                'uniqId'         => $legacyUniq,
+                'tour_id'        => $orderInfo->tour_id ?? null,
+                'tour_date'      => $orderInfo->tour_date ?? null,
+                'from_stop'      => $orderInfo->from_stop ?? null,
+                'to_stop'        => $orderInfo->to_stop ?? null,
+                'passagers'      => $orderInfo->passagers ?? null,
+                'client_email'   => $orderInfo->client_email ?? null,
+                'payment_status' => $orderInfo->payment_status ?? null,
+            ]);
+
+            $ticketInfo = $this->getTicketInfo($orderInfo);
+            if (!$ticketInfo) {
+                Log::channel('payment')->error('=== CASH TICKET INFO NOT FOUND ===', [
+                    'correlation_id' => $correlationId,
+                    'tour_id'        => $orderInfo->tour_id ?? null,
+                    'from_stop'      => $orderInfo->from_stop ?? null,
+                    'to_stop'        => $orderInfo->to_stop ?? null,
+                ]);
+                return false;
+            }
+
+            $passengers = $this->loadPassengers($orderIdNumeric, $legacyUniq);
+
+            Log::channel('payment')->info('Cash passengers retrieved', [
+                'correlation_id' => $correlationId,
+                'count'          => $passengers->count(),
+            ]);
+
+            Log::channel('payment')->info('=== GENERATING CASH PDF TICKETS ===', [
+                'correlation_id' => $correlationId,
+            ]);
+
+            $pdfFiles = $this->generateTickets($orderInfo, $ticketInfo, $passengers);
+
+            Log::channel('payment')->info('Cash PDF tickets generated', [
+                'correlation_id' => $correlationId,
+                'count'          => count($pdfFiles),
+                'files'          => $pdfFiles,
+            ]);
+
+            Log::channel('payment')->info('=== SENDING CASH EMAILS ===', [
+                'correlation_id' => $correlationId,
+                'client_email'   => $orderInfo->client_email ?? 'N/A',
+            ]);
+
+            $emailOk = $this->sendTicketsEmail($orderInfo, $ticketInfo, $passengers, $pdfFiles, $paymentData);
+
+            if ($emailOk) {
+                foreach ($pdfFiles as $file) {
+                    if (is_string($file) && $file !== '' && file_exists($file)) {
+                        @unlink($file);
+                    }
+                }
+
+                $this->markTicketsSentIfPossible($orderIdNumeric);
+
+                Log::channel('payment')->info('========================================');
+                Log::channel('payment')->info('=== TICKET SERVICE: CASH SUCCESS ===');
+                Log::channel('payment')->info('========================================', [
+                    'correlation_id' => $correlationId,
+                    'order_id'       => $orderIdNumeric,
+                    'uniqId'         => $legacyUniq,
+                ]);
+
+                return true;
+            }
+
+            Log::channel('payment')->warning('Cash email not sent - keep PDF files for retry', [
+                'correlation_id' => $correlationId,
+                'files'          => $pdfFiles,
+                'client_email'   => $orderInfo->client_email ?? null,
+            ]);
+
+            Log::channel('payment')->error('========================================');
+            Log::channel('payment')->error('=== TICKET SERVICE: CASH FAILED (EMAIL) ===');
+            Log::channel('payment')->error('========================================', [
+                'correlation_id' => $correlationId,
+                'order_id'       => $orderIdNumeric,
+                'uniqId'         => $legacyUniq,
+            ]);
+
+            return false;
+
+        } catch (Throwable $e) {
+            Log::channel('payment')->error('========================================');
+            Log::channel('payment')->error('=== TICKET SERVICE: CASH EXCEPTION ===');
+            Log::channel('payment')->error('========================================', [
+                'correlation_id' => $correlationId,
+                'error'          => $e->getMessage(),
+                'file'           => $e->getFile(),
+                'line'           => $e->getLine(),
+                'trace'          => $e->getTraceAsString(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
      * Поиск заказа по id/uniqId/uniqid
      */
     private function findOrder($orderIdOrUniq)
@@ -1238,6 +1374,14 @@ class TicketService
      */
     private function detectPaymentProvider(array $paymentData): string
     {
+        if (!empty($paymentData['payment_method']) && $paymentData['payment_method'] === 'cash') {
+            return 'cash';
+        }
+
+        if (!empty($paymentData['payment_provider']) && $paymentData['payment_provider'] === 'cash') {
+            return 'cash';
+        }
+
         if (!empty($paymentData['invoiceId']) || !empty($paymentData['invoice_id'])) {
             return 'monobank';
         }
@@ -1253,6 +1397,7 @@ class TicketService
     {
         $provider = $this->detectPaymentProvider($paymentData);
 
+        if ($provider === 'cash') return 'Наличными при посадке';
         if ($provider === 'monobank') return 'Онлайн Monobank';
         if ($provider === 'liqpay')   return 'Онлайн LiqPay';
         return 'Онлайн';
