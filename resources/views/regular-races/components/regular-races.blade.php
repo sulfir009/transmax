@@ -1040,12 +1040,31 @@ document.addEventListener('click', function(e){
 
                         {{-- Actions --}}
                         <div class="rr3_actions">
+                            @php
+                                $todayKyiv = \Carbon\Carbon::now('Europe/Kyiv')->startOfDay();
+                                $daysList = array_filter(array_map('intval', explode(',', $race->days ?? '')));
+                                $nearestDate = null;
+
+                                if (!empty($daysList)) {
+                                    for ($i = 0; $i <= 14; $i++) {
+                                        $candidate = $todayKyiv->copy()->addDays($i);
+                                        if (in_array($candidate->dayOfWeekIso, $daysList, true)) {
+                                            $nearestDate = $candidate->toDateString();
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                $nearestDate = $nearestDate ?? $todayKyiv->toDateString();
+                            @endphp
                             <button
                                 class="rr3_btn buy buy-online-btn"
                                 data-days="{{ $race->days }}"
                                 data-arrival="{{ $race->arrivalId }}"
                                 data-departure="{{ $race->departureId }}"
-                                data-redirect="{{ route('tickets.index') }}"
+                                data-redirect="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
+                                data-date="{{ $nearestDate }}"
+                                data-today="{{ $todayKyiv->toDateString() }}"
                                 type="button"
                             >
                                 @lang('buy_online')
