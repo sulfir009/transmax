@@ -17,19 +17,25 @@ jQuery(document).ready(function (){
         $(this).removeClass('error-border');
     });
 
-    document.getElementById('stationSelect').addEventListener('change', function () {
-        const raceId = this.value;
-        const tour = $('#stationSelect').data('tour');
+    const stationSelect = document.getElementById('stationSelect');
+    if (stationSelect) {
+        stationSelect.addEventListener('change', function () {
+            const raceId = this.value;
+            const tour = $('#stationSelect').data('tour');
 
-        fetch(`/ajax/regular-races?stop_id=${raceId}&tour=${tour}`)
-            .then(response => response.text())
-            .then(html => {
-                document.querySelector('[data-content-way]').innerHTML = html;
-            })
-            .catch(err => {
-                console.error('Ошибка при загрузке расписания:', err);
-            });
-    });
+            fetch(`/ajax/regular-races?stop_id=${raceId}&tour=${tour}`)
+                .then(response => response.text())
+                .then(html => {
+                    const contentWay = document.querySelector('[data-content-way]');
+                    if (contentWay) {
+                        contentWay.innerHTML = html;
+                    }
+                })
+                .catch(err => {
+                    console.error('Ошибка при загрузке расписания:', err);
+                });
+        });
+    }
 
 
     $('.requestCallback').on('click', function (e){
@@ -99,8 +105,6 @@ jQuery(document).ready(function (){
         });
     }
 
-    const buyOnlineBtns = document.querySelectorAll('.buy-online-btn');
-
     const calendarModal = document.getElementById('calendar-modal');
     const calendarElement = document.getElementById('calendar');
     const saveBtn = document.getElementById('save-btn');
@@ -142,7 +146,7 @@ jQuery(document).ready(function (){
 
 
 // Инициализация Flatpickr
-    const calendar = flatpickr(calendarElement, {
+    const calendar = calendarElement ? flatpickr(calendarElement, {
         inline: true,
         dateFormat: "Y-m-d",
         position: "auto center",
@@ -170,36 +174,100 @@ jQuery(document).ready(function (){
                 dayElem.borderColor = 'blue';
             }
         }
-    });
+    }) : null;
 
 // Открытие календаря при клике на input
-    dateInput.addEventListener('focus', () => {
-        buyOnline = false;
-        arrival = '';
-        departure = '';
-        redirect = '';
-        const days = [];
-        allowedDays = days;
-        updateCalendar();
-        calendarModal.style.display = 'flex';
-    });
-
-// Открытие календаря по кнопке "Купить онлайн"
-    buyOnlineBtns.forEach(button => {
-        button.addEventListener('click', () => {
-            const days = button.getAttribute('data-days').split(',').map(Number);
+    if (dateInput && calendarModal && calendar) {
+        dateInput.addEventListener('focus', () => {
+            buyOnline = false;
+            arrival = '';
+            departure = '';
+            redirect = '';
+            const days = [];
             allowedDays = days;
             updateCalendar();
             calendarModal.style.display = 'flex';
-            buyOnline = true;
-            arrival = button.getAttribute('data-arrival');
-            departure = button.getAttribute('data-departure');
-            redirect = button.getAttribute('data-redirect');
         });
+    }
+
+    function getNearestDate(button) {
+        const dateAttr = button.getAttribute('data-date');
+        const todayAttr = button.getAttribute('data-today');
+
+        if (dateAttr) {
+            return dateAttr;
+        }
+
+        const daysRaw = button.getAttribute('data-days') || '';
+        const days = daysRaw
+            .split(',')
+            .map(Number)
+            .filter(Number.isFinite);
+
+        const baseDate = todayAttr ? new Date(`${todayAttr}T00:00:00`) : new Date();
+
+        if (days.length) {
+            for (let i = 0; i <= 14; i += 1) {
+                const candidate = new Date(baseDate);
+                candidate.setDate(baseDate.getDate() + i);
+                const day = candidate.getDay() === 0 ? 7 : candidate.getDay();
+                if (days.includes(day)) {
+                    return candidate.toISOString().slice(0, 10);
+                }
+            }
+        }
+
+        return todayAttr || new Date().toISOString().slice(0, 10);
+    }
+
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('.buy-online-btn');
+        if (!button) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const arrivalId = button.getAttribute('data-arrival');
+        const departureId = button.getAttribute('data-departure');
+
+        if (!arrivalId || !departureId) {
+            alert('Не удалось определить направление. Пожалуйста, попробуйте позже.');
+            console.error('Buy online: missing arrival/departure', {
+                arrivalId,
+                departureId,
+                button,
+            });
+            return;
+        }
+
+        const redirectUrl = button.getAttribute('data-redirect') || '/bilety';
+        const date = getNearestDate(button);
+
+        if (!date) {
+            alert('Не удалось определить дату поездки. Попробуйте ещё раз.');
+            console.error('Buy online: missing date', {
+                redirectUrl,
+                arrivalId,
+                departureId,
+                button,
+            });
+            return;
+        }
+
+        const url = new URL(redirectUrl, window.location.origin);
+        url.searchParams.set('from', departureId);
+        url.searchParams.set('to', arrivalId);
+        url.searchParams.set('date', date);
+        url.searchParams.set('adults', '1');
+        url.searchParams.set('kids', '0');
+
+        window.location.href = url.toString();
     });
 
 // Сохранение даты
-    saveBtn.addEventListener('click', () => {
+    if (saveBtn && calendarModal) {
+        saveBtn.addEventListener('click', () => {
         if (buyOnline) {
             if (selectedDate) {
                 const calendarElement = document.querySelector('.flatpickr-calendar');
@@ -234,12 +302,17 @@ jQuery(document).ready(function (){
         }
 
 
-    });
+        });
+    }
 
 // Отмена
-    cancelBtn.addEventListener('click', () => {
-        const calendarElement = document.querySelector('.flatpickr-calendar');
-        clearHighlightDays(calendarElement);
-        calendarModal.style.display = 'none';
-    });
+    if (cancelBtn && calendarModal) {
+        cancelBtn.addEventListener('click', () => {
+            const calendarElement = document.querySelector('.flatpickr-calendar');
+            if (calendarElement) {
+                clearHighlightDays(calendarElement);
+            }
+            calendarModal.style.display = 'none';
+        });
+    }
 });
