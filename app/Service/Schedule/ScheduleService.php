@@ -371,13 +371,17 @@ class ScheduleService
                             return [
                                 'label' => $r['departure_city'] . ' → ' . $r['arrival_city'],
                                 'price' => $price,
-                                'url'   => route('tickets.index', [
-                                    'from'      => $r['departure'],
-                                    'to'        => $r['arrival'],
-                                    'date'      => $date,
-                                    'adults'    => 1,
-                                    'kids'      => 0,
-                                ]),
+                                'url'   => \App\Helpers\TicketUrlHelper::make(
+                                    $r['departure'],
+                                    $r['arrival'],
+                                    [
+                                        'from' => $r['departure'],
+                                        'to' => $r['arrival'],
+                                        'date' => $date,
+                                        'adults' => 1,
+                                        'kids' => 0,
+                                    ]
+                                ),
                             ];
                         })->values(),
                     ];

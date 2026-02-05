@@ -109,8 +109,13 @@ class DatabaseTranslationLoader implements Loader
             foreach ($rows as $row) {
                 $code = (string) $row->code;
 
+ $isNestedKey = str_contains($code, '.');
                 // first-wins: если уже есть перевод — не перетираем мусором
-                if (array_key_exists($code, $out)) {
+                if ($isNestedKey) {
+                    if (data_get($out, $code) !== null) {
+                        continue;
+                    }
+                } elseif (array_key_exists($code, $out)) {
                     continue;
                 }
 
@@ -120,7 +125,13 @@ class DatabaseTranslationLoader implements Loader
                     $value = $row->title_fallback;
                 }
 
-                $out[$code] = (is_string($value) && $value !== '') ? $value : $code;
+                $resolved = (is_string($value) && $value !== '') ? $value : $code;
+
+                if ($isNestedKey) {
+                    data_set($out, $code, $resolved);
+                } else {
+                    $out[$code] = $resolved;
+                }
             }
 
             return $out;

@@ -249,7 +249,7 @@ class SeoService
             ?? data_get($viewData, 'pageData.title')
             ?? data_get($viewData, 'page_data.title');
 
-        $title = $title !== null ? trim((string) $title) : '';
+        $title = $this->normalizeManualValue($title);
 
         return $title !== '' ? $title : null;
     }
@@ -261,9 +261,26 @@ class SeoService
             ?? data_get($viewData, 'page_data.description')
             ?? data_get($viewData, 'pageData.description');
 
-        $description = $description !== null ? trim((string) $description) : '';
+        $description = $this->normalizeManualValue($description);
 
         return $description !== '' ? $description : null;
+    }
+
+        private function normalizeManualValue(mixed $value): string
+    {
+        if (is_array($value)) {
+            $value = Arr::first($value, static fn ($item) => is_string($item) && trim($item) !== '');
+        }
+
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_object($value) && !method_exists($value, '__toString')) {
+            return '';
+        }
+
+        return trim((string) $value);
     }
 
     private function getCityBySlug(string $slug, string $locale): ?City

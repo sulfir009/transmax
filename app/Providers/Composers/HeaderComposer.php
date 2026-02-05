@@ -24,7 +24,7 @@ readonly class HeaderComposer
         $siteLangs = $this->languagesRepository->getSiteLangs();
         $pageData = [
             'page_id' => Route::is('main') ? 1 : 0,
-            'page_title' => Route::currentRouteName()
+            'page_title' => __('dictionary.' . Route::currentRouteName())
         ];
 
         $class = 'header';

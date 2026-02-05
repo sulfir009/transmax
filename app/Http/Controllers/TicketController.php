@@ -59,7 +59,7 @@ class TicketController extends Controller
     {
         $this->startSession();
 
-        $lang = $this->normalizeLang($this->router->lang ?? 'ru');
+        $lang = $this->normalizeLang($this->resolveCurrentLang());
         $this->ticketRepository->setLanguage($lang);
         $this->cityRepository->setLanguage($lang);
 
@@ -430,6 +430,16 @@ class TicketController extends Controller
             'ua' => 'uk',
             default => $lang,
         };
+    }
+
+    private function resolveCurrentLang(): string
+    {
+        $appLocale = app()->getLocale();
+        if (!empty($appLocale)) {
+            return $appLocale;
+        }
+
+        return $this->router->lang ?? 'ru';
     }
 
     private function sanitizeSeoHtml(?string $html): string

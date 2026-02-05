@@ -31,7 +31,7 @@ readonly class HeadComposer
         $siteLangs = $this->languagesRepository->getSiteLangs();
         $pageData = [
             'page_id' => Route::is('main') ? 1 : 0,
-            'page_title' => __(Route::currentRouteName())
+            'page_title' => __('dictionary.' . Route::currentRouteName())
         ];
         $lang = Session::get('lang', 'ru');
         $logo = $this->ImageRepository->getLogo();

@@ -6,6 +6,7 @@ use App\Helpers\LocaleHelper;
 use App\Repository\FilterRepository;
 use App\Service\Site;
 use Illuminate\View\View;
+use App\Helpers\TicketUrlHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
 
@@ -47,7 +48,14 @@ class FilterComposer
 
         // Формируем action URL для формы
         global $Router;
-        $formAction = $Router ? $Router->writelink(76) : LocaleHelper::localizedRoute('tickets.index');
+                $formAction = $Router
+            ? $Router->writelink(76)
+            : TicketUrlHelper::make(
+                $filterData['departure'] ?: null,
+                $filterData['arrival'] ?: null,
+                [],
+                $this->lang
+            );
 
         // Передаем данные во view
         $view->with([

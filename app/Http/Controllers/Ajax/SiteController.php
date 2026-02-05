@@ -12,6 +12,7 @@ class SiteController extends Controller
     {
         $lang = $request->post('lang');
         Site::setLang($lang);
+        app()->setLocale($lang);
 
         /*dd(Site::lang());*/
 

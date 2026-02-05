@@ -30,5 +30,9 @@ class Site
         session()->put('site.last_lang', $lang);
         session()->put('lang', $lang);
         $_SESSION['lang'] = $lang;
+        
+        if (function_exists('app')) {
+            app()->setLocale($lang);
+        }
     }
 }
