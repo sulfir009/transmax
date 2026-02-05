@@ -178,6 +178,10 @@ class PaymentPageController extends Controller
 
             $_SESSION['last_order_id'] = $orderId;
 
+            if ($paymethod === 'cash') {
+                $this->dispatchCashTicketsOnce((int) $orderId, $correlationId);
+            }
+
             $response = response()->json(['data' => 'ok']);
             if ($this->isDebugRequest($request)) {
                 $response = $this->withDebugMeta($response, [
@@ -482,6 +486,53 @@ class PaymentPageController extends Controller
         }
 
         return $response;
+    }
+
+    /**
+     * Отправляем билеты для оплаты наличными один раз, чтобы не слать дубликаты.
+     */
+    private function dispatchCashTicketsOnce(int $orderId, string $correlationId): void
+    {
+        $lockKey = 'tickets:sent:' . $orderId;
+        $ttlSeconds = 86400;
+
+        if (!Cache::add($lockKey, 1, $ttlSeconds)) {
+            Log::info('[tickets] cash dispatch skipped (lock exists)', [
+                'correlation_id' => $correlationId,
+                'order_id' => $orderId,
+            ]);
+            return;
+        }
+
+        try {
+            /** @var TicketService $ticketService */
+            $ticketService = app(TicketService::class);
+
+            Log::info('[tickets] cash dispatch start', [
+                'correlation_id' => $correlationId,
+                'order_id' => $orderId,
+            ]);
+
+            $ticketService->sendCashOrderTickets($orderId, [
+                'payment_method' => 'cash',
+                'payment_provider' => 'cash',
+                'order_id' => $orderId,
+                'payment_hint' => 'cash_booking',
+            ], $correlationId);
+
+            Log::info('[tickets] cash dispatch done', [
+                'correlation_id' => $correlationId,
+                'order_id' => $orderId,
+            ]);
+        } catch (Throwable $e) {
+            Cache::forget($lockKey);
+
+            Log::error('[tickets] cash dispatch failed', [
+                'correlation_id' => $correlationId,
+                'order_id' => $orderId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
