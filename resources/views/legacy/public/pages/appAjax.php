@@ -387,7 +387,7 @@ if($cleanPost['request'] === 'getCities') {
     $get_cities = $Db->getall("SELECT id,title_".$lang." AS title FROM `" .  DB_PREFIX . "_cities`WHERE active = 1 AND section_id > 0 AND station = 0 ORDER BY sort DESC,title_".$lang." ASC");
 
     if ($get_cities) {
-        echo  json_encode($get_cities);
+        echo  json_encode($get_cities, JSON_UNESCAPED_UNICODE);
     } else {
         echo  json_encode(['error' => 'Wrong query']);
     }

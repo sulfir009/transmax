@@ -387,7 +387,7 @@ if($cleanPost['request'] === 'getCities') {
             $city['id'] = (int)$city['id']; // Приводим id к числу
             $get_cities[] = $city;
         }
-        echo json_encode($get_cities);
+        echo json_encode($get_cities, JSON_UNESCAPED_UNICODE);
     } else {
         echo json_encode(['error' => 'Wrong query']);
     }
