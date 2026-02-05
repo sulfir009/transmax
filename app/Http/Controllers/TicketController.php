@@ -11,6 +11,7 @@ use App\Service\Tour\TicketService;
 use App\Service\Schedule\ScheduleService;
 use App\Models\Tour;
 use Illuminate\Http\Request;
+use App\Helpers\TicketUrlHelper;
 use Illuminate\Http\JsonResponse;
 use App\Helpers\LocaleHelper;
 use Illuminate\Support\Facades\Log;
@@ -69,15 +70,29 @@ class TicketController extends Controller
             ]);
         }
 
-        /**
-         * ✅ ГЛАВНОЕ ИСПРАВЛЕНИЕ:
-         * "Чистый заход" — это когда в URL НЕТ параметров departure и arrival ВООБЩЕ.
-         * Тогда мы НЕ ИМЕЕМ ПРАВА тянуть их из сессии, иначе плейсхолдер никогда не покажется.
-         */
         $hasFromInUrl      = $request->query->has('from');
         $hasToInUrl        = $request->query->has('to');
         $hasDepartureInUrl = $request->query->has('departure');
         $hasArrivalInUrl   = $request->query->has('arrival');
+        
+                $routeSlug = $request->route('slug');
+        $rawFrom = $request->query('from', $request->query('departure'));
+        $rawTo = $request->query('to', $request->query('arrival'));
+
+        if ($request->isMethod('get') && ($hasFromInUrl || $hasDepartureInUrl) && ($hasToInUrl || $hasArrivalInUrl)) {
+            $departureId = $this->resolveCityId($rawFrom, $lang);
+            $arrivalId = $this->resolveCityId($rawTo, $lang);
+
+            if ($departureId > 0 && $arrivalId > 0) {
+                $expectedSlug = TicketUrlHelper::slug($departureId, $arrivalId, $lang);
+                if ($expectedSlug && $routeSlug !== $expectedSlug) {
+                    $redirectUrl = TicketUrlHelper::make($departureId, $arrivalId, $request->query(), $lang);
+
+                    return redirect()->to($redirectUrl, 301);
+                }
+            }
+        }
+
 
         $isCleanLanding = $request->isMethod('get')
             && !$hasFromInUrl
@@ -181,13 +196,18 @@ class TicketController extends Controller
                 'kids'      => (int)$request->input('kids', 0),
             ];
 
-            return redirect()->to(LocaleHelper::localizedRoute('tickets.index', [
-                'from' => $_SESSION['filter']['departure'],
-                'to' => $_SESSION['filter']['arrival'],
-                'date' => $_SESSION['filter']['date'],
-                'adults' => $_SESSION['filter']['adults'],
-                'kids' => $_SESSION['filter']['kids'],
-            ], true, $lang));
+            return redirect()->to(TicketUrlHelper::make(
+                $_SESSION['filter']['departure'],
+                $_SESSION['filter']['arrival'],
+                [
+                    'from' => $_SESSION['filter']['departure'],
+                    'to' => $_SESSION['filter']['arrival'],
+                    'date' => $_SESSION['filter']['date'],
+                    'adults' => $_SESSION['filter']['adults'],
+                    'kids' => $_SESSION['filter']['kids'],
+                ],
+                $lang
+            ));
         }
 
         /**
