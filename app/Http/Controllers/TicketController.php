@@ -375,7 +375,7 @@ class TicketController extends Controller
             return null;
         }
 
-        $seoText = $this->selectSeoTextWithFallback($tour, $lang);
+        $seoText = $this->getTourSeoText($tour, $lang);
         if ($seoText === null) {
             return null;
         }
@@ -385,14 +385,10 @@ class TicketController extends Controller
         return $seoText !== '' ? $seoText : null;
     }
 
-    private function selectSeoTextWithFallback(Tour $tour, string $lang): ?string
+    private function getTourSeoText(Tour $tour, string $lang): ?string
     {
-        $locales = array_values(array_unique([
-            $lang,
-            'uk',
-            'ru',
-            'en',
-        ]));
+        $fallbacks = ['ru', 'uk', 'en'];
+        $locales = array_values(array_unique(array_merge([$lang], $fallbacks)));
 
         foreach ($locales as $locale) {
             $field = 'seo_text_' . $locale;
