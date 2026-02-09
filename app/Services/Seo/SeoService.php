@@ -4,7 +4,7 @@ namespace App\Services\Seo;
 
 use App\Helpers\LocaleHelper;
 use App\Models\City;
-use App\Models\SeoTemplate;
+use Illuminate\Support\Facades\DB;
 use App\Repository\Schedule\ScheduleRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -12,6 +12,27 @@ use Illuminate\Support\Facades\Route;
 
 class SeoService
 {
+    private const ROUTE_TEMPLATE_CODES = [
+        'ru' => ['title' => 'SEO_ROUTE_TITLE_RU', 'description' => 'SEO_ROUTE_DESC_RU'],
+        'uk' => ['title' => 'SEO_ROUTE_TITLE_UK', 'description' => 'SEO_ROUTE_DESC_UK'],
+        'en' => ['title' => 'SEO_ROUTE_TITLE_EN', 'description' => 'SEO_ROUTE_DESC_EN'],
+    ];
+
+    private const ROUTE_TEMPLATE_DEFAULTS = [
+        'ru' => [
+            'title' => 'Автобус [Название маршрута] - Купить билеты онлайн | MaxTrans',
+            'description' => 'Билеты на автобус [Название маршрута] от [price] онлайн! ⏩ Актуальное расписание рейсов [Название маршрута] ⭐️ Комфортные автобусы ⚡ 18 лет опыта в перевозках',
+        ],
+        'uk' => [
+            'title' => 'Автобус [Назва маршруту] - Купити квитки онлайн | MaxTrans',
+            'description' => 'Квитки на автобус [Назва маршруту] від [price] онлайн! ⏩ Актуальний розклад рейсів [Назва маршруту] ⭐️ Комфортні автобуси ⚡ 18 років досвіду в перевезеннях',
+        ],
+        'en' => [
+            'title' => 'Bus [Route Name] - Buy Tickets Online | MaxTrans',
+            'description' => 'Bus tickets for [Route Name] from [price] online! ⏩ Current timetable for [Route Name] ⭐️ Comfortable buses ⚡ 18 years of transportation experience',
+        ],
+    ];
+
     public function __construct(
         private readonly ScheduleRepository $scheduleRepository,
     ) {
@@ -44,6 +65,7 @@ class SeoService
 
     public function getTitle(PageContext $context): string
     {
+        // Важное правило SEO: если meta заполнены вручную, не перезаписываем генерацией.
         $manualTitle = $this->getManualTitle($context->viewData);
         if ($manualTitle !== null) {
             return $manualTitle;
@@ -58,6 +80,7 @@ class SeoService
 
     public function getDescription(PageContext $context): string
     {
+        // Важное правило SEO: если meta заполнены вручную, не перезаписываем генерацией.
         $manualDescription = $this->getManualDescription($context->viewData);
         if ($manualDescription !== null) {
             return $manualDescription;
@@ -188,15 +211,20 @@ class SeoService
 
     private function renderRouteTemplate(string $key, PageContext $context): string
     {
-        $template = SeoTemplate::query()
-            ->where('key', $key)
-            ->where('lang', $context->locale)
-            ->value('template_text');
+        $templateType = $key === 'route_page_description' ? 'description' : 'title';
+        $template = $this->getRouteTemplate($context->locale, $templateType);
 
         $routeTitle = $context->getRouteTitle() ?? '';
         $price = $this->getRoutePrice($context);
 
-        $rendered = str_replace('[route]', $routeTitle, (string) $template);
+        $routePlaceholders = [
+            '[Название маршрута]' => $routeTitle,
+            '[Назва маршруту]' => $routeTitle,
+            '[Route Name]' => $routeTitle,
+            '[route]' => $routeTitle, // backward compatibility with old template values
+        ];
+
+        $rendered = str_replace(array_keys($routePlaceholders), array_values($routePlaceholders), (string) $template);
 
         if ($price === '') {
             $rendered = $this->removePricePlaceholder($rendered, $context->locale);
@@ -224,6 +252,35 @@ class SeoService
         return str_replace('[price]', '', $text);
     }
 
+    private function getRouteTemplate(string $locale, string $type): string
+    {
+        $locale = in_array($locale, ['ru', 'uk', 'en'], true) ? $locale : 'ru';
+        $type = $type === 'description' ? 'description' : 'title';
+
+        $settingsCode = self::ROUTE_TEMPLATE_CODES[$locale][$type] ?? null;
+        $defaultTemplate = self::ROUTE_TEMPLATE_DEFAULTS[$locale][$type] ?? '';
+
+        if (!$settingsCode) {
+            return $defaultTemplate;
+        }
+
+        $prefix = env('DB_PREFIX', 'mt');
+        $table = $prefix . '_settings';
+
+        if (!DB::getSchemaBuilder()->hasTable($table)) {
+            return $defaultTemplate;
+        }
+
+        $value = DB::table($table)
+            ->where('code', $settingsCode)
+            ->value('value');
+
+        $manual = $this->normalizeManualValue($value);
+
+        // If template value is empty in admin settings, we use defaults.
+        return $manual !== '' ? $manual : $defaultTemplate;
+    }
+
     private function getRoutePrice(PageContext $context): string
     {
         if (!$context->hasRouteCities()) {
@@ -239,7 +296,7 @@ class SeoService
             return '';
         }
 
-        return number_format($price, 0, '.', ' ');
+        return number_format($price, 0, '.', ' ') . ' грн';
     }
 
     private function getManualTitle(array $viewData): ?string
@@ -266,7 +323,7 @@ class SeoService
         return $description !== '' ? $description : null;
     }
 
-        private function normalizeManualValue(mixed $value): string
+    private function normalizeManualValue(mixed $value): string
     {
         if (is_array($value)) {
             $value = Arr::first($value, static fn ($item) => is_string($item) && trim($item) !== '');
