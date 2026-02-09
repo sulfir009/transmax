@@ -39,9 +39,9 @@
         
         <div class="page_content_wrapper">
             <div class="container">
-                <div class="ticket_page_title h2_title">
+                <h1 class="ticket_page_title h2_title">
                     @lang('dictionary.MSG_MSG_TICKETS_VVEDITE_DANNYE_PASSAZHIROV')
-                </div>
+                </h1>
                 
                 <div class="passenger_data_form">
                     {{-- Здесь будет форма для ввода данных пассажиров --}}

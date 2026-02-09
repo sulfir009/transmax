@@ -25,9 +25,9 @@
         
         <div class="page_content_wrapper">
             <div class="container">
-                <div class="ticket_page_title h2_title">
+                <h1 class="ticket_page_title h2_title">
                     @lang('dictionary.MSG_MSG_TICKETS_OPLATA')
-                </div>
+                </h1>
                 
                 <div class="payment_form">
                     {{-- Здесь будет форма оплаты --}}

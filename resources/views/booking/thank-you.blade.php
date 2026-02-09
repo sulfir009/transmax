@@ -21,9 +21,9 @@
     <div class="thx_content_wrapper">
         <div class="thx_block">
             <div class="container">
-                <div class="thx_block_title h2_title">
+                <h1 class="thx_block_title h2_title">
                     {{ __('dictionary.MSG_MSG_THX_PAGE_DYAKUYU_ZA_BRONYUVANNYA_BILETU') }}
-                </div>
+                </h1>
                 <div class="thx_block_subtitle par">
                     {{ __('dictionary.MSG_MSG_THX_PAGE_DANI_VASHOGO_BILETU') }}
                 </div>

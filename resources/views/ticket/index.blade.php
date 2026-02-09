@@ -246,12 +246,12 @@
                     @lang('dictionary.MSG_MSG_TICKETS_VIZD_TA_PRIBUTTYA_ZA_MISCEVIM_CHASOM')
                 </div>
 
-                <div class="ticket_page_title h2_title">
+                <h1 class="ticket_page_title h2_title">
                     @lang('dictionary.MSG_MSG_TICKETS_ROZKLAD_AVTOBUSIV')
                     @if ($pageTitle)
                         {{ $pageTitle }}
                     @endif
-                </div>
+                </h1>
 
                 <div class="sort_block hidden-xl hidden-lg hidden-md hidden-sm hidden-xs">
                     <div class="sort_block_tile h3_title">@lang('dictionary.MSG_MSG_TICKETS_SORTUVATI')</div>

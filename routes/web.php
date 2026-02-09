@@ -9,6 +9,17 @@ use App\Http\Middleware\VerifyCsrfToken;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\Admin\BonusController;
 
+
+Route::get('/ru', function () {
+    $query = request()->getQueryString();
+    return redirect('/' . ($query ? ('?' . $query) : ''), 301);
+});
+
+Route::get('/ru/', function () {
+    $query = request()->getQueryString();
+    return redirect('/' . ($query ? ('?' . $query) : ''), 301);
+});
+
 if (!function_exists('schedulePathForLocale')) {
     function schedulePathForLocale(?string $locale): string
     {

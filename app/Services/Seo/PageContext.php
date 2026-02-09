@@ -28,6 +28,7 @@ class PageContext
             return null;
         }
 
-        return $this->departureCity->getTitle($this->locale) . ' — ' . $this->arrivalCity->getTitle($this->locale);
+        // SEO/Н1 требуют дефис с пробелами: "CityFrom - CityTo".
+        return trim($this->departureCity->getTitle($this->locale)) . ' - ' . trim($this->arrivalCity->getTitle($this->locale));
     }
 }

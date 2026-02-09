@@ -128,13 +128,23 @@
 
 @section('content')
 @php
+    use Illuminate\Support\Carbon;
+
     $routeHeading = null;
+    $routeName = null;
+
     if (!empty($filters['departure']) && !empty($filters['arrival']) && $routes->count() > 0) {
         $collection = $routes->getCollection();
         $firstItem = $collection->first();
         $firstRoute = is_array($firstItem) ? reset($firstItem) : $firstItem;
+
         if ($firstRoute) {
-            $routeHeading = mb_strtoupper($firstRoute->departure_city . ' — ' . $firstRoute->arrival_city, 'UTF-8');
+            $fromCity = trim((string) ($firstRoute->departure_city ?? ''));
+            $toCity = trim((string) ($firstRoute->arrival_city ?? ''));
+            if ($fromCity !== '' && $toCity !== '') {
+                $routeName = $fromCity . ' - ' . $toCity;
+                $routeHeading = mb_strtoupper($routeName, 'UTF-8');
+            }
         }
     }
 
@@ -150,6 +160,21 @@
         'popular' => 'ПОПУЛЯРНІСТЬ',
     ];
 
+    $routeH1 = __('alias_schedule');
+    if ($routeName !== null) {
+        $tripDate = request()->get('date', now()->toDateString());
+        try {
+            $dateLabel = Carbon::parse($tripDate)->locale(app()->getLocale())->translatedFormat('d F');
+        } catch (\Throwable $e) {
+            $dateLabel = Carbon::now()->locale(app()->getLocale())->translatedFormat('d F');
+        }
+
+        $routeH1 = match (app()->getLocale()) {
+            'ru' => "Расписание автобусов {$routeName} на {$dateLabel}",
+            'en' => "Bus timetable {$routeName} for {$dateLabel}",
+            default => "Розклад автобусів {$routeName} на {$dateLabel}",
+        };
+    }
 @endphp
 
 <div class="content mt_schedule_scope">
@@ -174,7 +199,7 @@
             </nav>
 
             <div class="mt_schedule_kicker">Квитки на автобус</div>
-            <h1 class="mt_schedule_route">{{ $routeHeading ?? __('alias_schedule') }}</h1>
+            <h1 class="mt_schedule_route">{{ $routeH1 }}</h1>
             <div class="mt_schedule_intro">Виберіть дату, щоб купити квиток на автобус.</div>
 
             <h2 class="mt_schedule_title">{{ $scheduleTitle }}</h2>
