@@ -33,6 +33,36 @@ $logContext = static function (string $message, ?array $payload = null) use ($ra
     ], JSON_UNESCAPED_UNICODE));
 };
 
+/**
+ * Legacy API language normalizer.
+ *
+ * Почему так:
+ * - В legacy SQL динамически подставляется имя колонки (title_$lang / text_$lang / ...).
+ * - Если lang пустой/левый, получится несуществующая колонка (например `title_`) и падение SQL.
+ * - Поэтому используем только whitelist и принудительный fallback.
+ */
+$normalizeLang = static function ($rawLang, string $requestName = '') {
+    $allowed = ['ru', 'uk', 'en'];
+    $lang = strtolower(trim((string) $rawLang));
+
+    if ($lang === 'ua') {
+        $lang = 'uk';
+    }
+
+    if (!in_array($lang, $allowed, true)) {
+        $fallback = 'ru';
+        error_log('[appAjax] invalid lang fallback: ' . json_encode([
+            'request' => $requestName,
+            'raw_lang' => $rawLang,
+            'normalized_lang' => $lang,
+            'fallback_lang' => $fallback,
+        ], JSON_UNESCAPED_UNICODE));
+        return $fallback;
+    }
+
+    return $lang;
+};
+
 if (is_array($decodedJson)) {
     $cleanPost = $decodedJson;
 } else {
@@ -63,6 +93,10 @@ if (!isset($cleanPost['request']) || $cleanPost['request'] === '') {
     echo json_encode(['error' => 'Missing request field'], JSON_UNESCAPED_UNICODE);
     return;
 }
+
+// Глобально нормализуем lang для ВСЕХ веток ниже.
+// Это закрывает SQL-ошибки вида Unknown column `title_` и исключает SQL-инъекцию через имя поля.
+$cleanPost['lang'] = $normalizeLang($cleanPost['lang'] ?? null, (string) $cleanPost['request']);
 
 /* авторизация  */
 if ($cleanPost['request'] === 'appAuth') {
@@ -688,6 +722,12 @@ if ($cleanPost['request'] === 'order_route'){
         $fieldValue[] = '"' . $tourDate . '"';
         $fieldName[] = 'passagers';
         $fieldValue[] = '"' . (int)$cleanPost['order']['passengers'] . '"';
+        // Для совместимости с legacy/admin списками online/cash:
+        // payment_status=1 (ожидание оплаты), ticket_return=0 (не возвращен).
+        $fieldName[] = 'payment_status';
+        $fieldValue[] = '1';
+        $fieldName[] = 'ticket_return';
+        $fieldValue[] = '0';
         $fieldName[] = 'uniqId';
         $fieldValue[] = '"' . $uniqId . '"';
         $order = $Db->query("INSERT INTO `" . DB_PREFIX . "_orders` (" . implode(',', $fieldName) . ") VALUES (" . implode(',', $fieldValue) . ") ");

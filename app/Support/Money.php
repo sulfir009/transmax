@@ -33,10 +33,16 @@ final class Money
     }
 
     /**
-     * Эвристика для цен из БД:
+     * Преобразует цену из БД в копейки.
+     *
+     * В текущей схеме integer-значения цены в БД хранятся в гривнах
+     * (например, `3000` => 3000 грн), поэтому для целых чисел всегда
+     * применяем перевод в копейки (*100).
+     *
+     * Примеры:
      * - "12.34" => 1234 коп
-     * - "95"    => 9500 коп (если сумма похожа на гривны)
-     * - "9500"  => 9500 коп (если похоже на копейки)
+     * - "95"    => 9500 коп
+     * - "3000"  => 300000 коп
      */
     public static function priceToKopeksFromDb(string|int|float $price): int
     {
@@ -56,13 +62,7 @@ final class Money
             return self::uahToKopeks($s);
         }
 
-        $value = (int) $s;
-
-        if ($value >= 1000) {
-            return $value;
-        }
-
-        return $value * 100;
+        return ((int) $s) * 100;
     }
 
     public static function kopeksToUahString(int $kopeks, bool $trimZeros = false): string

@@ -209,6 +209,9 @@ class PaymentFinalizer
                     'mono_status'     => 'success',
                     'mono_invoice_id' => $invoiceId,
                     'paid_at'         => $paidAt,
+                    // Критично для legacy admin "online": там фильтр ticket_return = 0.
+                    // Если было NULL, заказ не попадал в список после оплаты.
+                    'ticket_return'   => 0,
                 ];
 
                 $updated = DB::table('mt_orders')
@@ -228,13 +231,15 @@ class PaymentFinalizer
                     return $result;
                 }
 
-                Log::info('[PaymentFinalizer] monobank finalize success', [
+                Log::channel('payment')->info('[PaymentFinalizer] monobank finalize success', [
                     'correlation_id' => $correlationId,
                     'order_db_id'    => $orderDbId,
+                    'legacy_order_id'=> $legacyOrderId,
                     'invoice_id'     => $invoiceId,
                     'mono_status'    => $monoStatus,
                     'paid_at'        => $paidAt,
                     'updated_rows'   => $updated,
+                    'updated_fields' => $updateData,
                 ]);
 
                 $result['finalized']      = true;
