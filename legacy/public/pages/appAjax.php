@@ -10,46 +10,58 @@ mysqli_set_charset($db , "utf8" );
 $Db = new CDb($db, $db);
 $User = new User($Db);
 
-$rawBody = (string) file_get_contents('php://input');
-$cleanPost = json_decode($rawBody, true);
+header('Content-Type: application/json; charset=utf-8');
+
+$rawBody = isset($GLOBALS['LEGACY_RAW_INPUT']) ? (string) $GLOBALS['LEGACY_RAW_INPUT'] : (string) file_get_contents('php://input');
+$rawBody = preg_replace('/^\xEF\xBB\xBF/', '', $rawBody);
+$decodedJson = json_decode($rawBody, true);
+$jsonErrorCode = json_last_error();
 $jsonError = json_last_error_msg();
+$fallbackPost = is_array($_POST) ? $_POST : [];
+$fallbackRequest = is_array($_REQUEST) ? $_REQUEST : [];
 $usedFallback = false;
 
-if ($cleanPost === null) {
+$logContext = static function (string $message, ?array $payload = null) use ($rawBody, $jsonError) {
+    error_log('[appAjax] ' . $message . ': ' . json_encode([
+        'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+        'uri' => $_SERVER['REQUEST_URI'] ?? '',
+        'content_type' => $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? ''),
+        'raw_body' => mb_substr($rawBody, 0, 200),
+        'json_error' => $jsonError,
+        'request' => $payload['request'] ?? null,
+        'lang' => $payload['lang'] ?? null,
+    ], JSON_UNESCAPED_UNICODE));
+};
+
+if (is_array($decodedJson)) {
+    $cleanPost = $decodedJson;
+} else {
     $usedFallback = true;
-    $cleanPost = is_array($_POST) ? $_POST : [];
+    $cleanPost = $fallbackPost !== [] ? $fallbackPost : $fallbackRequest;
+
+    if ((!is_array($cleanPost) || $cleanPost === []) && trim($rawBody) !== '') {
+        $parsedBody = [];
+        parse_str($rawBody, $parsedBody);
+        if (is_array($parsedBody) && $parsedBody !== []) {
+            $cleanPost = $parsedBody;
+        }
+    }
+
+    if (!is_array($cleanPost) || $cleanPost === []) {
+        $logContext('invalid payload', null);
+        echo json_encode(['error' => 'Invalid JSON or empty request body'], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
+    if ($jsonErrorCode !== JSON_ERROR_NONE || trim($rawBody) !== '') {
+        $logContext('json_decode failed, using fallback', $cleanPost);
+    }
 }
 
-if (!is_array($cleanPost) || $cleanPost === []) {
-    error_log('[appAjax] invalid json: ' . json_encode([
-        'method' => $_SERVER['REQUEST_METHOD'] ?? '',
-        'uri' => $_SERVER['REQUEST_URI'] ?? '',
-        'content_type' => $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? ''),
-        'raw_body' => mb_substr($rawBody, 0, 4096),
-        'json_error' => $jsonError,
-        'request' => $cleanPost['request'] ?? null,
-        'lang' => $cleanPost['lang'] ?? null,
-    ], JSON_UNESCAPED_UNICODE));
-    echo json_encode(['error' => 'Invalid JSON']);
-    exit;
-}
-
-if ($usedFallback) {
-    error_log('[appAjax] json_decode failed, using fallback: ' . json_encode([
-        'method' => $_SERVER['REQUEST_METHOD'] ?? '',
-        'uri' => $_SERVER['REQUEST_URI'] ?? '',
-        'content_type' => $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? ''),
-        'raw_body' => mb_substr($rawBody, 0, 4096),
-        'json_error' => $jsonError,
-        'request' => $cleanPost['request'] ?? null,
-        'lang' => $cleanPost['lang'] ?? null,
-    ], JSON_UNESCAPED_UNICODE));
-}
-
-
-if (!isset($cleanPost['request']) || empty($cleanPost['request'])) {
-    echo json_encode($_POST);
-    exit;
+if (!isset($cleanPost['request']) || $cleanPost['request'] === '') {
+    $logContext('missing request action', $cleanPost);
+    echo json_encode(['error' => 'Missing request field'], JSON_UNESCAPED_UNICODE);
+    return;
 }
 
 /* авторизация  */

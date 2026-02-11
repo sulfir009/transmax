@@ -240,24 +240,39 @@ Route::match(['GET', 'POST', 'PUT', 'DELETE'], '/admin/{folder1}/{folder2}/{fold
     'folder3' => '[a-zA-Z0-9_-]+',
     'file'    => '.*\.php$'
 ]);
-Route::any('/api', function(Request $request) {
+$legacyApiHandler = static function (Request $request) {
     $path = base_path('legacy/public/pages/appAjax.php');
 
-    if (file_exists($path) && pathinfo($path, PATHINFO_EXTENSION) === 'php') {
-        ob_start();
-
-        // Принудительно передаем данные
-        $_POST = $request->all();
-        $_REQUEST = $_POST; // Чтобы работали и $_REQUEST тоже
-
-        include $path;
-
-        $output = ob_get_clean();
-        return response($output)->header('Content-Type', 'application/json');
+    if (!file_exists($path) || pathinfo($path, PATHINFO_EXTENSION) !== 'php') {
+        return response()->json(['error' => 'File not found'], 404);
     }
 
-    return response()->json(['error' => 'File not found'], 404);
-});
+    $jsonPayload = $request->json()->all();
+    if (!is_array($jsonPayload)) {
+        $jsonPayload = [];
+    }
+
+    $_POST = array_merge(
+        $request->request->all(),
+        $jsonPayload
+    );
+
+    $_GET = $request->query->all();
+    $_REQUEST = array_merge($_GET, $_POST);
+
+    $GLOBALS['LEGACY_RAW_INPUT'] = (string) $request->getContent();
+
+    ob_start();
+    include $path;
+    $output = ob_get_clean();
+
+    unset($GLOBALS['LEGACY_RAW_INPUT']);
+
+    return response($output)->header('Content-Type', 'application/json; charset=utf-8');
+};
+
+Route::any('/api', $legacyApiHandler);
+Route::any('/api/', $legacyApiHandler);
 
 // Google OAuth authentication route
 Route::get('/social/google.php', function(Request $request) {
