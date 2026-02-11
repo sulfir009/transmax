@@ -56,13 +56,7 @@ final class Money
             return self::uahToKopeks($s);
         }
 
-        $value = (int) $s;
-
-        if ($value >= 1000) {
-            return $value;
-        }
-
-        return $value * 100;
+        return ((int) $s) * 100;
     }
 
     public static function kopeksToUahString(int $kopeks, bool $trimZeros = false): string

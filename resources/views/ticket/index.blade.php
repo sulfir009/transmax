@@ -205,7 +205,7 @@
             'adults' => $adults ?? 1,
             'kids' => $kids ?? 0,
             'dictionary' => $dictionary ?? [],
-            'lang' => $lang ?? 'uk',
+            'lang' => $lang ?? app()->getLocale(),
             'formAction' => \App\Helpers\LocaleHelper::localizedRoute('tickets.index'),
         ])
 
@@ -246,11 +246,56 @@
                     @lang('dictionary.MSG_MSG_TICKETS_VIZD_TA_PRIBUTTYA_ZA_MISCEVIM_CHASOM')
                 </div>
 
+@php
+    use Illuminate\Support\Carbon;
+
+    $fixedPageTitle = $pageTitle ?? '';
+
+    // Берём дату из фильтра/запроса
+    $tripDate = $filterDate ?? request('date');
+
+    if (!empty($fixedPageTitle) && !empty($tripDate)) {
+        try {
+            $dt = Carbon::parse($tripDate);
+
+            // Важно: d F даёт правильный падеж месяца (например "19 лютого", "19 February")
+            $df = $dt->locale(app()->getLocale())->translatedFormat('d F');
+            $parts = preg_split('/\s+/u', trim($df), 2);
+            $day = $parts[0] ?? '';
+            $month = $parts[1] ?? '';
+
+            if ($day !== '' && $month !== '') {
+                // Правим EN-формат: "... ON 19 ЛЮТОГО" -> "... ON 19 February"
+               // EN: заменяем ВСЁ после "ON <число>" до конца строки на "ON {day} {month}"
+$fixedPageTitle = preg_replace(
+    '/(\bON\s+)\d{1,2}\b.*$/u',
+    '${1}' . $day . ' ' . $month,
+    $fixedPageTitle,
+    1
+);
+
+// RU/UK: заменяем ВСЁ после "на <число>" до конца строки на "на {day} {month}"
+$fixedPageTitle = preg_replace(
+    '/(\bна\s+)\d{1,2}\b.*$/u',
+    '${1}' . $day . ' ' . $month,
+    $fixedPageTitle,
+    1
+);
+
+            }
+        } catch (\Throwable $e) {
+            // если дата кривая — оставляем как было
+        }
+    }
+@endphp
+<!-- DEBUG_MARK_TICKET_INDEX_20260210 -->
+
                 <h1 class="ticket_page_title h2_title">
                     @lang('dictionary.MSG_MSG_TICKETS_ROZKLAD_AVTOBUSIV')
-                    @if ($pageTitle)
-                        {{ $pageTitle }}
-                    @endif
+@if (!empty($fixedPageTitle))
+    {{ $fixedPageTitle }}
+@endif
+
                 </h1>
 
                 <div class="sort_block hidden-xl hidden-lg hidden-md hidden-sm hidden-xs">

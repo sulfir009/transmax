@@ -3,6 +3,7 @@
 namespace App\Services\Seo;
 
 use App\Helpers\LocaleHelper;
+use App\Helpers\TicketUrlHelper;
 use App\Models\City;
 use Illuminate\Support\Facades\DB;
 use App\Repository\Schedule\ScheduleRepository;
@@ -41,15 +42,27 @@ class SeoService
     public function buildContext(Request $request, array $viewData = []): PageContext
     {
         $routeName = Route::currentRouteName() ?? '';
-        $locale = app()->getLocale();
+        $locale = $this->resolveLocale($request, $routeName);
+
         $routeParams = $request->route()?->parameters() ?? [];
         $baseRouteName = $this->stripLocalePrefix($routeName);
 
         $departureCity = null;
         $arrivalCity = null;
+
+        // 1) /rozklad/{from}-{to}
         if ($baseRouteName === 'schedule.route' && isset($routeParams['from'], $routeParams['to'])) {
-            $departureCity = $this->getCityBySlug($routeParams['from'], $locale);
-            $arrivalCity = $this->getCityBySlug($routeParams['to'], $locale);
+            $departureCity = $this->getCityBySlug((string)$routeParams['from'], $locale);
+            $arrivalCity = $this->getCityBySlug((string)$routeParams['to'], $locale);
+        }
+
+        // 2) /bilety?... (и /{lang}/bilety?...), берём из query: from/to (или departure/arrival)
+        if ($baseRouteName === 'tickets.index') {
+            $from = $request->query('from', $request->query('departure'));
+            $to = $request->query('to', $request->query('arrival'));
+
+            $departureCity = $this->resolveCityFromMixed($from, $locale) ?: $departureCity;
+            $arrivalCity = $this->resolveCityFromMixed($to, $locale) ?: $arrivalCity;
         }
 
         return new PageContext(
@@ -67,11 +80,14 @@ class SeoService
     {
         // Важное правило SEO: если meta заполнены вручную, не перезаписываем генерацией.
         $manualTitle = $this->getManualTitle($context->viewData);
-        if ($manualTitle !== null) {
+
+        // Иногда в viewData прилетает строка-имя роута (например "schedule.route").
+        // Это НЕ ручной SEO-title. Если это реально существующий роут — игнорируем.
+        if ($manualTitle !== null && !Route::has($manualTitle)) {
             return $manualTitle;
         }
 
-        if ($context->baseRouteName === 'schedule.route') {
+        if (in_array($context->baseRouteName, ['schedule.route', 'tickets.index'], true) && $context->hasRouteCities()) {
             return $this->renderRouteTemplate('route_page_title', $context);
         }
 
@@ -82,11 +98,13 @@ class SeoService
     {
         // Важное правило SEO: если meta заполнены вручную, не перезаписываем генерацией.
         $manualDescription = $this->getManualDescription($context->viewData);
-        if ($manualDescription !== null) {
+
+        // Аналогично: если вместо описания прилетело имя роута — это не manual SEO.
+        if ($manualDescription !== null && !Route::has($manualDescription)) {
             return $manualDescription;
         }
 
-        if ($context->baseRouteName === 'schedule.route') {
+        if (in_array($context->baseRouteName, ['schedule.route', 'tickets.index'], true) && $context->hasRouteCities()) {
             return $this->renderRouteTemplate('route_page_description', $context);
         }
 
@@ -97,6 +115,19 @@ class SeoService
     {
         if ($context->baseRouteName === 'schedule.route' && $context->hasRouteCities()) {
             return $this->buildScheduleRouteUrl($context->locale, $context->departureCity, $context->arrivalCity);
+        }
+
+        if ($context->baseRouteName === 'tickets.index' && $context->hasRouteCities()) {
+            $q = request()->query();
+            $q['from'] = $context->departureCity->id;
+            $q['to'] = $context->arrivalCity->id;
+
+            return TicketUrlHelper::make(
+                $context->departureCity->id,
+                $context->arrivalCity->id,
+                $q,
+                $context->locale
+            );
         }
 
         if ($context->routeName && Route::has($context->routeName)) {
@@ -114,6 +145,20 @@ class SeoService
         foreach (LocaleHelper::getSupportedLocales() as $locale) {
             if ($context->baseRouteName === 'schedule.route' && $context->hasRouteCities()) {
                 $urls[$locale] = $this->buildScheduleRouteUrl($locale, $context->departureCity, $context->arrivalCity);
+                continue;
+            }
+
+            if ($context->baseRouteName === 'tickets.index' && $context->hasRouteCities()) {
+                $q = request()->query();
+                $q['from'] = $context->departureCity->id;
+                $q['to'] = $context->arrivalCity->id;
+
+                $urls[$locale] = TicketUrlHelper::make(
+                    $context->departureCity->id,
+                    $context->arrivalCity->id,
+                    $q,
+                    $locale
+                );
                 continue;
             }
 
@@ -185,7 +230,30 @@ class SeoService
             ?? data_get($context->viewData, 'page_data.description')
             ?? data_get($context->viewData, 'pageData.description');
 
-        return $description ? trim($description) : '';
+        $description = $this->normalizeManualValue($description);
+
+        if ($description !== '') {
+            return $description;
+        }
+
+        // Фолбэк, чтобы description не был пустым на ключевых страницах
+        if ($context->baseRouteName === 'schedule') {
+            return match ($context->locale) {
+                'en' => 'Bus schedule and ticket search. Choose a route, date and passengers and buy tickets online with MaxTrans.',
+                'uk' => 'Розклад автобусів та пошук квитків. Оберіть напрямок, дату та пасажирів і купуйте квитки онлайн з MaxTrans.',
+                default => 'Расписание автобусов и поиск билетов. Выберите маршрут, дату и пассажиров и купите билеты онлайн с MaxTrans.',
+            };
+        }
+
+        if (in_array($context->baseRouteName, ['tickets.index', 'tickets.data', 'tickets.payment', 'booking.thank-you'], true)) {
+            return match ($context->locale) {
+                'en' => 'Buy bus tickets online with MaxTrans. актуальные рейсы, удобная оплата и поддержка.',
+                'uk' => 'Купуйте автобусні квитки онлайн з MaxTrans: актуальні рейси, зручна оплата та підтримка.',
+                default => 'Купите автобусные билеты онлайн с MaxTrans: актуальные рейсы, удобная оплата и поддержка.',
+            };
+        }
+
+        return '';
     }
 
     private function getRouteLabel(PageContext $context): string
@@ -206,7 +274,7 @@ class SeoService
             'mobile.app' => data_get($context->viewData, 'pageData.page_title', ''),
         ];
 
-        return (string) ($labels[$context->baseRouteName] ?? data_get($context->viewData, 'pageData.page_title', ''));
+        return (string)($labels[$context->baseRouteName] ?? data_get($context->viewData, 'pageData.page_title', ''));
     }
 
     private function renderRouteTemplate(string $key, PageContext $context): string
@@ -214,7 +282,7 @@ class SeoService
         $templateType = $key === 'route_page_description' ? 'description' : 'title';
         $template = $this->getRouteTemplate($context->locale, $templateType);
 
-        $routeTitle = $context->getRouteTitle() ?? '';
+        $routeTitle = $this->getSafeRouteTitle($context);
         $price = $this->getRoutePrice($context);
 
         $routePlaceholders = [
@@ -224,7 +292,7 @@ class SeoService
             '[route]' => $routeTitle, // backward compatibility with old template values
         ];
 
-        $rendered = str_replace(array_keys($routePlaceholders), array_values($routePlaceholders), (string) $template);
+        $rendered = str_replace(array_keys($routePlaceholders), array_values($routePlaceholders), (string)$template);
 
         if ($price === '') {
             $rendered = $this->removePricePlaceholder($rendered, $context->locale);
@@ -296,7 +364,12 @@ class SeoService
             return '';
         }
 
-        return number_format($price, 0, '.', ' ') . ' грн';
+        $formatted = number_format((float)$price, 0, '.', ' ');
+
+        return match ($context->locale) {
+            'en' => $formatted . ' UAH',
+            default => $formatted . ' ₴',
+        };
     }
 
     private function getManualTitle(array $viewData): ?string
@@ -326,7 +399,7 @@ class SeoService
     private function normalizeManualValue(mixed $value): string
     {
         if (is_array($value)) {
-            $value = Arr::first($value, static fn ($item) => is_string($item) && trim($item) !== '');
+            $value = Arr::first($value, static fn($item) => is_string($item) && trim($item) !== '');
         }
 
         if ($value === null) {
@@ -337,16 +410,25 @@ class SeoService
             return '';
         }
 
-        return trim((string) $value);
+        return trim((string)$value);
     }
 
     private function getCityBySlug(string $slug, string $locale): ?City
     {
-        $column = 'slug_' . $locale;
+        $slug = trim($slug);
+        if ($slug === '') {
+            return null;
+        }
 
-        return City::query()
-            ->where($column, $slug)
-            ->first();
+        foreach (array_values(array_unique([$locale, 'ru', 'uk', 'en'])) as $loc) {
+            $column = 'slug_' . $loc;
+            $city = City::query()->where($column, $slug)->first();
+            if ($city) {
+                return $city;
+            }
+        }
+
+        return null;
     }
 
     private function buildScheduleRouteUrl(string $locale, City $departureCity, City $arrivalCity): string
@@ -428,7 +510,7 @@ class SeoService
                 'item' => LocaleHelper::localizedRoute('schedule', [], true, $context->locale),
             ];
 
-            $routeTitle = $context->getRouteTitle() ?? '';
+            $routeTitle = $this->getSafeRouteTitle($context);
             if ($routeTitle !== '') {
                 $breadcrumbs[] = [
                     '@type' => 'ListItem',
@@ -465,5 +547,99 @@ class SeoService
         }
 
         return $routeName;
+    }
+
+    private function resolveLocale(Request $request, string $routeName): string
+    {
+        $supported = LocaleHelper::getSupportedLocales();
+
+        // 1) если имя роута содержит префикс "en.", "uk." ...
+        foreach ($supported as $loc) {
+            if ($routeName !== '' && str_starts_with($routeName, $loc . '.')) {
+                return $loc;
+            }
+        }
+
+        // 2) если урл начинается с /en или /uk
+        $path = '/' . ltrim($request->path(), '/');
+        foreach ($supported as $loc) {
+            if ($loc === 'ru') {
+                continue; // ru обычно без префикса
+            }
+            if ($path === '/' . $loc || str_starts_with($path, '/' . $loc . '/')) {
+                return $loc;
+            }
+        }
+
+        // 3) дефолт
+        $appLocale = app()->getLocale();
+        return in_array($appLocale, $supported, true) ? $appLocale : 'ru';
+    }
+
+    private function resolveCityFromMixed(mixed $value, string $locale): ?City
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        // ID
+        if (is_numeric($value)) {
+            $id = (int)$value;
+            return $id > 0 ? City::query()->whereKey($id)->first() : null;
+        }
+
+        // slug
+        $slug = trim((string)$value);
+        if ($slug === '') {
+            return null;
+        }
+
+        foreach (array_values(array_unique([$locale, 'ru', 'uk', 'en'])) as $loc) {
+            $col = 'slug_' . $loc;
+            $city = City::query()->where($col, $slug)->first();
+            if ($city) {
+                return $city;
+            }
+        }
+
+        return null;
+    }
+
+    private function getSafeRouteTitle(PageContext $context): string
+    {
+        $title = trim((string)($context->getRouteTitle() ?? ''));
+        if ($title !== '') {
+            return $title;
+        }
+
+        if (!$context->hasRouteCities()) {
+            return '';
+        }
+
+        $dep = $this->getCityTitleLocalized($context->departureCity, $context->locale);
+        $arr = $this->getCityTitleLocalized($context->arrivalCity, $context->locale);
+
+        $t = trim($dep . ' — ' . $arr);
+        return trim(preg_replace('/\s{2,}/', ' ', $t));
+    }
+
+    private function getCityTitleLocalized(City $city, string $locale): string
+    {
+        foreach (array_values(array_unique([$locale, 'ru', 'uk', 'en'])) as $loc) {
+            $field = 'title_' . $loc;
+            $val = trim((string)data_get($city, $field, ''));
+            if ($val !== '') {
+                return $val;
+            }
+        }
+
+        foreach (['title', 'name'] as $field) {
+            $val = trim((string)data_get($city, $field, ''));
+            if ($val !== '') {
+                return $val;
+            }
+        }
+
+        return '';
     }
 }

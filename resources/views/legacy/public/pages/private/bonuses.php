@@ -35,11 +35,6 @@
                         </a>
                     </div>
                     <div class="private_link_wrapper">
-                        <a href="<?php echo $Router->writelink(82)?>" class="private_tab h4_title">
-                            <?php echo $Router->writetitle(82)?>
-                        </a>
-                    </div>
-                    <div class="private_link_wrapper">
                         <a href="<?php echo $Router->writelink(81)?>" class="private_tab h4_title active">
                             <?php echo $Router->writetitle(81)?>
                         </a>

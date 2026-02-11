@@ -12,7 +12,7 @@ if (file_exists(__DIR__ . '/config.php')) {
 }
 
 $searchQuery = trim((string)($_GET['q'] ?? ''));
-$clientId = (int)($_GET['client_id'] ?? 0);
+$clientId    = (int)($_GET['client_id'] ?? 0);
 
 $error = '';
 $success = '';
@@ -32,6 +32,128 @@ function sqlErr(mysqli $db): string {
 }
 
 /**
+ * Нормализация телефона -> только цифры (для ввода из формы)
+ */
+function normalizePhoneToDigits(string $value): string {
+    $out = preg_replace('/\D+/', '', $value);
+    return $out !== null ? $out : '';
+}
+
+/**
+ * SQL-выражение "телефон только цифры" на стороне MySQL.
+ * Важно: IFNULL чтобы не получить NULL при phone=NULL.
+ * Добавили чистку скрытых символов (на будущее): \r \n \t NBSP (CHAR(160)).
+ * Даже если у тебя их сейчас нет — это не ломает и повышает надёжность.
+ */
+function phoneSqlDigitsExpr(string $column = 'phone'): string {
+    $col = "IFNULL($column,'')";
+    return "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(".$col.",
+        CHAR(13), ''), CHAR(10), ''), CHAR(9), ''), CHAR(160), ''), ' ', ''), '+', ''), '-', ''), '(', ''), ')', ''), '.', ''), '/', '')";
+}
+
+/**
+ * Строим варианты для поиска:
+ * - как ввели (digits)
+ * - last10 (часто это локальный номер без страны)
+ * - UA конверсия 380XXXXXXXXX <-> 0XXXXXXXXX
+ * - last9 (иногда хранят без ведущего 0)
+ */
+function buildPhoneVariants(string $qDigits): array {
+    $vars = [];
+    if ($qDigits === '') return $vars;
+
+    $vars[] = $qDigits;
+
+    $len = strlen($qDigits);
+
+    if ($len >= 10) {
+        $vars[] = substr($qDigits, -10);
+    }
+
+    if ($len === 12 && substr($qDigits, 0, 3) === '380') {
+        $vars[] = '0' . substr($qDigits, 3); // 380671234567 -> 0671234567
+    }
+
+    if ($len === 10 && $qDigits[0] === '0') {
+        $vars[] = '380' . substr($qDigits, 1); // 0671234567 -> 380671234567
+    }
+
+    if ($len >= 9) {
+        $vars[] = substr($qDigits, -9);
+    }
+
+    // чистим дубли/пустые (без стрелочных функций — совместимее)
+    $vars = array_filter($vars, function ($v) { return $v !== ''; });
+    $vars = array_values(array_unique($vars));
+
+    return $vars;
+}
+
+/**
+ * Динамический bind_param для переменного количества плейсхолдеров.
+ */
+function bindDynamicParams(mysqli_stmt $stmt, string $types, array $values): bool {
+    if ($types === '' || empty($values)) {
+        return true;
+    }
+
+    $params = [$types];
+    foreach ($values as $k => $v) {
+        $params[] = &$values[$k]; // важно: по ссылке
+    }
+
+    return call_user_func_array([$stmt, 'bind_param'], $params);
+}
+
+/**
+ * Фетч SELECT-результатов максимально совместимо:
+ * - если есть mysqlnd -> mysqli_stmt_get_result
+ * - если нет -> bind_result + fetch через metadata
+ */
+function stmtFetchAllAssoc(mysqli_stmt $stmt): array {
+    $out = [];
+
+    $res = mysqli_stmt_get_result($stmt);
+    if ($res) {
+        while ($row = mysqli_fetch_assoc($res)) {
+            $out[] = $row;
+        }
+        return $out;
+    }
+
+    $meta = mysqli_stmt_result_metadata($stmt);
+    if (!$meta) return $out;
+
+    $fields = [];
+    $row = [];
+    $bind = [];
+
+    while ($f = mysqli_fetch_field($meta)) {
+        $fields[] = $f->name;
+        $row[$f->name] = null;
+        $bind[] = &$row[$f->name];
+    }
+    mysqli_free_result($meta);
+
+    call_user_func_array([$stmt, 'bind_result'], $bind);
+
+    while (mysqli_stmt_fetch($stmt)) {
+        $copy = [];
+        foreach ($fields as $name) {
+            $copy[$name] = $row[$name];
+        }
+        $out[] = $copy;
+    }
+
+    return $out;
+}
+
+function stmtFetchOneAssoc(mysqli_stmt $stmt): ?array {
+    $rows = stmtFetchAllAssoc($stmt);
+    return !empty($rows) ? $rows[0] : null;
+}
+
+/**
  * 1) ДОСТАЁМ НУЖНЫЕ ПРАВА ИЗ $_params
  * access — право на просмотр страницы (опционально)
  * access_edit — право на начисление
@@ -41,11 +163,8 @@ $accessEdit = $_params['access_edit'] ?? null;
 
 /**
  * 2) Проверяем право на просмотр (как в остальных CRUD)
- * Если у вас в проекте accessView не используется — блок можно убрать,
- * но обычно он нужен.
  */
 if ($accessView && !$Admin->CheckPermission($accessView)) {
-    // Тут можно сделать красивую страницу, но достаточно сообщения.
     die('Нет прав на просмотр страницы (access). Требуется permission id: ' . (int)$accessView);
 }
 
@@ -53,7 +172,7 @@ if ($accessView && !$Admin->CheckPermission($accessView)) {
  * --- GET flash ---
  */
 if (!empty($_GET['success'])) $success = (string)$_GET['success'];
-if (!empty($_GET['error'])) $error = (string)$_GET['error'];
+if (!empty($_GET['error']))   $error   = (string)$_GET['error'];
 
 /**
  * --- Поиск клиентов ---
@@ -61,25 +180,47 @@ if (!empty($_GET['error'])) $error = (string)$_GET['error'];
 if ($searchQuery !== '') {
     $like = '%' . $searchQuery . '%';
 
+    $phoneDigits   = normalizePhoneToDigits($searchQuery);
+    $phoneVariants = buildPhoneVariants($phoneDigits);
+
+    $whereParts = ["email LIKE ?", "phone LIKE ?"];
+    $types  = 'ss';
+    $values = [$like, $like];
+
+    if (!empty($phoneVariants)) {
+        $phoneExpr = phoneSqlDigitsExpr('phone');
+
+        // LIKE по вариантам
+        foreach ($phoneVariants as $pv) {
+            $whereParts[] = $phoneExpr . " LIKE ?";
+            $types .= 's';
+            $values[] = '%' . $pv . '%';
+        }
+
+        // Точное совпадение last10 (самый частый/точный кейс)
+        $last10 = (strlen($phoneDigits) >= 10) ? substr($phoneDigits, -10) : '';
+        if ($last10 !== '') {
+            $whereParts[] = "RIGHT(" . $phoneExpr . ", 10) = ?";
+            $types .= 's';
+            $values[] = $last10;
+        }
+    }
+
     $sql = "SELECT id, name, second_name, email, phone, bonus_balance_cents
             FROM `" . DB_PREFIX . "_clients`
-            WHERE email LIKE ? OR phone LIKE ?
+            WHERE " . implode(' OR ', $whereParts) . "
             LIMIT 10";
 
     $stmt = mysqli_prepare($db, $sql);
     if (!$stmt) {
         $error = 'Prepare failed (search): ' . sqlErr($db);
     } else {
-        mysqli_stmt_bind_param($stmt, 'ss', $like, $like);
-        if (!mysqli_stmt_execute($stmt)) {
+        if (!bindDynamicParams($stmt, $types, $values)) {
+            $error = 'Bind failed (search): ' . sqlErr($db);
+        } elseif (!mysqli_stmt_execute($stmt)) {
             $error = 'Execute failed (search): ' . sqlErr($db);
         } else {
-            $res = mysqli_stmt_get_result($stmt);
-            if ($res) {
-                while ($row = mysqli_fetch_assoc($res)) {
-                    $foundClients[] = $row;
-                }
-            }
+            $foundClients = stmtFetchAllAssoc($stmt);
         }
         mysqli_stmt_close($stmt);
     }
@@ -101,8 +242,7 @@ if ($clientId > 0 && !$error) {
         if (!mysqli_stmt_execute($stmt)) {
             $error = 'Execute failed (select client): ' . sqlErr($db);
         } else {
-            $res = mysqli_stmt_get_result($stmt);
-            $selectedClient = $res ? mysqli_fetch_assoc($res) : null;
+            $selectedClient = stmtFetchOneAssoc($stmt);
             if (!$selectedClient) {
                 $error = 'Клиент не найден.';
             }
@@ -130,9 +270,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $postClientId = (int)($_POST['client_id'] ?? 0);
     $amountRaw = trim((string)($_POST['amount'] ?? ''));
-    $comment = trim((string)($_POST['comment'] ?? ''));
+    $comment   = trim((string)($_POST['comment'] ?? ''));
 
-    $amountRaw = str_replace(',', '.', $amountRaw);
+    $amountRaw   = str_replace(',', '.', $amountRaw);
     $amountValue = is_numeric($amountRaw) ? (float)$amountRaw : 0.0;
     $amountCents = (int)round($amountValue * 100);
 
@@ -155,11 +295,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     mysqli_stmt_bind_param($stmt, 'i', $postClientId);
     mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
-    $exists = $res ? (bool)mysqli_fetch_assoc($res) : false;
+    $row = stmtFetchOneAssoc($stmt);
     mysqli_stmt_close($stmt);
 
-    if (!$exists) {
+    if (!$row) {
         $err = 'Клиент не найден (в legacy БД).';
         redirectTo('?q=' . urlencode($searchQuery) . '&client_id=' . $postClientId . '&error=' . urlencode($err));
     }

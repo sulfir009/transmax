@@ -187,7 +187,8 @@
         'kids' => request()->get('kids', 0),
         'dictionary' => $dictionary ?? [],
         'lang' => $lang ?? 'uk',
-        'formAction' => route('tickets.index'),
+        'formAction' => \App\Helpers\LocaleHelper::localizedRoute('tickets.index'),
+
     ])
 
     <div class="mt_schedule_body">

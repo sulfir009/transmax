@@ -437,3 +437,88 @@
     [id] => 341
 )
 
+[2026-02-05 17:15:20] Google OAuth: Script accessed with URL: /social/google.php?authuser=0&code=4%2F0ASc3gC0Xpiiy09r2eQqKggTJ2T0g1R5zdg3fAfcrRcG96LlK8hONxVyLe6KnXI5nduEPDQ&prompt=none&scope=email%20profile%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email&state=123
+[2026-02-05 17:15:20] Google OAuth: Processing authentication with code: 4/0ASc3gC0Xpiiy09r2e...
+[2026-02-05 17:15:20] Google OAuth: Successfully got user info for: alagorya21@gmail.com
+[2026-02-05 17:15:20] Google OAuth: Legacy path: /home/vv513819/maxtransltd.com/www/legacy/
+[2026-02-05 19:15:20] Google OAuth: Legacy config loaded successfully
+[2026-02-05 19:15:20] Google OAuth: User exists: Yes (ID: 341)
+[2026-02-05 19:15:20] Google OAuth: User updated successfully. Redirecting to: /majbutni-pozdki
+[2026-02-05 19:15:20] Google OAuth: Session data: Array
+(
+    [auth] => 
+    [crypt] => 15c4f2dbab49c207b8f130ff79fcf84184ab0c6e7837f9bf154370c28f03fc74667c6f043d93dd22a3152c24606fd300e09577dd3b8f1fc44bf29b9b4e96e9d6
+    [isAuth] => 1
+    [email] => alagorya21@gmail.com
+    [name] => rita
+    [id] => 341
+)
+
+[2026-02-05 18:21:17] Google OAuth: Script accessed with URL: /social/google.php?authuser=0&code=4%2F0ASc3gC0DaJ6xTGHdM11O04a3AaoUZkJJFrUmvu-c1dh_sS6JPGorb6uCwmGXxAw39ognBA&prompt=none&scope=email%20profile%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile%20openid&state=123
+[2026-02-05 18:21:17] Google OAuth: Processing authentication with code: 4/0ASc3gC0DaJ6xTGHdM...
+[2026-02-05 18:21:18] Google OAuth: Successfully got user info for: nastya7513@gmail.com
+[2026-02-05 18:21:18] Google OAuth: Legacy path: /home/vv513819/maxtransltd.com/www/legacy/
+[2026-02-05 20:21:18] Google OAuth: Legacy config loaded successfully
+[2026-02-05 20:21:18] Google OAuth: User exists: Yes (ID: 351)
+[2026-02-05 20:21:18] Google OAuth: User updated successfully. Redirecting to: /majbutni-pozdki
+[2026-02-05 20:21:18] Google OAuth: Session data: Array
+(
+    [auth] => 
+    [crypt] => 44a3a2fcd431c8b455becc0541ad9be7be424f34c1b45b76eba48ae3a44b9aae83b8ce7458633772ed0d5a64f37f68d0803ebbca94bbd76b656480d3dd1f9a1e
+    [isAuth] => 1
+    [email] => nastya7513@gmail.com
+    [name] => Анастасия
+    [id] => 351
+)
+
+[2026-02-05 18:23:10] Google OAuth: Script accessed with URL: /social/google.php?authuser=0&code=4%2F0ASc3gC1NLmo8xGWPIyTJDD1gjLclNTmBa5N7YbQQF6SkhlE7vdVzL4D4mRGgyRq36uKNzA&prompt=none&scope=email%20profile%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email&state=123
+[2026-02-05 18:23:10] Google OAuth: Processing authentication with code: 4/0ASc3gC1NLmo8xGWPI...
+[2026-02-05 18:23:11] Google OAuth: Successfully got user info for: nastya7513@gmail.com
+[2026-02-05 18:23:11] Google OAuth: Legacy path: /home/vv513819/maxtransltd.com/www/legacy/
+[2026-02-05 20:23:11] Google OAuth: Legacy config loaded successfully
+[2026-02-05 20:23:11] Google OAuth: User exists: Yes (ID: 351)
+[2026-02-05 20:23:11] Google OAuth: User updated successfully. Redirecting to: /majbutni-pozdki
+[2026-02-05 20:23:11] Google OAuth: Session data: Array
+(
+    [auth] => 
+    [crypt] => 42a194dba658d5282317641e10de33efdff10d532648b43ed6390e21174d0f60cf026e23ea9ec0b0bb7210c01e0329e83cdf6628cd9036c162d741587441bf73
+    [isAuth] => 1
+    [email] => nastya7513@gmail.com
+    [name] => Анастасия
+    [id] => 351
+)
+
+[2026-02-09 17:45:56] Google OAuth: Script accessed with URL: /social/google.php?authuser=0&code=4%2F0ASc3gC2Kqqq73_cMuijaTAFawr-LYMh0ArpPJRcw-DWIb2-BKOv0noM7caEPm4ebXt27mw&prompt=none&scope=email%20profile%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile%20openid&state=123
+[2026-02-09 17:45:56] Google OAuth: Processing authentication with code: 4/0ASc3gC2Kqqq73_cMu...
+[2026-02-09 17:45:56] Google OAuth: Successfully got user info for: sulfir0010@gmail.com
+[2026-02-09 17:45:56] Google OAuth: Legacy path: /home/vv513819/maxtransltd.com/www/legacy/
+[2026-02-09 19:45:56] Google OAuth: Legacy config loaded successfully
+[2026-02-09 19:45:56] Google OAuth: User exists: Yes (ID: 353)
+[2026-02-09 19:45:56] Google OAuth: User updated successfully. Redirecting to: /majbutni-pozdki
+[2026-02-09 19:45:56] Google OAuth: Session data: Array
+(
+    [auth] => 
+    [crypt] => 0c9730f27da49e13e9350b6abe568340f4eb3778601febe8e2dc03c2b095c67d3dfafc25ad20c1f319b3eea6134e8401825dff5a54267e3aecec8cdb83431a1b
+    [isAuth] => 1
+    [email] => sulfir0010@gmail.com
+    [name] => Andrii
+    [id] => 353
+)
+
+[2026-02-10 18:50:07] Google OAuth: Script accessed with URL: /social/google.php?authuser=0&code=4%2F0ASc3gC0RzF8DvKFutslqeUi37EbKoR2xCmZujsonPSBe6-r1BbjS6BNyZjDjSoYIs_DtxQ&prompt=consent&scope=email%20profile%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email%20openid&state=123
+[2026-02-10 18:50:07] Google OAuth: Processing authentication with code: 4/0ASc3gC0RzF8DvKFut...
+[2026-02-10 18:50:07] Google OAuth: Successfully got user info for: svetakeibash@gmail.com
+[2026-02-10 18:50:07] Google OAuth: Legacy path: /home/vv513819/maxtransltd.com/www/legacy/
+[2026-02-10 20:50:07] Google OAuth: Legacy config loaded successfully
+[2026-02-10 20:50:07] Google OAuth: User exists: No
+[2026-02-10 20:50:07] Google OAuth: New user created successfully. Redirecting to: /majbutni-pozdki
+[2026-02-10 20:50:07] Google OAuth: Session data: Array
+(
+    [auth] => 
+    [crypt] => eb624dc8950d80a34b6b9a4d27764678a4227c3cb33b7ff75ba457231a5d97dc2f7760990b0b00c5f51055c6422eb5827c2d9c6b39c645a24574e1ccc2077945
+    [isAuth] => 1
+    [email] => svetakeibash@gmail.com
+    [name] => Svitlana
+    [id] => 357
+)
+

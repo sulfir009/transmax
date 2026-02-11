@@ -62,6 +62,8 @@ class ScheduleController extends Controller
         // а из полного списка направлений.
         $popularRoutes = $this->scheduleService->getPopularRoutesForView(Site::lang());
 
+$lang = app()->getLocale();
+
         return view('schedule.index', compact(
             'routes',
             'filters',
@@ -104,6 +106,7 @@ class ScheduleController extends Controller
 
         // ✅ то же самое — популярные берём отдельно, не из $routes
         $popularRoutes = $this->scheduleService->getPopularRoutesForView(Site::lang());
+$lang = app()->getLocale();
 
         return view('schedule.index', [
             'routes'              => $routes,

@@ -16,13 +16,38 @@ return new class extends Migration
         }
 
         $templates = [
-            'SEO_ROUTE_TITLE_RU' => ['label' => 'SEO шаблон маршрутов: Title (RU)', 'value' => 'Автобус [Название маршрута] - Купить билеты онлайн | MaxTrans'],
-            'SEO_ROUTE_DESC_RU' => ['label' => 'SEO шаблон маршрутов: Description (RU)', 'value' => 'Билеты на автобус [Название маршрута] от [price] онлайн! ⏩ Актуальное расписание рейсов [Название маршрута] ⭐️ Комфортные автобусы ⚡ 18 лет опыта в перевозках'],
-            'SEO_ROUTE_TITLE_UK' => ['label' => 'SEO шаблон маршрутов: Title (UK)', 'value' => 'Автобус [Назва маршруту] - Купити квитки онлайн | MaxTrans'],
-            'SEO_ROUTE_DESC_UK' => ['label' => 'SEO шаблон маршрутов: Description (UK)', 'value' => 'Квитки на автобус [Назва маршруту] від [price] онлайн! ⏩ Актуальний розклад рейсів [Назва маршруту] ⭐️ Комфортні автобуси ⚡ 18 років досвіду в перевезеннях'],
-            'SEO_ROUTE_TITLE_EN' => ['label' => 'SEO route templates: Title (EN)', 'value' => 'Bus [Route Name] - Buy Tickets Online | MaxTrans'],
-            'SEO_ROUTE_DESC_EN' => ['label' => 'SEO route templates: Description (EN)', 'value' => 'Bus tickets for [Route Name] from [price] online! ⏩ Current timetable for [Route Name] ⭐️ Comfortable buses ⚡ 18 years of transportation experience'],
-        ];
+    'SEO_ROUTE_TITLE_RU' => [
+        'title_short' => 'SEO route title RU',
+        'label' => 'SEO шаблон маршрутов: Title (RU)',
+        'value' => 'Автобус [Название маршрута] - Купить билеты онлайн | MaxTrans',
+    ],
+    'SEO_ROUTE_DESC_RU' => [
+        'title_short' => 'SEO route desc RU',
+        'label' => 'SEO шаблон маршрутов: Description (RU)',
+        'value' => 'Билеты на автобус [Название маршрута] от [price] онлайн! ⏩ Актуальное расписание рейсов [Название маршрута] ⭐️ Комфортные автобусы ⚡ 18 лет опыта в перевозках',
+    ],
+    'SEO_ROUTE_TITLE_UK' => [
+        'title_short' => 'SEO route title UK',
+        'label' => 'SEO шаблон маршрутов: Title (UK)',
+        'value' => 'Автобус [Назва маршруту] - Купити квитки онлайн | MaxTrans',
+    ],
+    'SEO_ROUTE_DESC_UK' => [
+        'title_short' => 'SEO route desc UK',
+        'label' => 'SEO шаблон маршрутов: Description (UK)',
+        'value' => 'Квитки на автобус [Назва маршруту] від [price] онлайн! ⏩ Актуальний розклад рейсів [Назва маршруту] ⭐️ Комфортні автобуси ⚡ 18 років досвіду в перевезеннях',
+    ],
+    'SEO_ROUTE_TITLE_EN' => [
+        'title_short' => 'SEO route title EN',
+        'label' => 'SEO route templates: Title (EN)',
+        'value' => 'Bus [Route Name] - Buy Tickets Online | MaxTrans',
+    ],
+    'SEO_ROUTE_DESC_EN' => [
+        'title_short' => 'SEO route desc EN',
+        'label' => 'SEO route templates: Description (EN)',
+        'value' => 'Bus tickets for [Route Name] from [price] online! ⏩ Current timetable for [Route Name] ⭐️ Comfortable buses ⚡ 18 years of transportation experience',
+    ],
+];
+
 
         $columns = Schema::getColumnListing($table);
 
@@ -35,8 +60,8 @@ return new class extends Migration
 
             $payload = ['code' => $code];
             if (in_array('title', $columns, true)) {
-                $payload['title'] = $template['label'];
-            }
+    $payload['title'] = $template['title_short'] ?? $template['label'];
+}
             if (in_array('description', $columns, true)) {
                 $payload['description'] = 'SEO route template';
             }

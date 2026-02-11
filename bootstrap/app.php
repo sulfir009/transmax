@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'language' => \App\Http\Middleware\LanguageMiddleware::class,
             'cabinet.trace' => \App\Http\Middleware\CabinetTraceMiddleware::class,
+            'forceLocale' => \App\Http\Middleware\ForceLocale::class,
         ]);
         $middleware->prependToGroup('web', \App\Http\Middleware\UrlNormalizeMiddleware::class);
         $middleware->validateCsrfTokens(except: [
