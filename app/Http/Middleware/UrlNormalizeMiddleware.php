@@ -16,6 +16,12 @@ class UrlNormalizeMiddleware
         $query = $request->getQueryString();
         $scheme = $request->getScheme();
 
+        // API endpoints must not be redirected between hosts/schemes because
+        // mobile clients send JSON POST payloads and may lose method/body on redirects.
+        if ($path === '/api' || $path === '/api/' || str_starts_with($path, '/api/')) {
+            return $next($request);
+        }
+
         $targetHost = str_starts_with($host, 'www.') ? substr($host, 4) : $host;
         $targetScheme = 'https';
         $lowerPath = preg_match('/[A-Z]/', $path) ? strtolower($path) : $path;
@@ -33,7 +39,9 @@ class UrlNormalizeMiddleware
                 'to' => $targetUrl,
             ]);
 
-            return redirect()->to($targetUrl, 301);
+            $status = in_array($request->getMethod(), ['GET', 'HEAD'], true) ? 301 : 308;
+
+            return redirect()->to($targetUrl, $status);
         }
 
         return $next($request);
