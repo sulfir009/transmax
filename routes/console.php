@@ -79,6 +79,51 @@ Artisan::command('monobank:test-webhook {invoiceId?} {--status=success} {--order
 })->purpose('Simulate Monobank webhook handling (non-production only).');
 
 
+
+Artisan::command('payment:diagnose-online {uniqid}', function () {
+    $uniqid = (string) $this->argument('uniqid');
+    $ordersTable = env('DB_PREFIX', 'mt') . '_orders';
+
+    $order = DB::table($ordersTable)
+        ->where('uniqId', $uniqid)
+        ->orWhere('uniqid', $uniqid)
+        ->first();
+
+    if (!$order) {
+        $this->error('Order not found by uniqid/uniqId: ' . $uniqid);
+        return;
+    }
+
+    $paymentStatus = isset($order->payment_status) ? (int) $order->payment_status : null;
+    $ticketReturn = isset($order->ticket_return) ? (int) $order->ticket_return : null;
+
+    $reasons = [];
+    if ($paymentStatus !== 2) {
+        $reasons[] = 'payment_status != 2';
+    }
+    if ($ticketReturn !== 0) {
+        $reasons[] = 'ticket_return != 0';
+    }
+
+    $isVisible = empty($reasons);
+
+    $payload = [
+        'id' => (int) ($order->id ?? 0),
+        'uniqid' => (string) ($order->uniqId ?? $order->uniqid ?? ''),
+        'payment_status' => $paymentStatus,
+        'ticket_return' => $ticketReturn,
+        'mono_status' => $order->mono_status ?? null,
+        'mono_invoice_id' => $order->mono_invoice_id ?? null,
+        'paid_at' => $order->paid_at ?? null,
+        'online_filter_match' => $isVisible,
+        'mismatch_reasons' => $reasons,
+    ];
+
+    Log::channel('payment')->info('[online-diagnose] order visibility check', $payload);
+
+    $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+})->purpose('Diagnose why an order is not visible in legacy admin online list (payment_status=2 and ticket_return=0).');
+
 Artisan::command('bonuses:grant-initial {--dry-run} {--chunk=1000}', function () {
     $chunk = (int) $this->option('chunk') ?: 1000;
     $dryRun = (bool) $this->option('dry-run');
