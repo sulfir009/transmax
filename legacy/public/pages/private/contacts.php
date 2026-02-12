@@ -205,7 +205,7 @@ foreach ($privateMenuLinks as $pageId => $link) {
                                     </div>
                                 </div>
                                 <div class="col-sm-5">
-                                    <button class="contact_act_btn blue_btn h4_title" onclick="updatePhone()">
+                                    <button type="button" class="contact_act_btn blue_btn h4_title" onclick="updatePhone(event)">
                                         <?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_ZMINITI_TELEFON']?>
                                     </button>
                                 </div>
@@ -234,29 +234,6 @@ foreach ($privateMenuLinks as $pageId => $link) {
                                                    <?if (trim($clientInfo['second_name']) != ''){?>
                                                        value="<?=$clientInfo['second_name']?>"
                                                    <?}?> id="client_second_name">
-                                        </div>
-                                    </div>
-                                    <div class="col-lg-6">
-                                        <div class="row">
-                                            <input type="text" class="c_input" placeholder="<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_OTCHESTVO']?>"
-                                                <?if (trim($clientInfo['patronymic']) != ''){?>
-                                                   value="<?=$clientInfo['patronymic']?>"
-                                                   <?}?>
-                                                    id="client_patronymic">
-                                        </div>
-                                    </div>
-                                    <div class="col-lg-6">
-                                        <div class="row">
-                                            <div class="client_birth_date_wrapper">
-                                                <input type="text" class="c_input birthdate_input"
-                                                    <?if ($clientInfo['birth_date'] != '0000-00-00'){?>
-                                                        value="<?=$clientInfo['birth_date']?>"
-                                                    <?}?>
-                                                       id="client_birth_date">
-                                                <button class="private_calendar_btn" onclick="toggleBirthDateCalendar()">
-                                                    <img src="<?= asset('images/legacy/common/private_calendar.svg'); ?>" alt="calendar">
-                                                </button>
-                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -317,9 +294,19 @@ foreach ($privateMenuLinks as $pageId => $link) {
         $('.customer_phone_input').attr('placeholder',$(selectedOption).data('placeholder'));
     };
 
-    function updatePhone(){
+    function updatePhone(event){
+        if (event) {
+            event.preventDefault();
+        }
+
         let phone_code = $('#phone_code').val();
         let phone = $.trim($('#phone').val());
+
+        if (phone === '') {
+            out('<?=$GLOBALS['dictionary']['MSG_MSG_REGISTER_VVEDITE_NOMER_TELEFONA']?>');
+            return;
+        }
+
         initLoader();
         $.ajax({
            type:'post',
@@ -334,11 +321,20 @@ foreach ($privateMenuLinks as $pageId => $link) {
             },
             success:function(response){
                 removeLoader();
-                if ($.trim(response) == 'err'){
+
+                const result = typeof response === 'string'
+                    ? $.trim(response)
+                    : $.trim(response?.data || response?.result || '');
+
+                if (result === 'err'){
                     out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
                 }else{
                     out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
                 }
+            },
+            error:function(){
+                removeLoader();
+                out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })
     };
@@ -346,8 +342,6 @@ foreach ($privateMenuLinks as $pageId => $link) {
     function updateClientInfo(){
         let name = $.trim($('#client_name').val());
         let second_name = $.trim($('#client_second_name').val());
-        let patronymic = $.trim($('#client_patronymic').val());
-        let birth_date = $.trim($('#client_birth_date').val());
         updatePhone();
         initLoader();
         $.ajax({
@@ -359,9 +353,7 @@ foreach ($privateMenuLinks as $pageId => $link) {
             data:{
                 'request':'update_client_info',
                 'name':name,
-                'second_name':second_name,
-                'patronymic':patronymic,
-                'birth_date':birth_date
+                'second_name':second_name
             },
             success:function(response){
                 removeLoader();
@@ -373,17 +365,6 @@ foreach ($privateMenuLinks as $pageId => $link) {
             }
         })
     };
-
-    const clientBirthDatePicker = flatpickr("#client_birth_date", {
-        dateFormat: "Y-m-d",
-        locale:'<?=$Router->lang?>',
-        static:true,
-        "maxDate": threeYearsAgo
-    });
-
-    function toggleBirthDateCalendar(){
-        clientBirthDatePicker.open()
-    }
 </script>
 </body>
 </html>
