@@ -1454,13 +1454,31 @@ if ($request === 'order_route') {
 if ($cleanPost['request'] === 'update_client_phone'){
     $phoneCode = (int)($cleanPost['phone_code'] ?? 0);
     $phone = trim((string)($cleanPost['phone'] ?? ''));
+    $normalizedPhone = preg_replace('/[^0-9+]/', '', $phone);
 
-    if ($phoneCode <= 0 || $phone === '') {
+    \Illuminate\Support\Facades\Log::info('[CABINET_CONTACTS] update_client_phone request', [
+        'client_id' => $User->id ?? null,
+        'phone_code' => $phoneCode,
+        'phone' => $normalizedPhone,
+    ]);
+
+    if ($phoneCode <= 0 || $normalizedPhone === '' || mb_strlen($normalizedPhone) < 7) {
+        \Illuminate\Support\Facades\Log::warning('[CABINET_CONTACTS] update_client_phone validation failed', [
+            'client_id' => $User->id ?? null,
+            'phone_code' => $phoneCode,
+            'phone' => $normalizedPhone,
+        ]);
         echo 'err';
         exit;
     }
 
-    $upd = $Db->query("UPDATE `".DB_PREFIX."_clients` SET `phone_code` = '".$phoneCode."',`phone` = '".$phone."' WHERE id = '".$User->id."' ");
+    $upd = $Db->query("UPDATE `".DB_PREFIX."_clients` SET `phone_code` = '".$phoneCode."',`phone` = '".$normalizedPhone."' WHERE id = '".$User->id."' ");
+
+    \Illuminate\Support\Facades\Log::info('[CABINET_CONTACTS] update_client_phone result', [
+        'client_id' => $User->id ?? null,
+        'success' => (bool)$upd,
+    ]);
+
     if ($upd){
         echo 'ok';
     }else{
@@ -1471,14 +1489,32 @@ if ($cleanPost['request'] === 'update_client_phone'){
 if ($cleanPost['request'] === 'update_client_info'){
     $name = trim((string)($cleanPost['name'] ?? ''));
     $secondName = trim((string)($cleanPost['second_name'] ?? ''));
-    $patronymic = trim((string)($cleanPost['patronymic'] ?? ''));
-    $birthDate = trim((string)($cleanPost['birth_date'] ?? ''));
+
+    \Illuminate\Support\Facades\Log::info('[CABINET_CONTACTS] update_client_info request', [
+        'client_id' => $User->id ?? null,
+        'name' => $name,
+        'second_name' => $secondName,
+    ]);
+
+    if ($name === '' || $secondName === '') {
+        \Illuminate\Support\Facades\Log::warning('[CABINET_CONTACTS] update_client_info validation failed', [
+            'client_id' => $User->id ?? null,
+            'name' => $name,
+            'second_name' => $secondName,
+        ]);
+        echo 'err';
+        exit;
+    }
 
     $upd = $Db->query("UPDATE `".DB_PREFIX."_clients` SET name = '".$name."',
-    second_name = '".$secondName."',
-    patronymic = '".$patronymic."',
-    birth_date = '".$birthDate."'
+    second_name = '".$secondName."'
     WHERE id = '".$User->id."' ");
+
+    \Illuminate\Support\Facades\Log::info('[CABINET_CONTACTS] update_client_info result', [
+        'client_id' => $User->id ?? null,
+        'success' => (bool)$upd,
+    ]);
+
     if ($upd){
         echo 'ok';
     }else{
