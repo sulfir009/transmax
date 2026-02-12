@@ -699,6 +699,15 @@ span.flatpickr-weekday {
                 try { filterInput._flatpickr.destroy(); } catch (e) {}
             }
 
+            const allowedDays = Array.isArray(highlightedDaysArray)
+                ? highlightedDaysArray.map(Number).filter((day) => day >= 1 && day <= 7)
+                : [];
+            const isAllowed = function(date) {
+                let dayOfWeek = date.getDay();
+                if (dayOfWeek === 0) dayOfWeek = 7;
+                return allowedDays.includes(dayOfWeek);
+            };
+
             filterDatePickerLocal = flatpickr(filterInput, {
                 minDate: "today",
                 dateFormat: "Y-m-d",
@@ -717,6 +726,13 @@ span.flatpickr-weekday {
                 disableMobile: true,
                 position: "below left",
 
+                disable: [
+                    function(date) {
+                        if (!allowedDays.length) return false;
+                        return !isAllowed(date);
+                    }
+                ],
+
                 onReady: function(selectedDates, dateStr, instance){
                     mxFpMarkCalendar(instance);
                     mxFpEnsureHooks(instance);
@@ -730,7 +746,7 @@ span.flatpickr-weekday {
                 onDayCreate: function(dObj, dStr, fp, dayElem) {
                     let dayOfWeek = dayElem.dateObj.getDay();
                     if (dayOfWeek === 0) dayOfWeek = 7;
-                    if (Array.isArray(highlightedDaysArray) && highlightedDaysArray.includes(dayOfWeek)) {
+                    if (allowedDays.includes(dayOfWeek)) {
                         dayElem.classList.add("highlight-day");
                     }
                 },
@@ -890,6 +906,15 @@ span.flatpickr-weekday {
                 try { filterInput._flatpickr.destroy(); } catch (e) {}
             }
 
+            const allowedDays = Array.isArray(highlightedDaysArray)
+                ? highlightedDaysArray.map(Number).filter((day) => day >= 1 && day <= 7)
+                : [];
+            const isAllowed = function(date) {
+                let dayOfWeek = date.getDay();
+                if (dayOfWeek === 0) dayOfWeek = 7;
+                return allowedDays.includes(dayOfWeek);
+            };
+
             filterDatePickerLocal = flatpickr(filterInput, {
                 minDate: "today",
                 dateFormat: "Y-m-d",
@@ -902,6 +927,13 @@ span.flatpickr-weekday {
                 appendTo: document.body,
                 disableMobile: true,
                 position: "below left",
+
+                disable: [
+                    function(date) {
+                        if (!allowedDays.length) return false;
+                        return !isAllowed(date);
+                    }
+                ],
 
                 onReady: function(selectedDates, dateStr, instance){
                     mxFpMarkCalendar(instance);
@@ -916,7 +948,7 @@ span.flatpickr-weekday {
                 onDayCreate: function(dObj, dStr, fp, dayElem) {
                     let dayOfWeek = dayElem.dateObj.getDay();
                     if (dayOfWeek === 0) dayOfWeek = 7;
-                    if (Array.isArray(highlightedDaysArray) && highlightedDaysArray.includes(dayOfWeek)) {
+                    if (allowedDays.includes(dayOfWeek)) {
                         dayElem.classList.add("highlight-day");
                     }
                 },
