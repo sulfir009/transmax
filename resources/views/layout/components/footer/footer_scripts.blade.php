@@ -258,6 +258,28 @@ span.flatpickr-weekday {
 
     
     $('.cb_phone_country_code').niceSelect();
+
+    function mxParseHighlightedWeekdays(response) {
+        const raw = (response ?? '').toString().trim();
+        if (!raw) return [];
+
+        // Ожидаем только список дней недели (1..7) в текстовом формате
+        if (!/^[\d,\s\r\n]+$/.test(raw)) {
+            return [];
+        }
+
+        const days = [];
+        raw.split(/\r?\n/).forEach((line) => {
+            line.split(',').forEach((chunk) => {
+                const day = Number(String(chunk).trim());
+                if (Number.isInteger(day) && day >= 1 && day <= 7) {
+                    days.push(day);
+                }
+            });
+        });
+
+        return Array.from(new Set(days));
+    }
     $('.cb_phone_input').mask("<?php echo $firstPhoneMask?>");
     function changeInputMask(item){
         let selectedOption = $(item).find(':selected');
@@ -699,6 +721,15 @@ span.flatpickr-weekday {
                 try { filterInput._flatpickr.destroy(); } catch (e) {}
             }
 
+            const allowedDays = Array.isArray(highlightedDaysArray)
+                ? highlightedDaysArray.map(Number).filter((day) => day >= 1 && day <= 7)
+                : [];
+            const isAllowed = function(date) {
+                let dayOfWeek = date.getDay();
+                if (dayOfWeek === 0) dayOfWeek = 7;
+                return allowedDays.includes(dayOfWeek);
+            };
+
             filterDatePickerLocal = flatpickr(filterInput, {
                 minDate: "today",
                 dateFormat: "Y-m-d",
@@ -717,6 +748,13 @@ span.flatpickr-weekday {
                 disableMobile: true,
                 position: "below left",
 
+                disable: [
+                    function(date) {
+                        if (!allowedDays.length) return false;
+                        return !isAllowed(date);
+                    }
+                ],
+
                 onReady: function(selectedDates, dateStr, instance){
                     mxFpMarkCalendar(instance);
                     mxFpEnsureHooks(instance);
@@ -730,7 +768,7 @@ span.flatpickr-weekday {
                 onDayCreate: function(dObj, dStr, fp, dayElem) {
                     let dayOfWeek = dayElem.dateObj.getDay();
                     if (dayOfWeek === 0) dayOfWeek = 7;
-                    if (Array.isArray(highlightedDaysArray) && highlightedDaysArray.includes(dayOfWeek)) {
+                    if (allowedDays.includes(dayOfWeek)) {
                         dayElem.classList.add("highlight-day");
                     }
                 },
@@ -779,19 +817,9 @@ span.flatpickr-weekday {
                 success: function(response) {
                     console.log("Получен ответ от сервера:", response);
 
-                    let highlightedDaysString = (response || '').toString().trim();
+                    const highlightedDaysArray = mxParseHighlightedWeekdays(response);
 
-                    if (highlightedDaysString) {
-                        let highlightedDaysArray = highlightedDaysString
-                            .split('\n')
-                            .map(line => line.trim().split(/\D+/).map(Number))
-                            .flat()
-                            .filter(day => day > 0);
-
-                        let uniqueDays = {};
-                        highlightedDaysArray.forEach(day => { uniqueDays[day] = true; });
-                        highlightedDaysArray = Object.keys(uniqueDays).map(Number);
-
+                    if (highlightedDaysArray.length) {
                         console.log(highlightedDaysArray);
 
                         initHighlightedPicker(highlightedDaysArray, keepDate); // ✅ держим дату
@@ -890,6 +918,15 @@ span.flatpickr-weekday {
                 try { filterInput._flatpickr.destroy(); } catch (e) {}
             }
 
+            const allowedDays = Array.isArray(highlightedDaysArray)
+                ? highlightedDaysArray.map(Number).filter((day) => day >= 1 && day <= 7)
+                : [];
+            const isAllowed = function(date) {
+                let dayOfWeek = date.getDay();
+                if (dayOfWeek === 0) dayOfWeek = 7;
+                return allowedDays.includes(dayOfWeek);
+            };
+
             filterDatePickerLocal = flatpickr(filterInput, {
                 minDate: "today",
                 dateFormat: "Y-m-d",
@@ -902,6 +939,13 @@ span.flatpickr-weekday {
                 appendTo: document.body,
                 disableMobile: true,
                 position: "below left",
+
+                disable: [
+                    function(date) {
+                        if (!allowedDays.length) return false;
+                        return !isAllowed(date);
+                    }
+                ],
 
                 onReady: function(selectedDates, dateStr, instance){
                     mxFpMarkCalendar(instance);
@@ -916,7 +960,7 @@ span.flatpickr-weekday {
                 onDayCreate: function(dObj, dStr, fp, dayElem) {
                     let dayOfWeek = dayElem.dateObj.getDay();
                     if (dayOfWeek === 0) dayOfWeek = 7;
-                    if (Array.isArray(highlightedDaysArray) && highlightedDaysArray.includes(dayOfWeek)) {
+                    if (allowedDays.includes(dayOfWeek)) {
                         dayElem.classList.add("highlight-day");
                     }
                 },
@@ -955,19 +999,9 @@ span.flatpickr-weekday {
                 success: function(response) {
                     console.log("Получен ответ от сервера:", response);
 
-                    let highlightedDaysString = (response || '').toString().trim();
+                    const highlightedDaysArray = mxParseHighlightedWeekdays(response);
 
-                    if (highlightedDaysString) {
-                        let highlightedDaysArray = highlightedDaysString
-                            .split('\n')
-                            .map(line => line.trim().split(/\D+/).map(Number))
-                            .flat()
-                            .filter(day => day > 0);
-
-                        let uniqueDays = {};
-                        highlightedDaysArray.forEach(day => { uniqueDays[day] = true; });
-                        highlightedDaysArray = Object.keys(uniqueDays).map(Number);
-
+                    if (highlightedDaysArray.length) {
                         console.log(highlightedDaysArray);
 
                         initBookingPickerHighlighted(highlightedDaysArray);
