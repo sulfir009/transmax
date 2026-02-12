@@ -210,7 +210,11 @@ $('.filter_city_select').select2({
    function switchDirections(){
        let currentDeparture = $('#filter_departure').val();
        let currentArrival = $('#filter_arrival').val();
-       $('#filter_arrival').val(currentDeparture).trigger('change');
+
+       if (!currentDeparture || !currentArrival) {
+           return;
+       }
+
        $('#filter_departure').val(currentArrival).trigger('change');
    }
 
@@ -233,19 +237,105 @@ const threeYearsAgo = new Date(currentDate.getFullYear() - 3, currentDate.getMon
 let filterDatePicker;
 let isFilterInitialized = false;
 
+function requestSaleCities(payload) {
+    return $.ajax({
+        type: 'post',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+        },
+        url: '<?php echo  rtrim(url($Router->writelink(3)), '/') ?>',
+        data: payload
+    });
+}
+
+function fillSelectOptions($select, items, selectedValue) {
+    $select.empty();
+    $select.append('<option value=""></option>');
+
+    items.forEach(function(item) {
+        const option = $('<option></option>').val(String(item.id)).text(item.title || '');
+        if (selectedValue && String(selectedValue) === String(item.id)) {
+            option.prop('selected', true);
+        }
+        $select.append(option);
+    });
+}
+
+function resetArrivalSelect(disabled) {
+    const $arrival = $('#filter_arrival');
+    fillSelectOptions($arrival, [], null);
+    $arrival.prop('disabled', !!disabled);
+}
+
+function loadArrivalCities(fromId, selectedArrival) {
+    if (!fromId) {
+        resetArrivalSelect(true);
+        return $.Deferred().resolve([]).promise();
+    }
+
+    const $arrival = $('#filter_arrival');
+    $arrival.prop('disabled', true);
+
+    return requestSaleCities({
+        request: 'getToCitiesForSale',
+        lang: '<?php echo $Router->lang ?>',
+        from_id: fromId
+    }).then(function(response) {
+        const items = Array.isArray(response) ? response : [];
+        fillSelectOptions($arrival, items, selectedArrival);
+        $arrival.prop('disabled', false);
+        return items;
+    }).fail(function() {
+        resetArrivalSelect(false);
+    });
+}
+
 document.addEventListener("DOMContentLoaded", function() {
     const filterInput = document.querySelector(".filter_date");
 
     if (!filterInput) {
         return;
     }
+
+    const $departure = $('#filter_departure');
+    const $arrival = $('#filter_arrival');
+    const initialDeparture = $departure.data('initial-value');
+    const initialArrival = $arrival.data('initial-value');
+
+    resetArrivalSelect(true);
+
+    requestSaleCities({
+        request: 'getFromCitiesForSale',
+        lang: '<?php echo $Router->lang ?>'
+    }).then(function(response) {
+        const fromCities = Array.isArray(response) ? response : [];
+        fillSelectOptions($departure, fromCities, initialDeparture);
+
+        const selectedDeparture = $departure.val();
+        if (!selectedDeparture) {
+            resetArrivalSelect(true);
+            return;
+        }
+
+        loadArrivalCities(selectedDeparture, initialArrival).then(function () {
+            sendFilterRequest();
+        });
+    }).fail(function() {
+        fillSelectOptions($departure, [], null);
+        resetArrivalSelect(true);
+    });
+
     let filterDatePicker;
     let isFilterInitialized = false;
 
     // Функция для отправки AJAX-запроса
     function sendFilterRequest() {
-        const departure = $('#filter_departure').val();
-        const arrival = $('#filter_arrival').val();
+        const departure = $departure.val();
+        const arrival = $arrival.val();
+        if (!departure || !arrival) {
+            return;
+        }
+
         console.log("Отправляем запрос с параметрами departure:", departure, "и arrival:", arrival);
         $.ajax({
             type: 'post',
@@ -333,10 +423,15 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
-    sendFilterRequest();
-
     // Отправляем запрос при изменении значений инпутов
-    $('#filter_departure, #filter_arrival').on("change", sendFilterRequest);
+    $departure.on("change", function() {
+        const selectedDeparture = $(this).val();
+        loadArrivalCities(selectedDeparture, null).then(function () {
+            sendFilterRequest();
+        });
+    });
+
+    $arrival.on("change", sendFilterRequest);
 });
 
 <?php

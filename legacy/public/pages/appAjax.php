@@ -439,6 +439,99 @@ if($cleanPost['request'] === 'getCities') {
     }
 }
 
+if ($cleanPost['request'] === 'getFromCitiesForSale') {
+    $lang = $cleanPost['lang'];
+    $cacheKey = 'app_ajax.from_cities_for_sale.' . $lang;
+
+    $cities = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addMinutes(15), static function () use ($lang) {
+        $titleColumn = 'c.title_' . $lang;
+
+        $rows = \Illuminate\Support\Facades\DB::table('mt_cities as c')
+            ->selectRaw('DISTINCT c.id as id, ' . $titleColumn . ' as title, c.sort as sort')
+            ->where('c.active', 1)
+            ->where('c.station', 0)
+            ->where('c.section_id', '>', 0)
+            ->whereExists(function ($q) {
+                $q->selectRaw('1')
+                    ->from('mt_tours as t')
+                    ->join('mt_tours_sales as tsl', 'tsl.tour_id', '=', 't.id')
+                    ->join('mt_tours_stops_prices as tsp', 'tsp.tour_id', '=', 't.id')
+                    ->join('mt_cities as fs', 'fs.id', '=', 'tsp.from_stop')
+                    ->whereColumn('fs.section_id', 'c.id')
+                    ->where('t.active', 1)
+                    ->whereDate('tsl.tour_date', '>=', date('Y-m-d'))
+                    ->where('tsl.free_tickets', '>', 0)
+                    ->where('tsp.price', '>', 0)
+                    ->where('fs.active', 1)
+                    ->where('fs.station', 1);
+            })
+            ->orderByDesc('c.sort')
+            ->orderBy($titleColumn)
+            ->get();
+
+        return $rows->map(static function ($city) {
+            return [
+                'id' => (int) $city->id,
+                'title' => (string) $city->title,
+            ];
+        })->all();
+    });
+
+    echo json_encode($cities, JSON_UNESCAPED_UNICODE);
+}
+
+if ($cleanPost['request'] === 'getToCitiesForSale') {
+    $lang = $cleanPost['lang'];
+    $fromId = isset($cleanPost['from_id']) ? (int) $cleanPost['from_id'] : 0;
+
+    if ($fromId <= 0) {
+        echo json_encode([], JSON_UNESCAPED_UNICODE);
+        return;
+    }
+
+    $cacheKey = 'app_ajax.to_cities_for_sale.' . $lang . '.from_' . $fromId;
+
+    $cities = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addMinutes(15), static function () use ($lang, $fromId) {
+        $titleColumn = 'c.title_' . $lang;
+
+        $rows = \Illuminate\Support\Facades\DB::table('mt_cities as c')
+            ->selectRaw('DISTINCT c.id as id, ' . $titleColumn . ' as title, c.sort as sort')
+            ->where('c.active', 1)
+            ->where('c.station', 0)
+            ->where('c.section_id', '>', 0)
+            ->whereExists(function ($q) use ($fromId) {
+                $q->selectRaw('1')
+                    ->from('mt_tours as t')
+                    ->join('mt_tours_sales as tsl', 'tsl.tour_id', '=', 't.id')
+                    ->join('mt_tours_stops_prices as tsp', 'tsp.tour_id', '=', 't.id')
+                    ->join('mt_cities as fs', 'fs.id', '=', 'tsp.from_stop')
+                    ->join('mt_cities as ts', 'ts.id', '=', 'tsp.to_stop')
+                    ->whereColumn('ts.section_id', 'c.id')
+                    ->where('fs.section_id', $fromId)
+                    ->where('t.active', 1)
+                    ->whereDate('tsl.tour_date', '>=', date('Y-m-d'))
+                    ->where('tsl.free_tickets', '>', 0)
+                    ->where('tsp.price', '>', 0)
+                    ->where('fs.active', 1)
+                    ->where('fs.station', 1)
+                    ->where('ts.active', 1)
+                    ->where('ts.station', 1);
+            })
+            ->orderByDesc('c.sort')
+            ->orderBy($titleColumn)
+            ->get();
+
+        return $rows->map(static function ($city) {
+            return [
+                'id' => (int) $city->id,
+                'title' => (string) $city->title,
+            ];
+        })->all();
+    });
+
+    echo json_encode($cities, JSON_UNESCAPED_UNICODE);
+}
+
 if ($cleanPost['request'] === 'terms') {
     $lang = $cleanPost['lang'];
 
