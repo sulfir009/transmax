@@ -1,6 +1,6 @@
 {{-- Маршрут (V2 под дизайн как на фото) --}}
 <div class="route_block shadow_block">
-    <div class="block_title">Маршрут</div>
+    <div class="block_title">@lang('dictionary.MSG_MSG_BOOKING_MARSHRUT')</div>
 
     @php
         $depTime = date('H:i', strtotime($ticketInfo['departure_time'] ?? '00:00'));
@@ -40,9 +40,9 @@
                 $h = intdiv($diffMin, 60);
                 $m = $diffMin % 60;
 
-                $durationText = $h . ' ч. ' . $m . ' мин.';
+                $durationText = $h . ' ' . __('dictionary.MSG_MSG_TICKETS_GOD') . ' ' . $m . ' ' . __('dictionary.MSG_MSG_TICKETS_HV_V_DOROZI');
             } catch (\Throwable $e) {
-                $durationText = '—';
+                $durationText = __('dictionary.BOOKING_DASH_PLACEHOLDER');
             }
         }
 
@@ -54,7 +54,7 @@
         // ===== ВАЖНО ДЛЯ ПЕРЕСЧЁТА ЦЕНЫ В JS =====
 
         // Валюта (оставляю "грн", как у тебя в верстке)
-        $currency = 'грн';
+        $currency = __('dictionary.MSG_MSG_PAYMENT_PAGE_GRN');
 
         $pricePerPassengerCents = isset($pricePerPassengerCents)
             ? (int) $pricePerPassengerCents
@@ -78,7 +78,7 @@
 {{-- MID --}}
 <div class="b2_route_mid">
     <div class="b2_route_duration">
-        Время в пути <span class="b2_route_duration_val">{{ $durationText }}</span>
+        <span class="b2_route_duration_val">{{ $durationText }}</span>
     </div>
     <div class="b2_route_line"></div>
 </div>
@@ -98,7 +98,7 @@
 
     {{-- Когда (справа иконка календаря) --}}
     <div class="b2_row b2_row--with_icon">
-        <span>Когда :</span>
+        <span>@lang('dictionary.MSG_ALL_KOLI'):</span>
         <strong class="b2_row_right">
             {{ $formattedDate ?? date('d.m.Y') }}
             <img class="b2_row_icon" src="{{ $iconCal }}" alt="" loading="lazy" decoding="async">
@@ -107,7 +107,7 @@
 
     {{-- Пассажиров --}}
     <div class="b2_row">
-        <span>Пассажиров:</span>
+        <span>@lang('dictionary.MSG_MSG_BOOKING_PASAZHIRIV'):</span>
         <strong id="js_passengers_count">{{ $passengers }}</strong>
     </div>
 
@@ -115,12 +115,12 @@
 
     {{-- Цена / К оплате --}}
     <div class="b2_price_row">
-        <span>Цена:</span>
+        <span>@lang('dictionary.MSG_MSG_BOOKING_CINA'):</span>
         <span class="val">{{ $ticketInfo['price'] ?? 0 }} {{ $currency }}</span>
     </div>
 
     <div class="b2_price_row">
-        <span>К оплате:</span>
+        <span>@lang('dictionary.MSG_MSG_BOOKING_DO_SPLATI'):</span>
         <span class="val">
             <span id="js_total_price" data-total-cents="{{ $totalPriceCents }}">{{ $totalPrice }}</span>
             <span id="js_currency">{{ $currency }}</span>
@@ -133,18 +133,18 @@
              data-bonus-balance-cents="{{ $bonusBalanceCents ?? 0 }}"
              data-order-id="{{ $order['order_db_id'] ?? 0 }}">
             <div class="b2_row">
-                <span>Бонусный баланс:</span>
-                <strong>{{ $bonusBalanceFormatted ?? '0' }} грн</strong>
+                <span>@lang('dictionary.BONUSES_BALANCE'):</span>
+                <strong>{{ $bonusBalanceFormatted ?? '0' }} {{ $currency }}</strong>
             </div>
             <label class="b2_bonus_checkbox">
                 <input type="checkbox"
                        id="js_use_bonus"
                        {{ ($bonusBalanceCents ?? 0) > 0 ? '' : 'disabled' }} />
-                <span>Рассчитаться бонусами</span>
+                <span>@lang('dictionary.BONUS_TYPE_REDEEM')</span>
             </label>
             <div class="b2_row b2_bonus_row">
-                <span>Будет списано бонусами:</span>
-                <strong><span id="js_bonus_redeem">0</span> грн</strong>
+                <span>@lang('dictionary.BONUS_TYPE_REDEEM'):</span>
+                <strong><span id="js_bonus_redeem">0</span> {{ $currency }}</strong>
             </div>
         </div>
     @endif
@@ -156,7 +156,7 @@
          data-currency="{{ $currency }}"
          style="display:none !important;"></div>
 
-    <button class="b2_pay_btn" type="button" onclick="goPaymentV2()">Перейти к оплате</button>
+    <button class="b2_pay_btn" type="button" onclick="goPaymentV2()">@lang('dictionary.MSG_MSG_BOOKING_PEREJTI_DO_OPLATI')</button>
 </div>
 
 {{-- СТИЛИ только для route-info (чтобы не ломать остальное) --}}
