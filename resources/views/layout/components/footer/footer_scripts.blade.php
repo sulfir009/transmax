@@ -258,6 +258,28 @@ span.flatpickr-weekday {
 
     
     $('.cb_phone_country_code').niceSelect();
+
+    function mxParseHighlightedWeekdays(response) {
+        const raw = (response ?? '').toString().trim();
+        if (!raw) return [];
+
+        // Ожидаем только список дней недели (1..7) в текстовом формате
+        if (!/^[\d,\s\r\n]+$/.test(raw)) {
+            return [];
+        }
+
+        const days = [];
+        raw.split(/\r?\n/).forEach((line) => {
+            line.split(',').forEach((chunk) => {
+                const day = Number(String(chunk).trim());
+                if (Number.isInteger(day) && day >= 1 && day <= 7) {
+                    days.push(day);
+                }
+            });
+        });
+
+        return Array.from(new Set(days));
+    }
     $('.cb_phone_input').mask("<?php echo $firstPhoneMask?>");
     function changeInputMask(item){
         let selectedOption = $(item).find(':selected');
@@ -795,19 +817,9 @@ span.flatpickr-weekday {
                 success: function(response) {
                     console.log("Получен ответ от сервера:", response);
 
-                    let highlightedDaysString = (response || '').toString().trim();
+                    const highlightedDaysArray = mxParseHighlightedWeekdays(response);
 
-                    if (highlightedDaysString) {
-                        let highlightedDaysArray = highlightedDaysString
-                            .split('\n')
-                            .map(line => line.trim().split(/\D+/).map(Number))
-                            .flat()
-                            .filter(day => day > 0);
-
-                        let uniqueDays = {};
-                        highlightedDaysArray.forEach(day => { uniqueDays[day] = true; });
-                        highlightedDaysArray = Object.keys(uniqueDays).map(Number);
-
+                    if (highlightedDaysArray.length) {
                         console.log(highlightedDaysArray);
 
                         initHighlightedPicker(highlightedDaysArray, keepDate); // ✅ держим дату
@@ -987,19 +999,9 @@ span.flatpickr-weekday {
                 success: function(response) {
                     console.log("Получен ответ от сервера:", response);
 
-                    let highlightedDaysString = (response || '').toString().trim();
+                    const highlightedDaysArray = mxParseHighlightedWeekdays(response);
 
-                    if (highlightedDaysString) {
-                        let highlightedDaysArray = highlightedDaysString
-                            .split('\n')
-                            .map(line => line.trim().split(/\D+/).map(Number))
-                            .flat()
-                            .filter(day => day > 0);
-
-                        let uniqueDays = {};
-                        highlightedDaysArray.forEach(day => { uniqueDays[day] = true; });
-                        highlightedDaysArray = Object.keys(uniqueDays).map(Number);
-
+                    if (highlightedDaysArray.length) {
                         console.log(highlightedDaysArray);
 
                         initBookingPickerHighlighted(highlightedDaysArray);
