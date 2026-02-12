@@ -209,8 +209,6 @@ class PaymentFinalizer
                     'mono_status'     => 'success',
                     'mono_invoice_id' => $invoiceId,
                     'paid_at'         => $paidAt,
-                    // Критично для legacy admin "online": там фильтр ticket_return = 0.
-                    // Если было NULL, заказ не попадал в список после оплаты.
                     'ticket_return'   => 0,
                 ];
 

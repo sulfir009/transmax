@@ -36,7 +36,6 @@
                         @lang('dictionary.MSG_ALL_KUDA')
                     </div>
 
-                    {{-- ВАЖНО: name="to" --}}
                     <select class="filter_city_select"
                             id="filter_arrival"
                             name="to"
@@ -155,8 +154,6 @@
         return window.jQuery && jQuery.fn && typeof jQuery.fn.select2 === 'function';
     }
 
-    // ВАЖНО: не задаём placeholder в select2 config,
-    // иначе option value="" может исчезнуть из списка и ты не сможешь "выбрать Выберите город".
     function initSelect2IfNeeded() {
         if (!hasSelect2()) return;
 
@@ -164,9 +161,7 @@
             const $el = jQuery(this);
             if ($el.hasClass('select2-hidden-accessible')) return;
 
-            $el.select2({
-                width: '100%'
-            });
+            $el.select2({ width: '100%' });
         });
     }
 
@@ -180,19 +175,50 @@
         }
     }
 
+    /**
+     * ✅ КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ:
+     * Возвращаем НОРМАЛЬНЫЙ Promise, а не jqXHR.
+     * Тогда .then/.catch/.finally работают при ЛЮБОЙ версии jQuery.
+     */
     function requestSaleCities(payload) {
         if (!window.jQuery) {
             return Promise.reject(new Error('jQuery is required'));
         }
 
-        return jQuery.ajax({
-            type: 'post',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
-            },
-            url: '{{ rtrim(url('/api'), '/') }}',
-            data: payload
+        const apiUrl = '{{ rtrim(url('/api'), '/') }}';
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+        return new Promise((resolve, reject) => {
+            jQuery.ajax({
+                type: 'POST',
+                url: apiUrl,
+                data: payload,
+                dataType: 'json',
+                contentType: 'application/x-www-form-urlencoded; charset=UTF-8',
+                headers: { 'X-CSRF-TOKEN': csrf },
+                timeout: 20000,
+                success: function (data) { resolve(data); },
+                error: function (xhr, status, error) {
+                    reject({ xhr: xhr, status: status, error: error });
+                }
+            });
         });
+    }
+
+    function normalizeArrayResponse(response) {
+        if (Array.isArray(response)) return response;
+
+        // На всякий случай: если сервер вдруг отдаст строку
+        if (typeof response === 'string') {
+            try {
+                const parsed = JSON.parse(response);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        return [];
     }
 
     function fillSelectOptions(selectEl, items, selectedValue) {
@@ -210,9 +236,7 @@
             const option = document.createElement('option');
             option.value = String(item.id);
             option.textContent = item.title || '';
-            if (prev && option.value === prev) {
-                option.selected = true;
-            }
+            if (prev && option.value === prev) option.selected = true;
             selectEl.appendChild(option);
         });
 
@@ -242,17 +266,17 @@
             lang: '{{ app()->getLocale() }}',
             from_id: fromId
         }).then((response) => {
-            const items = Array.isArray(response) ? response : [];
+            const items = normalizeArrayResponse(response);
             fillSelectOptions(arr, items, selectedArrival);
             if (arr) arr.disabled = false;
             return items;
         }).catch(() => {
+            // если запрос упал — хотя бы не блокируем "Куда"
             resetArrivalSelect(false);
             return [];
         });
     }
 
-    // Если в URL нет параметров — ставим "Выберите город"
     function forceDefaultIfNoParams() {
         const params = new URLSearchParams(window.location.search);
 
@@ -268,7 +292,18 @@
         setSelectValue(document.getElementById('filter_arrival'), '');
     }
 
-    // Меняем местами значения
+    function hasOption(selectEl, value) {
+        if (!selectEl) return false;
+        const v = String(value);
+
+        // CSS.escape может отсутствовать в очень старых окружениях — делаем фолбэк
+        const esc = (window.CSS && typeof CSS.escape === 'function')
+            ? CSS.escape(v)
+            : v.replace(/"/g, '\\"');
+
+        return !!selectEl.querySelector(`option[value="${esc}"]`);
+    }
+
     async function switchDirections() {
         const dep = document.getElementById('filter_departure');
         const arr = document.getElementById('filter_arrival');
@@ -278,6 +313,9 @@
         const currentArrival = arr.value;
 
         if (!currentDeparture || !currentArrival) return;
+
+        // если текущий arrival не может быть departure — не свапаем
+        if (!hasOption(dep, currentArrival)) return;
 
         setSelectValue(dep, currentArrival);
         await loadToCitiesForSale(currentArrival, currentDeparture);
@@ -338,19 +376,19 @@
             request: 'getFromCitiesForSale',
             lang: '{{ app()->getLocale() }}'
         }).then((response) => {
-            const fromCities = Array.isArray(response) ? response : [];
+            const fromCities = normalizeArrayResponse(response);
 
             if (fromCities.length > 0) {
                 fillSelectOptions(depSel, fromCities, initialDeparture);
                 return fromCities;
             }
 
-            // safety fallback: если sale-endpoint временно пуст/недоступен, не оставляем форму без городов
+            // fallback: если sale-список пуст — подстрахуемся общим списком
             return requestSaleCities({
                 request: 'getCities',
                 lang: '{{ app()->getLocale() }}'
             }).then((fallbackResponse) => {
-                const fallbackCities = Array.isArray(fallbackResponse) ? fallbackResponse : [];
+                const fallbackCities = normalizeArrayResponse(fallbackResponse);
                 fillSelectOptions(depSel, fallbackCities, initialDeparture);
                 return fallbackCities;
             });
@@ -360,16 +398,14 @@
                 resetArrivalSelect(true);
                 return;
             }
-
-            loadToCitiesForSale(selectedDeparture, initialArrival);
+            return loadToCitiesForSale(selectedDeparture, initialArrival);
         }).catch(() => {
             fillSelectOptions(depSel, [], '');
             resetArrivalSelect(true);
         }).finally(() => {
-            // инициализируем Select2 после наполнения списков
             initSelect2IfNeeded();
 
-            // ещё раз — после инициализации (перебиваем “автовыбор первого города”)
+            // перебиваем “автовыбор первого города”
             setTimeout(forceDefaultIfNoParams, 0);
             setTimeout(forceDefaultIfNoParams, 200);
             setTimeout(forceDefaultIfNoParams, 600);
@@ -384,7 +420,6 @@
             });
         }
 
-        // Редирект если города не выбраны
         document.querySelectorAll('.main_filter').forEach((form) => {
             if (form.dataset.emptyRedirectBound === '1') return;
             form.dataset.emptyRedirectBound = '1';
@@ -402,7 +437,6 @@
             });
         });
 
-        // закрытие пассажиров по клику вне
         document.addEventListener('click', function (event) {
             const passengersWrapper = document.querySelector('.passagers_filter_wrapper');
             if (passengersWrapper && !passengersWrapper.contains(event.target)) {
@@ -416,7 +450,6 @@
         });
     });
 
-    // bfcache: возврат назад/вперёд
     window.addEventListener('pageshow', function () {
         forceDefaultIfNoParams();
     });

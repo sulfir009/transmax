@@ -34,6 +34,7 @@
     'filterDate' => $filterDate ?? date('Y-m-d'),
     'lang' => $lang ?? 'uk'
 ])
+@stack('scripts') 
 @yield('page-scripts')
 </body>
 </html>

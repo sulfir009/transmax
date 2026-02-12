@@ -110,10 +110,5 @@ class DatabaseTranslator extends Translator
 
         self::$missingLogged[$logKey] = true;
 
-        Log::warning('Missing translation', [
-            'key' => $key,
-            'locale' => $locale,
-            'source' => $source,
-        ]);
     }
 }

@@ -51,7 +51,7 @@
         <div class="route_list">
             @foreach($internationalTours as $tour)
                 <div>
-<a href="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') . '?' . http_build_query(['from' => $tour['departure_city_id'], 'to' => $tour['arrival_city_id'], 'date' => $todayKyiv]) }}"
+<a href="{{ \App\Helpers\TicketUrlHelper::make($tour['departure_city_id'], $tour['arrival_city_id'], ['from' => $tour['departure_city_id'], 'to' => $tour['arrival_city_id'], 'date' => $todayKyiv]) }}"
                        class="shedule_link">
                         {{ $tour['departure_city'] }} → {{ $tour['arrival_city'] }}
                     </a>
@@ -68,7 +68,7 @@
         <div class="route_list">
             @foreach($homeTours as $tour)
                 <div>
-<a href="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') . '?' . http_build_query(['from' => $tour['departure_city_id'], 'to' => $tour['arrival_city_id'], 'date' => $todayKyiv]) }}"
+<a href="{{ \App\Helpers\TicketUrlHelper::make($tour['departure_city_id'], $tour['arrival_city_id'], ['from' => $tour['departure_city_id'], 'to' => $tour['arrival_city_id'], 'date' => $todayKyiv]) }}"
                        class="shedule_link">
                         {{ $tour['departure_city'] }} → {{ $tour['arrival_city'] }}
                     </a>

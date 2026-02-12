@@ -5,6 +5,10 @@
    =========================== --}}
 
 <style>
+.header-white {
+    background-color: #fff;
+    padding: 52px 0;
+}
     /* ===========================
        VARIABLES
        =========================== */
@@ -14,15 +18,20 @@
     @media (max-width: 768px) {
         :root { --mt-header-h: 70px; }
     }
-      .mt_header_blue .header-link-block{
-              gap: 77px !important;
-  }
+
+    .mt_header_blue .header-link-block{
+        gap: 77px !important;
+    }
 
     /* ===========================
        HEADER BASE (STICKY)
+       ВАЖНО: фон теперь через alpha-переменную
        =========================== */
     .mt_header_blue {
-        background: #40A6FF !important;
+        --mt-header-alpha: 1; /* дефолт для всех страниц: полностью синий */
+        background: rgba(64, 166, 255, var(--mt-header-alpha));
+        transition: background 120ms linear;
+
         height: var(--mt-header-h);
         position: fixed !important;
         top: 0; left: 0; right: 0;
@@ -36,11 +45,11 @@
     }
 
     /* ===========================
-       HOME: TRANSPARENT HEADER + IMAGE VISIBLE UNDER IT
+       HOME: start transparent
        (важно: класс index_header должен быть на главной)
        =========================== */
     .index_header.mt_header_blue {
-        background: transparent !important;
+        --mt-header-alpha: 0; /* сверху прозрачный, дальше JS сделает плавно */
     }
 
     /* Поднимаем первый экран вверх на высоту хедера, чтобы фон/картинка начинались от самого верха */
@@ -94,7 +103,7 @@
         display: inline-flex;
         align-items: center;
         gap: 44px;
-        padding-left: 34px; /* чтобы было как на фото — пункты меню не прилипают к лого */
+        padding-left: 34px;
     }
 
     .mt_header_blue .mt_nav_btn,
@@ -121,13 +130,11 @@
         position: relative;
     }
 
-    /* лёгкая подсветка при hover */
     .mt_header_blue .mt_nav_btn:hover,
     .mt_header_blue .mt_nav_link:hover {
         color: rgba(255,255,255,0.92) !important;
     }
 
-    /* underline like screenshot (hover line) */
     .mt_header_blue .mt_nav_btn::after,
     .mt_header_blue .mt_nav_link::after {
         content: "";
@@ -150,7 +157,6 @@
         opacity: 1;
     }
 
-    /* ACTIVE underline (for "Аренда автобусов" like on screenshot) */
     .mt_header_blue .mt_nav_link.is_active {
         color: rgba(255,255,255,0.92) !important;
     }
@@ -159,7 +165,6 @@
         opacity: 1;
     }
 
-    /* dropdown chevron for "Регулярные рейсы" */
     .mt_header_blue .mt_nav_chev {
         width: 12px;
         height: 12px;
@@ -174,7 +179,7 @@
        MOBILE CENTER BUTTON (hidden on desktop)
        =========================== */
     .mt_header_blue .mt_mobile_center_nav{
-        display: none; /* desktop: hidden */
+        display: none;
     }
 
     .mt_header_blue .mt_mobile_regular_btn{
@@ -268,18 +273,16 @@
         background: no-repeat center/22px 22px;
     }
 
-    /* Headphones icon (support) */
     .mt_header_blue .mt_icon_support {
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M4 12a8 8 0 0 1 16 0' stroke='%23FFFFFF' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M4 12v6a2 2 0 0 0 2 2h1v-8H6a2 2 0 0 0-2 2Z' stroke='%23FFFFFF' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M20 12v6a2 2 0 0 1-2 2h-1v-8h1a2 2 0 0 1 2 2Z' stroke='%23FFFFFF' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E");
     }
 
-    /* User icon (cabinet) */
     .mt_header_blue .mt_icon_user {
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M20 21a8 8 0 1 0-16 0' stroke='%23FFFFFF' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z' stroke='%23FFFFFF' stroke-width='2'/%3E%3C/svg%3E");
     }
 
     /* ===========================
-       LANGUAGE (desktop) — "UA ▾"
+       LANGUAGE (desktop)
        =========================== */
     .mt_header_blue .language-select-wrapper {
         display: inline-flex !important;
@@ -335,7 +338,6 @@
 
     /* ===========================
        SUPPORT DROPDOWN
-       (keeps your togglePhoneDropdown() + id="phoneMenu-header")
        =========================== */
     .mt_header_blue .mt_support_dd {
         position: relative;
@@ -353,7 +355,7 @@
         box-shadow: 0 14px 44px rgba(0, 0, 0, 0.14);
         padding: 10px;
 
-        display: none; /* открывает твой togglePhoneDropdown() */
+        display: none;
         z-index: 6000;
     }
 
@@ -383,7 +385,7 @@
     }
 
     /* ===========================
-       BURGER with MENU label (desktop + mobile)
+       BURGER with MENU label
        =========================== */
     .mt_header_blue .burger {
         width: 46px;
@@ -407,7 +409,7 @@
         background: rgba(255, 255, 255, 0.10);
     }
 
-    .mt_header_blue .burger img { display: none !important; } /* прячем старую картинку */
+    .mt_header_blue .burger img { display: none !important; }
 
     .mt_header_blue .burger .mt_bline {
         display: block;
@@ -430,24 +432,18 @@
 
     /* ===========================
        MOBILE RULES
-       - hide desktop nav + support/cabinet/lang -> inside burger
-       - show center button "Регулярные рейсы"
-       - make header layout: logo | center button | burger
        =========================== */
     @media (max-width: 768px) {
-        /* скрываем на мобилке поддержку/кабинет/язык в шапке */
         .mt_header_blue .mt_support_dd,
         .mt_header_blue .mt_cabinet_desktop,
         .mt_header_blue .language-select-wrapper {
             display: none !important;
         }
 
-        /* скрываем десктоп-центр меню на мобилке */
         .mt_header_blue .central-links-header {
             display: none !important;
         }
 
-        /* делаем грид, чтобы кнопка была реально по центру */
         .mt_header_blue .header-link-block{
             display: grid;
             grid-template-columns: auto 1fr auto;
@@ -456,7 +452,6 @@
             justify-content: unset;
         }
 
-        /* лого на мобилке не держим 180px, иначе центр не помещается */
         .mt_header_blue .header-logo-container-prop{
             min-width: unset;
         }
@@ -465,15 +460,13 @@
             height: 28px;
         }
 
-        /* показываем центр-кнопку */
         .mt_header_blue .mt_mobile_center_nav{
             display: flex !important;
             align-items: center;
             justify-content: center;
-            min-width: 0; /* важно для grid на узких экранах */
+            min-width: 0;
         }
 
-        /* правая часть прижата вправо */
         .mt_header_blue .last-link-block{
             justify-self: end;
         }
@@ -485,22 +478,17 @@
     #popup-regular .countries-regular a.regular_tour{
         transition: color .18s ease, background-color .18s ease, text-decoration-color .18s ease;
     }
-
-    /* Вариант 1: меняем цвет текста на светло-голубой */
     #popup-regular .countries-regular a.regular_tour:hover{
-        color: #35BAF0; /* светло-голубой */
+        color: #35BAF0;
     }
-
-    /* (опционально) если хочешь ещё и подсветку фоном как "плашка" */
     #popup-regular .countries-regular a.regular_tour{
-        display: inline-block;        /* чтобы background работал аккуратно */
-        padding: 6px 10px;            /* можно подогнать */
-        border-radius: 8px;           /* мягкое скругление */
+        display: inline-block;
+        padding: 6px 10px;
+        border-radius: 8px;
     }
-
     #popup-regular .countries-regular a.regular_tour:hover{
-        background: rgba(53, 186, 240, 0.10); /* лёгкая заливка */
-        text-decoration: none;                /* если нужно убрать подчеркивание */
+        background: rgba(53, 186, 240, 0.10);
+        text-decoration: none;
     }
 
     html.popup-open,
@@ -508,8 +496,40 @@
         overflow: hidden !important;
         height: 100%;
     }
+    body[data-lang="uk"] .index_header.mt_header_blue,
+body[data-lang="en"] .index_header.mt_header_blue {
+    --mt-header-alpha: 1;
+}
+.mt_header_blue {
+    --mt-header-alpha: 1; /* по умолчанию: непрозрачно */
+    background: rgba(64, 166, 255, var(--mt-header-alpha));
+    transition: background 120ms linear;
+}
+.main_index_block {
+    height: 100%;
+    top: -90px;
+}
 </style>
 
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '707304469016505');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=707304469016505&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
+
+{{-- ТВОЙ СКРИПТ ЛОКА СКРОЛЛА ПОПАПА (без изменений) --}}
 <script>
 (function(){
     let scrollY = 0;
@@ -524,7 +544,6 @@
         document.documentElement.classList.add('popup-open');
         document.body.classList.add('popup-open');
 
-        // фиксируем body, чтобы не прыгало и не скроллилось
         document.body.style.position = 'fixed';
         document.body.style.top = `-${scrollY}px`;
         document.body.style.left = '0';
@@ -558,14 +577,12 @@
         const popup = document.getElementById('popup-regular');
         if (!popup) return;
 
-        // 1) Следим за изменениями class/style попапа (jQuery fadeIn/display block/классы)
         const obs = new MutationObserver(() => {
             if (isPopupVisible(popup)) lockScroll();
             else unlockScroll();
         });
         obs.observe(popup, { attributes: true, attributeFilter: ['class','style'] });
 
-        // 2) Подстраховка: когда жмут на кнопку открытия — через тик проверяем и лочим
         document.addEventListener('click', function(e){
             if (e.target.closest('[data-open-popup-regular]')) {
                 setTimeout(function(){
@@ -574,17 +591,14 @@
             }
         }, true);
 
-        // 3) Закрытие по клику на оверлей (если у тебя так задумано)
         popup.addEventListener('click', function(e){
             if (e.target === popup) {
-                // если твой код закрывает попап сам — это не мешает
                 popup.style.display = 'none';
                 popup.classList.remove('is-open');
                 unlockScroll();
             }
         });
 
-        // 4) ESC
         document.addEventListener('keydown', function(e){
             if (e.key === 'Escape' && isPopupVisible(popup)) {
                 popup.style.display = 'none';
@@ -593,11 +607,56 @@
             }
         });
 
-        // 5) iOS safeguard: запрещаем touchmove пока попап открыт
         document.addEventListener('touchmove', function(e){
             if (document.body.classList.contains('popup-open')) e.preventDefault();
         }, { passive: false });
     });
+})();
+
+</script>
+
+{{-- ✅ НОВЫЙ СКРИПТ: плавная заливка хедера на главной --}}
+<script>
+(function () {
+    function clamp(v, min, max) {
+        return Math.max(min, Math.min(max, v));
+    }
+
+    function initHomeHeaderFade() {
+        // Только главная: ищем хедер с index_header
+        const header = document.querySelector('.mt_header_blue.index_header');
+        if (!header) return;
+
+        // За сколько пикселей дойти до полностью синего
+        const FADE_DISTANCE = 220;
+
+        let ticking = false;
+
+        function update() {
+            ticking = false;
+
+            const y = window.scrollY || window.pageYOffset || 0;
+            const a = clamp(y / FADE_DISTANCE, 0, 1);
+
+            header.style.setProperty('--mt-header-alpha', a.toFixed(3));
+        }
+
+        function onScroll() {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(update);
+        }
+
+        update();
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', update);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initHomeHeaderFade);
+    } else {
+        initHomeHeaderFade();
+    }
 })();
 </script>
 
@@ -632,8 +691,6 @@
                         <span class="mt_nav_chev"></span>
                     </button>
 
-                    {{-- ВАЖНО: тут я использую route('avtopark') как страницу аренды.
-                       Если у тебя отдельный роут аренды — просто замени route(...) --}}
                     <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('avtopark') }}"
                        class="mt_nav_link {{ Route::is('avtopark') ? 'is_active' : '' }}">
                         Аренда автобусов
@@ -650,7 +707,7 @@
                     <div class="language-select-wrapper">
                         <select class="mt_lang_select" id="change-lang-desktop">
                             @foreach ($siteLangs as $langInfo)
-                                <<option value="{{ $langInfo->code }}"
+                                <option value="{{ $langInfo->code }}"
                                         data-url="{{ $seo['hreflangs'][$langInfo->code] ?? \App\Helpers\LocaleHelper::localizedRoute('main', [], true, $langInfo->code) }}"
                                     {{ ($langInfo->code === \App\Service\Site::lang()) ? 'selected' : '' }}>
                                     {{ strtoupper($langInfo->code) }}
@@ -699,7 +756,6 @@
                         <span class="mt_bline"></span>
                         <span class="mt_burger_label">MENU</span>
 
-                        {{-- оставляем старый img (скрыт CSS), чтобы не ломать переменные/верстку --}}
                         <img src="/images/legacy/{{ $burger_img }}" alt="burger">
                     </button>
 
@@ -720,7 +776,7 @@
                 <ul>
                     <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('main') }}" class="mobile_menu_link manrope {{ Route::is('main') ? 'active' : '' }}">@lang('pages_title_main')</a></li>
                     <li><a href="#"
- data-open-popup-regular onclick="return false;" class="mobile_menu_link manrope {{ Route::is('regular_races') ? 'active' : '' }}">@lang('pages_title_regular_races')</a></li>
+                           data-open-popup-regular onclick="return false;" class="mobile_menu_link manrope {{ Route::is('regular_races') ? 'active' : '' }}">@lang('pages_title_regular_races')</a></li>
                     <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}" class="mobile_menu_link manrope {{ Route::is('schedule') ? 'active' : '' }}">@lang('pages_menu_title_schedule')</a></li>
                     <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('avtopark') }}" class="mobile_menu_link manrope {{ Route::is('avtopark') ? 'active' : '' }}">@lang('pages_menu_title_avtopark')</a></li>
                     <li><a href="{{ \App\Helpers\LocaleHelper::localizedRoute('about.us') }}" class="mobile_menu_link manrope {{ Route::is('about.us') ? 'active' : '' }}">@lang('pages_menu_title_about_us')</a></li>
@@ -749,7 +805,6 @@
                 </div>
             </div>
 
-            {{-- ВАЖНО: это блок для мобилки (язык/поддержка/кабинет тут и остаются) --}}
             <div class="menu_links mobile hidden-xxl hidden-xl hidden-lg">
 
                 <div class="language-select-wrapper">
@@ -849,3 +904,74 @@
         });
     });
 </script>
+<script>
+(function () {
+    function clamp(v, min, max) {
+        return Math.max(min, Math.min(max, v));
+    }
+
+    function normalizePath(p) {
+        if (!p) return '/';
+        p = p.replace(/\/+$/, '');
+        return p === '' ? '/' : p;
+    }
+
+    function isHomePath(path) {
+        // главная на 3 вариантах:
+        return path === '/' || path === '/uk' || path === '/en';
+    }
+
+    function initHeaderAlpha() {
+        const header = document.querySelector('.mt_header_blue');
+        if (!header) return;
+
+        const path = normalizePath(window.location.pathname);
+
+        // Сколько px нужно, чтобы стать полностью непрозрачным
+        const FADE_DISTANCE = 220;
+
+        let ticking = false;
+        let enabled = false;
+
+        function setAlpha(a) {
+            header.style.setProperty('--mt-header-alpha', a);
+        }
+
+        function update() {
+            ticking = false;
+
+            const y = window.scrollY || window.pageYOffset || 0;
+            const a = clamp(y / FADE_DISTANCE, 0, 1);
+
+            setAlpha(a.toFixed(3));
+        }
+
+        function onScroll() {
+            if (!enabled) return;
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(update);
+        }
+
+        // ✅ Только для /, /uk, /en — прозрачный верх и плавное заполнение
+        if (isHomePath(path)) {
+            enabled = true;
+            update(); // при y=0 выставит 0.000 (прозрачно)
+            window.addEventListener('scroll', onScroll, { passive: true });
+            window.addEventListener('resize', update);
+            return;
+        }
+
+        // ❌ Для всех остальных страниц — сразу непрозрачный
+        enabled = false;
+        setAlpha('1');
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initHeaderAlpha);
+    } else {
+        initHeaderAlpha();
+    }
+})();
+</script>
+

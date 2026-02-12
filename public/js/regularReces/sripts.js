@@ -100,7 +100,7 @@ jQuery(document).ready(function (){
                 document.getElementById('successModal').style.display = 'flex';
             },
             error: function (xhr) {
-               alert('Request din`t send');
+                alert('Request din`t send');
             }
         });
     }
@@ -268,38 +268,38 @@ jQuery(document).ready(function (){
 // Сохранение даты
     if (saveBtn && calendarModal) {
         saveBtn.addEventListener('click', () => {
-        if (buyOnline) {
-            if (selectedDate) {
-                const calendarElement = document.querySelector('.flatpickr-calendar');
-                clearHighlightDays(calendarElement);
+            if (buyOnline) {
+                if (selectedDate) {
+                    const calendarElement = document.querySelector('.flatpickr-calendar');
+                    clearHighlightDays(calendarElement);
 
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = redirect;
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = redirect;
 
-                // Добавляем необходимые поля
-                form.appendChild(createHiddenInput('departure', departure));
-                form.appendChild(createHiddenInput('arrival', arrival));
-                form.appendChild(createHiddenInput('date', selectedDate));
-                form.appendChild(createHiddenInput('adults', 1));
-                form.appendChild(createHiddenInput('kids', 0));
+                    // Добавляем необходимые поля
+                    form.appendChild(createHiddenInput('departure', departure));
+                    form.appendChild(createHiddenInput('arrival', arrival));
+                    form.appendChild(createHiddenInput('date', selectedDate));
+                    form.appendChild(createHiddenInput('adults', 1));
+                    form.appendChild(createHiddenInput('kids', 0));
 
-                // Добавляем форму на страницу и отправляем
-                document.body.appendChild(form);
-                form.submit();
+                    // Добавляем форму на страницу и отправляем
+                    document.body.appendChild(form);
+                    form.submit();
+                } else {
+                    alert("Пожалуйста, выберите дату.");
+                }
             } else {
-                alert("Пожалуйста, выберите дату.");
+                if (selectedDate) {
+                    dateInput.value = selectedDate;
+                    calendarModal.style.display = 'none';
+                    const calendarElement = document.querySelector('.flatpickr-calendar');
+                    clearHighlightDays(calendarElement);
+                } else {
+                    alert("Пожалуйста, выберите дату.");
+                }
             }
-        } else {
-            if (selectedDate) {
-                dateInput.value = selectedDate;
-                calendarModal.style.display = 'none';
-                const calendarElement = document.querySelector('.flatpickr-calendar');
-                clearHighlightDays(calendarElement);
-            } else {
-                alert("Пожалуйста, выберите дату.");
-            }
-        }
 
 
         });

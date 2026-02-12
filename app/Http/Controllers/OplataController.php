@@ -137,6 +137,8 @@ class OplataController extends Controller
 
             // Сохраняем ID заказа в сессии
             $_SESSION['last_order_id'] = $order->id;
+            $_SESSION['last_order_uniqid'] = $order->uniqid ?? null;
+            $_SESSION['last_payment_method'] = $paymethod;
 
             // Если выбрана оплата наличными, отправляем email
             if ($paymethod === 'cash') {
@@ -147,7 +149,8 @@ class OplataController extends Controller
                 'success' => true,
                 'data' => 'ok',
                 'order_id' => $order->id,
-                'paymethod' => $paymethod
+                'paymethod' => $paymethod,
+                'uniqid' => $order->uniqid ?? null,
             ]);
 
         } catch (\Exception $e) {

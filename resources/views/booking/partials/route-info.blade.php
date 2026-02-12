@@ -47,8 +47,8 @@
         }
 
         // Пути к иконкам
-        $iconFrom = asset('images/booking/city-from.png');
-        $iconTo   = asset('images/booking/city-to.png');
+        $iconFrom = asset('images/booking/left.svg');
+        $iconTo   = asset('images/booking/right.svg');
         $iconCal  = asset('images/booking/calendar.png');
 
         // ===== ВАЖНО ДЛЯ ПЕРЕСЧЁТА ЦЕНЫ В JS =====

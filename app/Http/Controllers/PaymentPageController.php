@@ -125,7 +125,7 @@ class PaymentPageController extends Controller
             session_start();
         }
 
-        $correlationId = (string) Str::uuid();
+        $correlationId = (string)($request->input('correlation_id') ?: $request->header('X-Correlation-Id') ?: Str::uuid());
         $requestType = $request->input('request');
 
         switch ($requestType) {
@@ -170,19 +170,28 @@ class PaymentPageController extends Controller
 
             $passengerData = $_SESSION['passenger_data'] ?? [];
 
-            $orderId = $this->createOrder($order, $ticketInfo, $passengerData, $paymethod);
+            $orderResult = $this->createOrder($order, $ticketInfo, $passengerData, $paymethod);
 
-            if (!$orderId) {
+            if (!$orderResult || !isset($orderResult['id'])) {
                 return response()->json(['data' => 'error'], 500);
             }
 
-            $_SESSION['last_order_id'] = $orderId;
+            $orderId = (int) $orderResult['id'];
+            $orderUniqId = (string) ($orderResult['uniqid'] ?? '');
 
+            $_SESSION['last_order_id'] = $orderId;
+            $_SESSION['last_order_uniqid'] = $orderUniqId;
+            $_SESSION['last_payment_method'] = $paymethod;
             if ($paymethod === 'cash') {
-                $this->dispatchCashTicketsOnce((int) $orderId, $correlationId);
+                $this->dispatchCashTicketsOnce($orderId, $correlationId);
             }
 
-            $response = response()->json(['data' => 'ok']);
+            $response = response()->json([
+                'data' => 'ok',
+                'order_id' => $orderId,
+                'uniqid' => $orderUniqId,
+                'payment_method' => $paymethod,
+            ]);
             if ($this->isDebugRequest($request)) {
                 $response = $this->withDebugMeta($response, [
                     'handled_by' => 'PaymentPageController@ajax',
@@ -211,6 +220,30 @@ class PaymentPageController extends Controller
         }
 
         $debugEnabled = $this->isDebugRequest($request);
+
+        if (!$orderId && !$uniqid) {
+            Log::warning('[order_events] missing order_id/uniqid', [
+                'correlation_id' => $requestCorrelationId,
+                'payload' => $request->all(),
+            ]);
+
+            $response = response()->json([
+                'state' => 0,
+                'error' => 'missing_order_id/uniqid',
+            ], 400);
+
+            if ($debugEnabled) {
+                $payload = $response->getData(true);
+                $payload['_debug'] = [
+                    'order_id' => $orderId,
+                    'uniqid_request' => $uniqid,
+                    'poll' => $poll,
+                ];
+                $response = response()->json($payload, $response->getStatusCode());
+            }
+
+            return $response;
+        }
 
         Log::info('[order_events] incoming', [
             'correlation_id' => $requestCorrelationId,
@@ -261,9 +294,14 @@ class PaymentPageController extends Controller
 
         $requestPaymentProvider = (string) ($request->input('payment_provider') ?: $request->query('payment_provider') ?: '');
         $paymentProvider = strtolower((string) ($order->payment_provider ?? $requestPaymentProvider));
+        $requestPaymentMethod = (string) ($request->input('payment_method') ?: $request->query('payment_method') ?: '');
+        $paymentMethod = strtolower((string) ($order->payment_method ?? ($order->paymethod ?? $requestPaymentMethod)));
 
         $invoiceId = $order->mono_invoice_id ?? null;
-        $paymentCorrelationId = PaymentFinalizer::buildCorrelationId((int) $order->id, $legacyOrderId, $invoiceId);
+        $paymentCorrelationId = $requestCorrelationId;
+        if ($paymentCorrelationId === '') {
+            $paymentCorrelationId = PaymentFinalizer::buildCorrelationId((int) $order->id, $legacyOrderId, $invoiceId);
+        }
 
         $invoiceLinkedFromPayment = false;
 
@@ -297,7 +335,9 @@ class PaymentPageController extends Controller
                     }
                 }
 
-                $paymentCorrelationId = PaymentFinalizer::buildCorrelationId((int) $order->id, $legacyOrderId, $invoiceId);
+                if ($requestCorrelationId === '') {
+                    $paymentCorrelationId = PaymentFinalizer::buildCorrelationId((int) $order->id, $legacyOrderId, $invoiceId);
+                }
             }
         }
 
@@ -325,6 +365,7 @@ class PaymentPageController extends Controller
             'invoice_linked_from_payment' => $invoiceLinkedFromPayment,
             'payment_status_db' => (int) ($order->payment_status ?? 0),
             'mono_status_db' => (string) ($order->mono_status ?? ''),
+            'payment_method' => $paymentMethod,
             'order_bonus' => [
                 'bonus_redeemed_cents' => (int) ($order->bonus_redeemed_cents ?? 0),
                 'bonus_cashback_cents' => (int) ($order->bonus_cashback_cents ?? 0),
@@ -368,6 +409,32 @@ class PaymentPageController extends Controller
 
             return $response;
         }
+
+         if ($paymentMethod === 'cash') {
+            Log::info('[order_events] cash booking', [
+                'correlation_id' => $paymentCorrelationId,
+                'order_id' => $order->id,
+                'uniqid' => $legacyOrderId,
+            ]);
+
+            $this->dispatchCashTicketsOnce((int) $order->id, $paymentCorrelationId);
+
+            $response = response()->json([
+                'status' => 'ok',
+                'payment_status' => (int) ($order->payment_status ?? 1),
+                'payment_method' => 'cash',
+                'finalized' => true,
+            ]);
+
+            if ($debugEnabled) {
+                $payload = $response->getData(true);
+                $payload['_debug'] = $debugInfo;
+                $response = response()->json($payload, $response->getStatusCode());
+            }
+
+            return $response;
+        }
+
 
         $alreadyFinalized = ((int) $order->payment_status === 2)
             || ((string) ($order->mono_status ?? '') === 'success');
@@ -439,6 +506,7 @@ class PaymentPageController extends Controller
             $response = response()->json([
                 'status' => 'ok',
                 'payment_status' => 2,
+                'payment_method' => $paymentMethod,
                 'finalized' => true,
             ]);
 
@@ -469,6 +537,7 @@ class PaymentPageController extends Controller
         $response = response()->json([
             'status' => 'pending',
             'payment_status' => (int) ($order->payment_status ?? 0),
+            'payment_method' => $paymentMethod,
         ]);
 
         if ($debugEnabled) {
@@ -488,6 +557,9 @@ class PaymentPageController extends Controller
         return $response;
     }
 
+    /**
+     * Отправляем билеты для оплаты наличными один раз, чтобы не слать дубликаты.
+     */
     /**
      * Отправляем билеты для оплаты наличными один раз, чтобы не слать дубликаты.
      */
@@ -534,7 +606,6 @@ class PaymentPageController extends Controller
             ]);
         }
     }
-
     /**
      * Запускаем генерацию PDF + email ОДИН РАЗ на оплаченный заказ.
      * Нужен lock, потому что order_events дергается polling-ом много раз.
@@ -565,7 +636,7 @@ class PaymentPageController extends Controller
             ]);
 
             // Это твой существующий LiqPay-флоу: генерация PDF + отправка email
-            $ticketService->processSuccessfulPayment($legacyOrderId, $paymentPayload);
+            $ticketService->processSuccessfulPayment($legacyOrderId, $paymentPayload, $paymentCorrelationId);
 
             Log::info('[tickets] dispatch done', [
                 'correlation_id' => $paymentCorrelationId,
@@ -732,7 +803,7 @@ class PaymentPageController extends Controller
     /**
      * Создание записи заказа в БД
      */
-    protected function createOrder($order, $ticketInfo, $passengerData, $paymethod): ?int
+    protected function createOrder($order, $ticketInfo, $passengerData, $paymethod): ?array
     {
         try {
             $prefix = DB_PREFIX;
@@ -742,6 +813,7 @@ class PaymentPageController extends Controller
 
             $price = (float)($ticketInfo['price'] ?? 0);
             $total = (int)round($passengers * $price);
+            $uniqid = uniqid('order_', true);
 
             $orderData = [
                 'tour_id' => (int)($order['tour_id'] ?? 0),
@@ -760,14 +832,17 @@ class PaymentPageController extends Controller
                 'client_phone' => $passengerData['phone'] ?? '',
                 'client_phone_code' => $passengerData['phone_code'] ?? '',
                 'passengers_data' => json_encode($passengerData['passengers'] ?? []),
+                'uniqid' => $uniqid,
                 'created_at' => date('Y-m-d H:i:s')
             ];
 
             if ($this->db) {
-                return $this->db->insert("{$prefix}_orders", $orderData);
+                $insertId = $this->db->insert("{$prefix}_orders", $orderData);
+                return $insertId ? ['id' => (int) $insertId, 'uniqid' => $uniqid] : null;
             }
 
-            return DB::table("{$prefix}_orders")->insertGetId($orderData);
+            $insertId = DB::table("{$prefix}_orders")->insertGetId($orderData);
+            return $insertId ? ['id' => (int) $insertId, 'uniqid' => $uniqid] : null;
 
         } catch (\Exception $e) {
             Log::error('Order creation DB error: ' . $e->getMessage());

@@ -130,10 +130,20 @@ class TicketService
                 'affected_rows'  => $updatedRows,
             ]);
 
-            /**
-             * 2) tickets_buy инкрементим ТОЛЬКО если мы реально первыми перевели в paid (updatedRows > 0)
-             */
-            $passengersCount = $this->getPassengersCountFromOrder($orderInfo);
+
+$passengers = $this->loadPassengers($orderIdNumeric, $legacyUniq, $orderInfo);
+
+
+if (!($passengers instanceof \Illuminate\Support\Collection)) {
+    $passengers = collect($passengers);
+}
+
+
+$passengersCount = $passengers->count() > 0
+    ? $passengers->count()
+    : $this->getPassengersCountFromOrder($orderInfo);
+
+$passengersCount = max(1, min(10, (int)$passengersCount));
 
             if ($updatedRows > 0) {
                 Log::channel('payment')->info('Increment tickets_buy in tours_sales', [
@@ -651,7 +661,11 @@ class TicketService
             return $pdfFiles;
         }
 
-        $orderPassengersCount = $this->getPassengersCountFromOrder($orderInfo);
+$orderPassengersCount = ($passengers && method_exists($passengers, 'count') && $passengers->count() > 0)
+    ? $passengers->count()
+    : $this->getPassengersCountFromOrder($orderInfo);
+
+$orderPassengersCount = max(1, min(10, (int)$orderPassengersCount));
 
         // Если нет пассажиров — делаем один билет на покупателя
         if ($passengers->count() === 0) {
@@ -1061,8 +1075,13 @@ class TicketService
             $fromCity = $fromStop ? DB::table($this->dbPrefix . '_cities')->where('id', (int)$fromStop->section_id)->first() : null;
             $toCity   = $toStop ? DB::table($this->dbPrefix . '_cities')->where('id', (int)$toStop->section_id)->first() : null;
 
-            $totalPriceCents = Money::priceToKopeksFromDb($ticketInfo->price ?? 0)
-                * $this->getPassengersCountFromOrder($orderInfo);
+$cnt = ($passengers && method_exists($passengers, 'count') && $passengers->count() > 0)
+    ? $passengers->count()
+    : $this->getPassengersCountFromOrder($orderInfo);
+
+$cnt = max(1, min(10, (int)$cnt));
+
+$totalPriceCents = Money::priceToKopeksFromDb($ticketInfo->price ?? 0) * $cnt;
 
             $emailData = [
                 'orderInfo' => $orderInfo,

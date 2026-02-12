@@ -132,14 +132,6 @@ span.flatpickr-weekday {
     ==============================
     MAXTRANS FIX: ПОЗИЦИЯ КАЛЕНДАРЯ
     ==============================
-    Проблема из твоих логов:
-    - fp.input (hidden) имеет rect 0x0, а altInput нормальный.
-    - на странице есть transform (mib_content), из-за этого стандартное позиционирование и/или
-      чужие стили (top/left/transform с !important) могут уводить календарь далеко.
-    Решение:
-    - помечаем календарь data-mx-fp="1"
-    - принудительно ставим position: fixed
-    - принудительно выставляем top/left рядом с altInput через JS с !important
 */
 .flatpickr-calendar[data-mx-fp="1"]{
     position: fixed !important;
@@ -183,6 +175,88 @@ span.flatpickr-weekday {
 
 <script>
     const legacyAjaxUrl = @json(url('/ajax/' . app()->getLocale()));
+    
+
+/**
+ * MAXTRANS FIX: cities НЕ должны зависеть от даты.
+ * Мы убираем date из AJAX, когда request=getCities (и похожие).
+ * Это лечит ситуацию: "сегодня городов нет, на другую дату появляются".
+ */
+(function ($) {
+    if (!window.jQuery || !$.ajaxPrefilter) return;
+
+    function stripDateFromObject(obj) {
+        if (!obj || typeof obj !== 'object') return obj;
+
+        // request может быть в разных регистрах/ключах
+        const req = obj.request || obj.action || obj.r || '';
+        if (String(req) !== 'getCities') return obj;
+
+        // Удаляем все возможные варианты ключей даты
+        delete obj.date;
+        delete obj.filter_date;
+        delete obj.selected_date;
+        delete obj.day;
+        return obj;
+    }
+
+    function stripDateFromString(dataStr) {
+        // dataStr: "request=getCities&date=2026-02-12&..."
+        if (typeof dataStr !== 'string') return dataStr;
+        if (dataStr.indexOf('request=getCities') === -1) return dataStr;
+
+        const p = new URLSearchParams(dataStr);
+        p.delete('date');
+        p.delete('filter_date');
+        p.delete('selected_date');
+        p.delete('day');
+        return p.toString();
+    }
+
+    $.ajaxPrefilter(function (options, originalOptions) {
+        // Берём data оттуда, где она реально лежит
+        const data = (options && options.data !== undefined) ? options.data : (originalOptions ? originalOptions.data : undefined);
+
+        // FormData
+        if (data instanceof FormData) {
+            const req = data.get('request');
+            if (String(req) === 'getCities') {
+                data.delete('date');
+                data.delete('filter_date');
+                data.delete('selected_date');
+                data.delete('day');
+            }
+            return;
+        }
+
+        // URLSearchParams
+        if (data instanceof URLSearchParams) {
+            const req = data.get('request');
+            if (String(req) === 'getCities') {
+                data.delete('date');
+                data.delete('filter_date');
+                data.delete('selected_date');
+                data.delete('day');
+            }
+            options.data = data;
+            return;
+        }
+
+        // Object
+        if (data && typeof data === 'object') {
+            options.data = stripDateFromObject(data);
+            return;
+        }
+
+        // String
+        if (typeof data === 'string') {
+            options.data = stripDateFromString(data);
+        }
+    });
+})(window.jQuery);
+
+
+    
     $('.cb_phone_country_code').niceSelect();
     $('.cb_phone_input').mask("<?php echo $firstPhoneMask?>");
     function changeInputMask(item){
@@ -288,19 +362,12 @@ span.flatpickr-weekday {
                 var aIndex = a.text.toUpperCase().indexOf(term);
                 var bIndex = b.text.toUpperCase().indexOf(term);
 
-                // Если одна из опций не содержит введенного символа, она идет ниже
-                if (aIndex === -1 && bIndex !== -1) {
-                    return 1;
-                }
-                if (aIndex !== -1 && bIndex === -1) {
-                    return -1;
-                }
+                if (aIndex === -1 && bIndex !== -1) return 1;
+                if (aIndex !== -1 && bIndex === -1) return -1;
 
-                // Сортируем опции в соответствии с индексом первого введенного символа
                 if (aIndex !== bIndex) {
                     return aIndex - bIndex;
                 } else {
-                    // Если индексы совпадают, используем сортировку с учетом украинского алфавита
                     var collator = new Intl.Collator('uk');
                     return collator.compare(a.text, b.text);
                 }
@@ -338,30 +405,28 @@ span.flatpickr-weekday {
     }
 
     function countPassagers(item, act, type, maxSeats) {
-        let adultsQty = +$('.adults_total').text(); // Получаем количество взрослых
-        let kidsQty = +$('.kids_total').text(); // Получаем количество детей
-        let currentQty = (type === 'adults') ? adultsQty : kidsQty; // Определяем текущее количество в зависимости от типа
+        let adultsQty = +$('.adults_total').text();
+        let kidsQty = +$('.kids_total').text();
+        let currentQty = (type === 'adults') ? adultsQty : kidsQty;
 
         let newQty = 0;
 
-        if (act === 'plus' && (adultsQty + kidsQty) < maxSeats) { // Проверяем, что общее количество пассажиров не превышает количество мест в автобусе
+        if (act === 'plus' && (adultsQty + kidsQty) < maxSeats) {
             newQty = currentQty + 1;
         } else if (act === 'minus' && currentQty >= 1) {
             newQty = currentQty - 1;
         } else {
-            return; // Если действие не "plus" и текущее количество равно или превышает максимальное количество, просто выходим из функции
+            return;
         }
 
-        // Обновляем отображаемое количество пассажиров
         $(item).closest('.passengers_counter').find('.p_counter_value').text(newQty);
 
-        // Обновляем общее количество пассажиров взрослых или детей в зависимости от типа
         if (type === 'kids') {
             $('.kids_total').text(newQty);
-            $('.kids_passengers').val(newQty); // Предполагается, что здесь будет установка значения для какого-то элемента формы, например, скрытого поля
+            $('.kids_passengers').val(newQty);
         } else if (type === 'adults') {
             $('.adults_total').text(newQty);
-            $('.adults_passengers').val(newQty); // Предполагается, что здесь будет установка значения для какого-то элемента формы, например, скрытого поля
+            $('.adults_passengers').val(newQty);
         }
     }
 
@@ -377,22 +442,19 @@ span.flatpickr-weekday {
         $(item).closest('.filter_block_wrapper').find('.filter_block').attr('data-id',$(item).attr('data-id'));
     };
 
-    function switchDirections(){
-        let currentDeparture = $('#filter_departure').val();
-        let currentArrival = $('#filter_arrival').val();
-        $('#filter_arrival').val(currentDeparture).trigger('change');
-        $('#filter_departure').val(currentArrival).trigger('change');
-    }
+    //function switchDirections(){
+    //    let currentDeparture = $('#filter_departure').val();
+    //    let currentArrival = $('#filter_arrival').val();
+    //    $('#filter_arrival').val(currentDeparture).trigger('change');
+    //    $('#filter_departure').val(currentArrival).trigger('change');
+    //}
 
     document.querySelectorAll('.tour_date_link').forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
             var date = this.getAttribute('data-date');
-            // Устанавливаем значение в поле ввода
             document.querySelector('.filter_date').value = date;
-
-            // Сабмитим форму после выбора новой даты
-            document.querySelector('.main_filter').submit(); // Сабмитим форму
+            document.querySelector('.main_filter').submit();
         });
     });
 
@@ -406,11 +468,7 @@ span.flatpickr-weekday {
         ============================
         MAXTRANS: FIX POSITION HELPERS
         ============================
-        Эти функции НЕ ломают твою логику подсветки/запросов.
-        Они только принудительно ставят календарь прямо под инпутом,
-        даже если на странице есть transform или чужие стили top/left с !important.
     */
-
     window.__mxFpOpenInstance = null;
     window.__mxFpRafId = null;
 
@@ -441,7 +499,6 @@ span.flatpickr-weekday {
 
         if (!anchor) return;
 
-        // Помечаем и принудительно делаем fixed, чтобы transform-родители не влияли
         mxFpMarkCalendar(fp);
 
         cal.style.setProperty('position', 'fixed', 'important');
@@ -454,7 +511,6 @@ span.flatpickr-weekday {
         const gap = 8;
         const rect = anchor.getBoundingClientRect();
 
-        // Ставим временно, чтобы измерить размеры календаря
         cal.style.setProperty('top', '0px', 'important');
         cal.style.setProperty('left', '0px', 'important');
 
@@ -462,16 +518,13 @@ span.flatpickr-weekday {
         const calW = calRect.width || cal.offsetWidth || 0;
         const calH = calRect.height || cal.offsetHeight || 0;
 
-        // Позиция по умолчанию: снизу слева
         let top = rect.bottom + gap;
         let left = rect.left;
 
-        // Если не помещается вниз — открываем вверх
         if (calH > 0 && (top + calH) > (window.innerHeight - gap)) {
             top = rect.top - calH - gap;
         }
 
-        // Ограничиваем, чтобы не уезжало за экран
         top = Math.max(gap, top);
 
         if (calW > 0 && (left + calW) > (window.innerWidth - gap)) {
@@ -479,7 +532,6 @@ span.flatpickr-weekday {
         }
         left = Math.max(gap, left);
 
-        // На мобиле удобнее центрировать
         if (window.innerWidth <= 768 && calW > 0) {
             let centeredLeft = (window.innerWidth - calW) / 2;
             centeredLeft = Math.max(gap, centeredLeft);
@@ -508,7 +560,6 @@ span.flatpickr-weekday {
         if (!fp || !fp.config || fp.__mxFixed === true) return;
         fp.__mxFixed = true;
 
-        // Нормализуем колбэки в массивы, чтобы можно было push
         fp.config.onOpen = mxFpNormalizeCallbackArray(fp.config.onOpen);
         fp.config.onClose = mxFpNormalizeCallbackArray(fp.config.onClose);
         fp.config.onMonthChange = mxFpNormalizeCallbackArray(fp.config.onMonthChange);
@@ -518,38 +569,27 @@ span.flatpickr-weekday {
         fp.config.onOpen.push(function(selectedDates, dateStr, instance){
             window.__mxFpOpenInstance = instance;
             mxFpMarkCalendar(instance);
-
-            // Ставим позицию сразу и ещё раз через 2 кадра (на случай анимации fpFadeInDown)
             mxFpRequestPlace(instance);
             requestAnimationFrame(function(){ mxFpPlaceCalendarNow(instance); });
             requestAnimationFrame(function(){ mxFpPlaceCalendarNow(instance); });
         });
 
         fp.config.onMonthChange.push(function(selectedDates, dateStr, instance){
-            if (instance && instance.isOpen) {
-                mxFpRequestPlace(instance);
-            }
+            if (instance && instance.isOpen) mxFpRequestPlace(instance);
         });
 
         fp.config.onYearChange.push(function(selectedDates, dateStr, instance){
-            if (instance && instance.isOpen) {
-                mxFpRequestPlace(instance);
-            }
+            if (instance && instance.isOpen) mxFpRequestPlace(instance);
         });
 
         fp.config.onValueUpdate.push(function(selectedDates, dateStr, instance){
-            if (instance && instance.isOpen) {
-                mxFpRequestPlace(instance);
-            }
+            if (instance && instance.isOpen) mxFpRequestPlace(instance);
         });
 
         fp.config.onClose.push(function(selectedDates, dateStr, instance){
-            if (window.__mxFpOpenInstance === instance) {
-                window.__mxFpOpenInstance = null;
-            }
+            if (window.__mxFpOpenInstance === instance) window.__mxFpOpenInstance = null;
         });
 
-        // Если уже открыт — сразу фиксируем
         if (fp.isOpen) {
             window.__mxFpOpenInstance = fp;
             mxFpRequestPlace(fp);
@@ -574,12 +614,21 @@ span.flatpickr-weekday {
      * FLATPICKR INIT (FILTER MAIN)
      * ============================
      */
-
     document.addEventListener("DOMContentLoaded", function() {
         const filterInput = document.getElementById("filter_date_input") || document.querySelector(".filter_date");
+        if (!filterInput) return;
 
-        if (!filterInput) {
-            return;
+        // ✅ ВАЖНО: сохраняем выбранную дату ПЕРЕД любыми destroy/re-init
+        function mxGetSelectedYmdBeforeDestroy() {
+            if (!filterInput) return '';
+            try {
+                if (filterInput._flatpickr && Array.isArray(filterInput._flatpickr.selectedDates) && filterInput._flatpickr.selectedDates.length) {
+                    return filterInput._flatpickr.formatDate(filterInput._flatpickr.selectedDates[0], "Y-m-d");
+                }
+            } catch (e) {}
+
+            const v = (filterInput.value || '').trim();
+            return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
         }
 
         // Если где-то выше уже инициализировали flatpickr, уничтожаем и делаем заново
@@ -587,7 +636,8 @@ span.flatpickr-weekday {
             try { filterInput._flatpickr.destroy(); } catch (e) {}
         }
 
-        function initBasicFilterPicker() {
+        // ✅ keepDate — дата, которую пользователь выбрал (не сбрасываем при смене городов)
+        function initBasicFilterPicker(keepDate) {
             if (filterInput._flatpickr) {
                 try { filterInput._flatpickr.destroy(); } catch (e) {}
             }
@@ -597,10 +647,14 @@ span.flatpickr-weekday {
                 dateFormat: "Y-m-d",
                 altInput: true,
                 altFormat: "F j, Y",
-                defaultDate: "<?php echo isset($filterDate) ? $filterDate : date('Y-m-d')?>",
+
+                // ✅ ключевой фикс:
+                defaultDate: (keepDate && keepDate.trim() !== '')
+                    ? keepDate
+                    : "<?php echo isset($filterDate) ? $filterDate : date('Y-m-d')?>",
+
                 locale: "<?php echo isset($lang) ? $lang : 'uk'?>",
 
-                // ВАЖНО: пусть создаётся обычно, но позицию мы всё равно будем принудительно фиксить
                 static: false,
                 appendTo: document.body,
                 disableMobile: true,
@@ -625,21 +679,19 @@ span.flatpickr-weekday {
                 }
             });
 
-            // После создания точно навешиваем хуки
             if (filterInput._flatpickr) {
                 mxFpEnsureHooks(filterInput._flatpickr);
             }
         }
 
-        // Если нет нужных селектов — просто ставим обычный календарь и выходим
         if (!window.jQuery || !$('#filter_departure').length || !$('#filter_arrival').length) {
-            initBasicFilterPicker();
+            initBasicFilterPicker(mxGetSelectedYmdBeforeDestroy());
             return;
         }
 
         let filterDatePickerLocal = null;
 
-        function initHighlightedPicker(highlightedDaysArray) {
+        function initHighlightedPicker(highlightedDaysArray, keepDate) {
             if (filterDatePickerLocal) {
                 try { filterDatePickerLocal.destroy(); } catch (e) {}
             }
@@ -652,7 +704,12 @@ span.flatpickr-weekday {
                 dateFormat: "Y-m-d",
                 altInput: true,
                 altFormat: "F j, Y",
-                defaultDate: "<?php echo isset($filterDate) ? $filterDate : date('Y-m-d')?>",
+
+                // ✅ ключевой фикс:
+                defaultDate: (keepDate && keepDate.trim() !== '')
+                    ? keepDate
+                    : "<?php echo isset($filterDate) ? $filterDate : date('Y-m-d')?>",
+
                 locale: "<?php echo $lang?>",
 
                 static: false,
@@ -672,9 +729,7 @@ span.flatpickr-weekday {
 
                 onDayCreate: function(dObj, dStr, fp, dayElem) {
                     let dayOfWeek = dayElem.dateObj.getDay();
-                    if (dayOfWeek === 0) {
-                        dayOfWeek = 7;
-                    }
+                    if (dayOfWeek === 0) dayOfWeek = 7;
                     if (Array.isArray(highlightedDaysArray) && highlightedDaysArray.includes(dayOfWeek)) {
                         dayElem.classList.add("highlight-day");
                     }
@@ -691,18 +746,21 @@ span.flatpickr-weekday {
 
             filterDatePicker = filterDatePickerLocal;
 
-            // После создания точно навешиваем хуки
             if (filterInput._flatpickr) {
                 mxFpEnsureHooks(filterInput._flatpickr);
             }
         }
 
         function sendFilterRequest() {
+            const keepDate = mxGetSelectedYmdBeforeDestroy(); // ✅ сохраняем выбранную пользователем дату
+
             const departure = $('#filter_departure').val();
             const arrival = $('#filter_arrival').val();
 
+            // ✅ раньше тут дата сбрасывалась на сегодня из-за re-init
+            // теперь re-init сохраняет keepDate
             if (!departure || !arrival) {
-                initBasicFilterPicker();
+                initBasicFilterPicker(keepDate);
                 return;
             }
 
@@ -736,22 +794,21 @@ span.flatpickr-weekday {
 
                         console.log(highlightedDaysArray);
 
-                        initHighlightedPicker(highlightedDaysArray);
+                        initHighlightedPicker(highlightedDaysArray, keepDate); // ✅ держим дату
                         isFilterInitialized = true;
                     } else {
                         console.log("Нет доступных дней для выбранных параметров.");
-                        initBasicFilterPicker();
+                        initBasicFilterPicker(keepDate); // ✅ держим дату
                     }
                 },
                 error: function(xhr, status, error) {
                     console.error("Ошибка при выполнении запроса:", error);
-                    initBasicFilterPicker();
+                    initBasicFilterPicker(keepDate); // ✅ держим дату
                 }
             });
         }
 
         sendFilterRequest();
-
         $('#filter_departure, #filter_arrival').on("change", sendFilterRequest);
     });
 
@@ -766,7 +823,6 @@ span.flatpickr-weekday {
      * FLATPICKR INIT (BOOKING)
      * ============================
      */
-
     document.addEventListener("DOMContentLoaded", function() {
         const filterInput = document.querySelector(".filter_date_booking");
 
@@ -774,7 +830,6 @@ span.flatpickr-weekday {
             return;
         }
 
-        // Если уже был инициализирован — уничтожаем, чтобы применились новые настройки
         if (filterInput._flatpickr) {
             try { filterInput._flatpickr.destroy(); } catch (e) {}
         }
@@ -822,7 +877,6 @@ span.flatpickr-weekday {
                 }
             });
 
-            // После создания точно навешиваем хуки
             if (filterInput._flatpickr) {
                 mxFpEnsureHooks(filterInput._flatpickr);
             }
@@ -861,9 +915,7 @@ span.flatpickr-weekday {
 
                 onDayCreate: function(dObj, dStr, fp, dayElem) {
                     let dayOfWeek = dayElem.dateObj.getDay();
-                    if (dayOfWeek === 0) {
-                        dayOfWeek = 7;
-                    }
+                    if (dayOfWeek === 0) dayOfWeek = 7;
                     if (Array.isArray(highlightedDaysArray) && highlightedDaysArray.includes(dayOfWeek)) {
                         dayElem.classList.add("highlight-day");
                     }
@@ -879,7 +931,6 @@ span.flatpickr-weekday {
                 }
             });
 
-            // После создания точно навешиваем хуки
             if (filterInput._flatpickr) {
                 mxFpEnsureHooks(filterInput._flatpickr);
             }
@@ -1088,11 +1139,8 @@ span.flatpickr-weekday {
         ============================
         MAXTRANS: GLOBAL LISTENERS
         ============================
-        - Если календарь открыт и ты скроллишь/ресайзишь — держим его возле инпута.
-        - Если какой-то сторонний код создаст flatpickr позже — мы всё равно навесим хуки.
     */
     document.addEventListener('DOMContentLoaded', function(){
-        // пробуем навесить фиксы после того как отработают все DOMContentLoaded внутри файла
         setTimeout(function(){
             mxFpTryFixBySelector('#filter_date_input');
             mxFpTryFixBySelector('.filter_date');
@@ -1111,17 +1159,14 @@ span.flatpickr-weekday {
             }
         }, true);
 
-        // Любой клик по инпуту/кнопке календаря — ещё раз убеждаемся что хуки навешены
         document.addEventListener('click', function(e){
             const t = e.target;
 
-            // клики по кнопке календаря
             const calendarBtn = t && (t.closest ? t.closest('.filter_calendar_btn') : null);
             if (calendarBtn) {
                 const inp = document.getElementById('filter_date_input') || document.querySelector('.filter_date');
                 if (inp && inp._flatpickr) {
                     mxFpEnsureHooks(inp._flatpickr);
-                    // если уже открыт, перепозиционируем
                     if (inp._flatpickr.isOpen) {
                         mxFpRequestPlace(inp._flatpickr);
                     }
@@ -1129,13 +1174,10 @@ span.flatpickr-weekday {
                 return;
             }
 
-            // клики по самому altInput (он создаётся flatpickr-ом)
             if (t && t.classList && t.classList.contains('flatpickr-input')) {
                 if (t._flatpickr) {
                     mxFpEnsureHooks(t._flatpickr);
                 } else {
-                    // иногда кликают по altInput (он не тот же элемент),
-                    // поэтому пробуем найти оригинальные инпуты
                     mxFpTryFixBySelector('#filter_date_input');
                     mxFpTryFixBySelector('.filter_date_booking');
                 }

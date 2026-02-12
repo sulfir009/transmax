@@ -142,14 +142,12 @@ class MonobankWebhookHandler
                 if (!$alreadyPaid) {
                     $order->payment_status = 2;
                     $order->paid_at = $order->paid_at ?: now();
-                    // В legacy online списках есть фильтр ticket_return = 0.
-                    // Если старые записи имели NULL, заказ не показывается в админке.
                     if ($order->ticket_return === null) {
                         $order->ticket_return = 0;
                     }
                     $needFinalize = true;
                 }
-
+                
                 Log::channel('payment')->info('[Monobank] mark order paid (webhook)', [
                     'order_id' => (int) $order->id,
                     'uniqid' => (string) ($order->uniqid ?: $order->uniqId ?: ''),

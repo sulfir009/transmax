@@ -118,12 +118,14 @@
                 tsp.price AS price,
                 bus.title_".$Router->lang." AS bus_title,
                 dt.departure_time,
-                at.arrival_time
+                at.arrival_time,
+                ad.arrival_day
                 FROM `" . DB_PREFIX . "_orders` o
                 LEFT JOIN `" . DB_PREFIX . "_tours` t ON t.id = o.tour_id
                 LEFT JOIN `" . DB_PREFIX . "_tours_stops` dt ON dt.tour_id = o.tour_id AND dt.stop_id = o.from_stop
                 LEFT JOIN `" . DB_PREFIX . "_tours_stops` at ON at.tour_id = o.tour_id AND at.stop_id = o.to_stop
                 LEFT JOIN `" . DB_PREFIX . "_cities` departure_station ON departure_station.id = o.from_stop
+                LEFT JOIN `" . DB_PREFIX . "_tours_stops` ad ON ad.tour_id = o.tour_id AND ad.stop_id = o.to_stop
                 LEFT JOIN `" . DB_PREFIX . "_cities` departure_city ON departure_city.id = departure_station.section_id
                 LEFT JOIN `" . DB_PREFIX . "_cities` arrival_station ON arrival_station.id = o.to_stop
                 LEFT JOIN `" . DB_PREFIX . "_cities` arrival_city ON arrival_city.id = arrival_station.section_id
@@ -142,7 +144,12 @@
                                 $month = $Db->getone("SELECT title_" . $Router->lang . " AS title FROM `" . DB_PREFIX . "_months` WHERE id = '" . date('m', strtotime($history['tour_date'])) . "' ");
                                 $international = (int)$history['departure_city_section_id'] != $history['arrival_city_section_id'];
                                 $getTicketStops = $Db->getAll("SELECT stop_id,arrival_time,departure_time FROM `" .  DB_PREFIX . "_tours_stops`WHERE tour_id = '".$history['tour_id']."' ORDER BY id ASC ");
-                                $rideTime = calculateTotalTravelTime($getTicketStops,$history['from_stop'],$history['to_stop']);?>
+                                $rideTime = calculateTotalTravelTime(
+                                    $getTicketStops,
+                                    $history['from_stop'],
+                                    $history['to_stop'],
+                                    $history['arrival_day'] ?? 0
+                                );?>
                                 <div class="col-xxl-6">
                                     <div class="ticket_card flex-row private_ticket shadow_block">
                                         <div class="col-md-12">

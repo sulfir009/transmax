@@ -79,7 +79,6 @@ Artisan::command('monobank:test-webhook {invoiceId?} {--status=success} {--order
 })->purpose('Simulate Monobank webhook handling (non-production only).');
 
 
-
 Artisan::command('payment:diagnose-online {uniqid}', function () {
     $uniqid = (string) $this->argument('uniqid');
     $ordersTable = env('DB_PREFIX', 'mt') . '_orders';
@@ -123,6 +122,7 @@ Artisan::command('payment:diagnose-online {uniqid}', function () {
 
     $this->line(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 })->purpose('Diagnose why an order is not visible in legacy admin online list (payment_status=2 and ticket_return=0).');
+
 
 Artisan::command('bonuses:grant-initial {--dry-run} {--chunk=1000}', function () {
     $chunk = (int) $this->option('chunk') ?: 1000;

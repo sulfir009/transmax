@@ -27,30 +27,58 @@ class ThankYouController extends Controller
      * @param Request $request
      * @return View
      */
-    public function index(Request $request): View
-    {
-        // Get page data from service
-        $pageData = $this->thankYouService->getPageData();
-        
-        // Check user authentication status
-        $isAuthenticated = $this->thankYouService->isUserAuthenticated();
-        
-        // Get redirect URL based on authentication status
-        $redirectUrl = $this->thankYouService->getRedirectUrl($isAuthenticated);
-        
-        // Get global variables for layout compatibility
-        global $Router, $Db, $User;
-        
-        return view('booking.thank-you', [
-            'pageData' => $pageData,
-            'page_data' => $pageData, // For legacy layout compatibility
-            'isAuthenticated' => $isAuthenticated,
-            'redirectUrl' => $redirectUrl,
-            'lang' => app()->getLocale(),
-            'Router' => $Router,
-            'header_class' => 'header_blue'
-        ]);
+public function index(Request $request): View
+{
+    $pageData = $this->thankYouService->getPageData();
+
+    $isAuthenticated = $this->thankYouService->isUserAuthenticated();
+    $redirectUrl = $this->thankYouService->getRedirectUrl($isAuthenticated);
+
+    // legacy globals (если реально нужны во view)
+    global $Router, $db, $User;
+
+    // 1) Laravel session
+    $sessionOrderId = $request->session()->get('order.id')
+        ?? $request->session()->get('order_id')
+        ?? $request->session()->get('order.order_id');
+
+    $sessionOrderUniq = $request->session()->get('order.uniq')
+        ?? $request->session()->get('order_uniq')
+        ?? $request->session()->get('order.order_uniq');
+
+    $sessionPaymentMethod = $request->session()->get('order.payment_method')
+        ?? $request->session()->get('payment_method')
+        ?? $request->session()->get('order.method');
+
+    // 2) PHP native session fallback (если legacy пишет в $_SESSION)
+    if (($sessionOrderId === null || $sessionOrderId === '') && isset($_SESSION) && is_array($_SESSION)) {
+        if (isset($_SESSION['order']) && is_array($_SESSION['order'])) {
+            $sessionOrderId = $sessionOrderId ?? ($_SESSION['order']['id'] ?? $_SESSION['order']['order_id'] ?? null);
+            $sessionOrderUniq = $sessionOrderUniq ?? ($_SESSION['order']['uniq'] ?? $_SESSION['order']['order_uniq'] ?? null);
+            $sessionPaymentMethod = $sessionPaymentMethod ?? ($_SESSION['order']['payment_method'] ?? $_SESSION['order']['method'] ?? null);
+        } else {
+            $sessionOrderId = $sessionOrderId ?? ($_SESSION['order_id'] ?? null);
+            $sessionOrderUniq = $sessionOrderUniq ?? ($_SESSION['order_uniq'] ?? null);
+            $sessionPaymentMethod = $sessionPaymentMethod ?? ($_SESSION['payment_method'] ?? null);
+        }
     }
+
+    return view('booking.thank-you', [
+        'pageData' => $pageData,
+        'page_data' => $pageData,
+        'isAuthenticated' => $isAuthenticated,
+        'redirectUrl' => $redirectUrl,
+        'lang' => app()->getLocale(),
+        'Router' => $Router ?? null,
+        'header_class' => 'header_blue',
+
+        // ✅ теперь переменные всегда объявлены (могут быть null, но не вызовут fatal)
+        'sessionOrderId' => $sessionOrderId,
+        'sessionOrderUniq' => $sessionOrderUniq,
+        'sessionPaymentMethod' => $sessionPaymentMethod,
+    ]);
+}
+
 
     /**
      * Clear session booking data via AJAX

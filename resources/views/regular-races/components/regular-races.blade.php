@@ -1082,3 +1082,138 @@ document.addEventListener('click', function(e){
 
     </div>
 </div>
+
+@once
+<script>
+(() => {
+    const KYIV_TZ = 'Europe/Kyiv';
+
+    const isValidDateString = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+    const formatDateParts = (year, month, day) => {
+        const y = String(year).padStart(4, '0');
+        const m = String(month).padStart(2, '0');
+        const d = String(day).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    };
+
+    const kyivToday = () => {
+        try {
+            const formatter = new Intl.DateTimeFormat('en-CA', {
+                timeZone: KYIV_TZ,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+            });
+            return formatter.format(new Date());
+        } catch (error) {
+            const now = new Date();
+            return formatDateParts(now.getFullYear(), now.getMonth() + 1, now.getDate());
+        }
+    };
+
+    const parseDateToUtc = (dateString) => {
+        if (!isValidDateString(dateString)) {
+            return null;
+        }
+        const [year, month, day] = dateString.split('-').map(Number);
+        return new Date(Date.UTC(year, month - 1, day));
+    };
+
+    const getIsoWeekday = (date) => {
+        const day = date.getUTCDay();
+        return day === 0 ? 7 : day;
+    };
+
+    const findNearestDate = (button) => {
+        const todayAttr = button.getAttribute('data-today');
+        const startDate = isValidDateString(todayAttr) ? todayAttr : kyivToday();
+        const dataDate = button.getAttribute('data-date');
+
+        if (isValidDateString(dataDate) && dataDate >= startDate) {
+            return dataDate;
+        }
+
+        const daysRaw = button.getAttribute('data-days') || '';
+        const allowedDays = daysRaw
+            .split(',')
+            .map((value) => Number(value))
+            .filter((value) => Number.isFinite(value));
+
+        const baseDate = parseDateToUtc(startDate) || new Date();
+
+        for (let offset = 0; offset <= 30; offset += 1) {
+            const candidate = new Date(baseDate);
+            candidate.setUTCDate(baseDate.getUTCDate() + offset);
+            if (allowedDays.includes(getIsoWeekday(candidate))) {
+                return formatDateParts(
+                    candidate.getUTCFullYear(),
+                    candidate.getUTCMonth() + 1,
+                    candidate.getUTCDate()
+                );
+            }
+        }
+
+        return startDate;
+    };
+
+    const getLangPrefix = () => {
+        const { pathname } = window.location;
+        if (pathname === '/uk' || pathname.startsWith('/uk/')) {
+            return '/uk';
+        }
+        if (pathname === '/en' || pathname.startsWith('/en/')) {
+            return '/en';
+        }
+        return '';
+    };
+
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('.buy-online-btn');
+        if (!button) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const arrivalId = button.getAttribute('data-arrival');
+        const departureId = button.getAttribute('data-departure');
+        const redirectRaw = button.getAttribute('data-redirect') || '';
+
+        if (!arrivalId || !departureId) {
+            console.error('Buy online: missing arrival/departure', {
+                arrivalId,
+                departureId,
+                button,
+            });
+            alert('Не удалось определить маршрут');
+            return;
+        }
+
+        const date = findNearestDate(button);
+        if (!date) {
+            console.error('Buy online: missing date', { button });
+            alert('Не удалось определить маршрут');
+            return;
+        }
+
+        const langPrefix = getLangPrefix();
+        const basePath = `${langPrefix}/bilety`;
+        let redirectOrigin = window.location.origin;
+        try {
+            redirectOrigin = new URL(redirectRaw || basePath, window.location.origin).origin;
+        } catch (error) {
+            redirectOrigin = window.location.origin;
+        }
+        const url = new URL(basePath, redirectOrigin);
+        url.searchParams.set('from', departureId);
+        url.searchParams.set('to', arrivalId);
+        url.searchParams.set('date', date);
+        url.searchParams.set('adults', '1');
+        url.searchParams.set('kids', '0');
+
+        window.location.href = url.toString();
+    });
+})();
+</script>
+@endonce

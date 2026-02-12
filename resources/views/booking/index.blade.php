@@ -30,6 +30,7 @@
 .tabs_links_container{
     box-shadow: 0 2px 44px 0 rgb(0 0 0 / 30%);
     padding:15px;
+        margin-top: 16px;
     max-width: 2700px;
 }
 
@@ -1103,6 +1104,148 @@
     padding: 50px 0;
 }
 
+/* ==========================================================
+   BOOKING V2 — PURCHASE STEPS (match /oplata)
+   ВСТАВИТЬ В САМЫЙ КОНЕЦ <style> на booking странице
+   ========================================================== */
+
+/* 1) Белая плашка как на /oplata */
+.booking_v2 .purchase_steps_wrapper{
+    margin: 0 0 38px !important;
+    margin-top: 20px !important;
+
+    background:#fff !important;
+    padding: 18px 0 16px !important;
+
+    box-shadow: 0 10px 24px rgba(53,186,240,.12) !important;
+}
+
+/* 2) Убираем “карточность” tabs_links_container (у тебя там жирная тень/паддинги) */
+.booking_v2 .tabs_links_container{
+    background: transparent !important;
+    box-shadow: none !important;
+
+    /* внутренние боковые отступы внутри белой плашки */
+    padding: 0 40px !important;
+
+    /* если где-то прилипли margin/padding из других мест */
+    margin: 0 auto !important;
+    width: 100% !important;
+}
+
+/* 3) Ровная линия из 3 шагов */
+.booking_v2 .purchase_steps{
+    display:flex !important;
+    align-items:center !important;
+    flex-wrap:nowrap !important;
+
+    gap: 43px !important; /* расстояние между пилюлями как на /oplata */
+}
+
+/* 4) wrapper шагов с фикс-ширинами как в Figma (/oplata) */
+.booking_v2 .purchase_step_wrapper{
+    position: relative !important;
+    flex: 0 0 auto !important;
+}
+
+.booking_v2 .purchase_step_wrapper:nth-child(1){ width: 273px !important; }
+.booking_v2 .purchase_step_wrapper:nth-child(2){ width: 327px !important; }
+.booking_v2 .purchase_step_wrapper:nth-child(3){ width: 169px !important; }
+
+/* 5) Пилюля */
+.booking_v2 .purchase_step{
+    width: 100% !important;
+    height: 37px !important;
+
+    border-radius: 60.5px !important;
+    border: 3px solid #40A6FF !important;
+    background:#fff !important;
+
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+
+    font-family: Montserrat,system-ui !important;
+    font-weight: 600 !important;
+    font-size: 11px !important;
+    line-height: 24.72px !important;
+
+    color:#40A6FF !important;
+    white-space: nowrap !important;
+
+    /* убиваем твои старые margin-left / margin-right от purchase_step1 и т.п. */
+    margin: 0 !important;
+    padding: 0 10px !important;
+}
+
+/* Активная */
+.booking_v2 .purchase_step.active{
+    background:#40A6FF !important;
+    border-color:#40A6FF !important;
+    color:#fff !important;
+}
+
+/* 6) Пунктир между шагами как на /oplata */
+.booking_v2 .purchase_step_wrapper:not(:last-child)::after{
+    content:"" !important;
+    position:absolute !important;
+
+    left: calc(100% + 0px) !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+
+    width: 122px !important;
+    height: 0 !important;
+
+    border-top: 3px dashed #40A6FF !important;
+    opacity: 1 !important;
+}
+
+/* На всякий случай: если где-то остался твой класс purchase_step1 */
+.booking_v2 .purchase_step1{
+    margin-left: 0 !important;
+}
+
+/* ==========================================================
+   MOBILE — как на /oplata: компакт + горизонтальный скролл,
+   пунктир прячем (иначе ломает)
+   ========================================================== */
+@media (max-width: 768px){
+    .booking_v2 .tabs_links_container{
+        padding: 0 14px !important;
+    }
+
+    .booking_v2 .purchase_steps{
+        justify-content:flex-start !important;
+        gap: 12px !important;
+
+        overflow-x:auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        padding-bottom: 6px !important;
+    }
+
+    .booking_v2 .purchase_step_wrapper{
+        width:auto !important;
+    }
+
+    .booking_v2 .purchase_step{
+        height: 44px !important;
+        border-radius: 44px !important;
+        border-width: 2px !important;
+
+        font-size: 14px !important;
+        line-height: 18px !important;
+
+        padding: 0 18px !important;
+        width: auto !important;
+    }
+
+    .booking_v2 .purchase_step_wrapper::after{
+        display:none !important;
+    }
+}
+
+
     </style>
 @endsection
 
@@ -1815,6 +1958,44 @@ window.__dbgPassengers = {
         window.updateBonusPreview(initialCents);
     }
 })();
+
+<script>
+$(function () {
+
+    function initStepsSlickBooking(){
+        var $steps = $('.booking_v2 .purchase_steps');
+        if (!$steps.length) return;
+
+        // если slick не подключен — просто выходим (CSS overflow-x уже даст скролл)
+        if (typeof $.fn.slick !== 'function') return;
+
+        var isMobile = $(window).width() < 576;
+
+        if (isMobile && !$steps.hasClass('slick-initialized')) {
+            $steps.slick({
+                slidesToShow: 1,
+                slidesToScroll: 1,
+                dots: false,
+                arrows: false,
+                infinite: false,
+                variableWidth: true
+            });
+
+            // активный шаг = 2, индекс = 1
+            $steps.slick('slickGoTo', 1, true);
+        }
+
+        if (!isMobile && $steps.hasClass('slick-initialized')) {
+            $steps.slick('unslick');
+        }
+    }
+
+    initStepsSlickBooking();
+    $(window).on('resize', initStepsSlickBooking);
+
+});
+</script>
+
 </script>
 
 

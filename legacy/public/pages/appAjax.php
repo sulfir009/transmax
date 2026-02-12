@@ -12,39 +12,59 @@ $User = new User($Db);
 
 header('Content-Type: application/json; charset=utf-8');
 
-$rawBody = isset($GLOBALS['LEGACY_RAW_INPUT']) ? (string) $GLOBALS['LEGACY_RAW_INPUT'] : (string) file_get_contents('php://input');
-$rawBody = preg_replace('/^\xEF\xBB\xBF/', '', $rawBody);
-$decodedJson = json_decode($rawBody, true);
-$jsonErrorCode = json_last_error();
-$jsonError = json_last_error_msg();
-$fallbackPost = is_array($_POST) ? $_POST : [];
+/**
+ * ============================================================
+ *  SAFE INPUT PARSER (JSON + form + fallback) + SAFE LANG
+ * ============================================================
+ *
+ * Почему это критично:
+ * - Раньше legacy часто делал json_decode(file_get_contents('php://input')) и падал,
+ *   когда тело пустое/уже прочитано Laravel'ом -> "Invalid JSON".
+ * - Также lang мог быть пустым/левым -> SQL строил title_ / text_ -> Unknown column `title_`.
+ */
+$rawBody = isset($GLOBALS['LEGACY_RAW_INPUT'])
+    ? (string) $GLOBALS['LEGACY_RAW_INPUT']
+    : (string) file_get_contents('php://input');
+
+$rawBody = preg_replace('/^\xEF\xBB\xBF/', '', $rawBody); // BOM guard
+
+$decodedJson = null;
+$jsonErrorCode = JSON_ERROR_NONE;
+$jsonError = '';
+
+if (trim($rawBody) !== '') {
+    $decodedJson = json_decode($rawBody, true);
+    $jsonErrorCode = json_last_error();
+    $jsonError = json_last_error_msg();
+}
+
+$fallbackPost    = is_array($_POST) ? $_POST : [];
 $fallbackRequest = is_array($_REQUEST) ? $_REQUEST : [];
-$usedFallback = false;
+$fallbackGet     = is_array($_GET) ? $_GET : [];
+$usedFallback    = false;
 
 $logContext = static function (string $message, ?array $payload = null) use ($rawBody, $jsonError) {
     error_log('[appAjax] ' . $message . ': ' . json_encode([
-        'method' => $_SERVER['REQUEST_METHOD'] ?? '',
-        'uri' => $_SERVER['REQUEST_URI'] ?? '',
+        'method'       => $_SERVER['REQUEST_METHOD'] ?? '',
+        'uri'          => $_SERVER['REQUEST_URI'] ?? '',
         'content_type' => $_SERVER['CONTENT_TYPE'] ?? ($_SERVER['HTTP_CONTENT_TYPE'] ?? ''),
-        'raw_body' => mb_substr($rawBody, 0, 200),
-        'json_error' => $jsonError,
-        'request' => $payload['request'] ?? null,
-        'lang' => $payload['lang'] ?? null,
+        'raw_body'     => function_exists('mb_substr') ? mb_substr($rawBody, 0, 300) : substr($rawBody, 0, 300),
+        'json_error'   => $jsonError,
+        'request'      => $payload['request'] ?? null,
+        'lang'         => $payload['lang'] ?? ($payload['language'] ?? null),
     ], JSON_UNESCAPED_UNICODE));
 };
 
 /**
- * Legacy API language normalizer.
- *
- * Почему так:
- * - В legacy SQL динамически подставляется имя колонки (title_$lang / text_$lang / ...).
- * - Если lang пустой/левый, получится несуществующая колонка (например `title_`) и падение SQL.
- * - Поэтому используем только whitelist и принудительный fallback.
+ * Legacy API language normalizer (whitelist only).
+ * Закрывает:
+ * - Unknown column `title_` (пустой lang)
+ * - SQL-инъекции через имя колонки (title_$lang)
  */
 $normalizeLang = static function ($rawLang, string $requestName = '') {
     $allowed = ['ru', 'uk', 'en'];
-    $lang = strtolower(trim((string) $rawLang));
 
+    $lang = strtolower(trim((string) $rawLang));
     if ($lang === 'ua') {
         $lang = 'uk';
     }
@@ -52,10 +72,10 @@ $normalizeLang = static function ($rawLang, string $requestName = '') {
     if (!in_array($lang, $allowed, true)) {
         $fallback = 'ru';
         error_log('[appAjax] invalid lang fallback: ' . json_encode([
-            'request' => $requestName,
-            'raw_lang' => $rawLang,
+            'request'         => $requestName,
+            'raw_lang'        => $rawLang,
             'normalized_lang' => $lang,
-            'fallback_lang' => $fallback,
+            'fallback_lang'   => $fallback,
         ], JSON_UNESCAPED_UNICODE));
         return $fallback;
     }
@@ -67,9 +87,19 @@ if (is_array($decodedJson)) {
     $cleanPost = $decodedJson;
 } else {
     $usedFallback = true;
-    $cleanPost = $fallbackPost !== [] ? $fallbackPost : $fallbackRequest;
 
-    if ((!is_array($cleanPost) || $cleanPost === []) && trim($rawBody) !== '') {
+    if ($fallbackPost !== []) {
+        $cleanPost = $fallbackPost;
+    } elseif ($fallbackRequest !== []) {
+        $cleanPost = $fallbackRequest;
+    } elseif ($fallbackGet !== []) {
+        $cleanPost = $fallbackGet;
+    } else {
+        $cleanPost = [];
+    }
+
+    // если тело пришло как querystring (редко, но бывает)
+    if ((!is_array($cleanPost) || $cleanPost === []) && trim($rawBody) !== '' && strpos($rawBody, '=') !== false) {
         $parsedBody = [];
         parse_str($rawBody, $parsedBody);
         if (is_array($parsedBody) && $parsedBody !== []) {
@@ -80,23 +110,34 @@ if (is_array($decodedJson)) {
     if (!is_array($cleanPost) || $cleanPost === []) {
         $logContext('invalid payload', null);
         echo json_encode(['error' => 'Invalid JSON or empty request body'], JSON_UNESCAPED_UNICODE);
-        return;
+        exit;
     }
 
+    // логируем только когда реально пытались декодить JSON или тело не пустое
     if ($jsonErrorCode !== JSON_ERROR_NONE || trim($rawBody) !== '') {
         $logContext('json_decode failed, using fallback', $cleanPost);
     }
 }
 
-if (!isset($cleanPost['request']) || $cleanPost['request'] === '') {
+if (!isset($cleanPost['request']) || trim((string) $cleanPost['request']) === '') {
     $logContext('missing request action', $cleanPost);
     echo json_encode(['error' => 'Missing request field'], JSON_UNESCAPED_UNICODE);
-    return;
+    exit;
+}
+
+$cleanPost['request'] = trim((string) $cleanPost['request']);
+
+// Поддержка legacy-поля language -> сводим всё к lang
+if (!isset($cleanPost['lang']) && isset($cleanPost['language'])) {
+    $cleanPost['lang'] = $cleanPost['language'];
 }
 
 // Глобально нормализуем lang для ВСЕХ веток ниже.
 // Это закрывает SQL-ошибки вида Unknown column `title_` и исключает SQL-инъекцию через имя поля.
 $cleanPost['lang'] = $normalizeLang($cleanPost['lang'] ?? null, (string) $cleanPost['request']);
+
+// Для старых веток, где используется $cleanPost['language']
+$cleanPost['language'] = $cleanPost['lang'];
 
 /* авторизация  */
 if ($cleanPost['request'] === 'appAuth') {
@@ -140,15 +181,17 @@ if ($cleanPost['request'] === 'AuthSMS') {
     if ($userInfo) {
 
         // Сохранение кода в базе данных
-        $saveCode = $Db->query("UPDATE `" .  DB_PREFIX . "_clients`SET code = '".$randomCode."' WHERE id = '".$userInfo['id'] ."'");
+        $Db->query("UPDATE `" .  DB_PREFIX . "_clients`SET code = '".$randomCode."' WHERE id = '".$userInfo['id'] ."'");
+
         $adminPhone = '380951577726';
         $isAdmin = trim(str_replace([' ', '(', ')', '-'], '', $cleanPost['phone']), "+") == $adminPhone;
 
         if (!$isAdmin) {
             // Отправка SMS через TurboSMS API
             $apiKey = '40de5c81e6360bb0bfda2ada1a00304cbb4d4dfa';
-            $sender = 'Max Trans'; // Имя отправителя, как зарегистрировано в TurboSMS
+            $sender = 'Max Trans';
             $phone = $cleanPost['phone'];
+
             if ($cleanPost['language'] === 'uk') {
                 $message = "Ваш код підтвердження: $randomCode";
             } else if ($cleanPost['language'] === 'ru') {
@@ -157,7 +200,6 @@ if ($cleanPost['request'] === 'AuthSMS') {
                 $message = "Your confirmation code: $randomCode";
             }
 
-            // Формируем запрос к TurboSMS API
             $data = [
                 "recipients" => [$phone],
                 "sms" => [
@@ -166,7 +208,6 @@ if ($cleanPost['request'] === 'AuthSMS') {
                 ]
             ];
 
-            // Отправка запроса
             $ch = curl_init('https://api.turbosms.ua/message/send.json');
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -179,72 +220,19 @@ if ($cleanPost['request'] === 'AuthSMS') {
             $response = curl_exec($ch);
             curl_close($ch);
 
-            // Проверяем ответ от API
             if ($response) {
-                echo $cleanPost['language'];
-                echo json_encode('code saved to DB and SMS sent');
+                echo json_encode('code saved to DB and SMS sent', JSON_UNESCAPED_UNICODE);
             } else {
-                echo $cleanPost['language'];
-                echo json_encode('code saved to DB but SMS not sent');
+                echo json_encode('code saved to DB but SMS not sent', JSON_UNESCAPED_UNICODE);
             }
+        } else {
+            echo json_encode('code saved to DB (admin)', JSON_UNESCAPED_UNICODE);
         }
+
     } else {
         echo 'nouser';
     }
 }
-
-
-
-//if ($cleanPost['request'] === 'AuthSMS') {
-//
-//    $userInfo = $Db->getOne("SELECT id, email FROM `" .  DB_PREFIX . "_clients`WHERE phone = '" . $cleanPost['phone'] . "'");
-//    function generateRandomCode($length = 4)
-//    {
-//        $code = '';
-//        for ($i = 0; $i < $length; $i++) {
-//            $code .= random_int(0, 9);
-//        }
-//        return $code;
-//    }
-//
-//    $randomCode = generateRandomCode();
-//
-//    if ($userInfo) {
-//        $saveCode = $Db->query("UPDATE `" .  DB_PREFIX . "_clients`SET code = '" . $randomCode . "' WHERE id = '" . $userInfo['id'] . "'");
-//
-//        $fromName = "Max Trans LTD";
-//        $fromEmail = "info@maxtransltd.com";
-//
-//        $subject = "Код для входа";
-//
-//        if ($cleanPost['language'] === 'uk') {
-//            $message = "Ваш код підтвердження: $randomCode";
-//        } else if ($cleanPost['language'] === 'ru') {
-//            $message = "Ваш код подтверждения: $randomCode";
-//        } else {
-//            $message = "Your confirmation code: $randomCode";
-//        }
-//
-//
-//        $headers = "MIME-Version: 1.0" . "\r\n";
-//        $headers .= "Content-type:text/html;charset=UTF-8" . "\r\n";
-//        $headers .= 'From: "' . $fromName . '" <' . $fromEmail . '>' . "\r\n";
-//        $headers .= 'Reply-To: ' . $fromEmail . "\r\n";
-//        $headers .= 'X-Mailer: PHP/' . phpversion();
-//
-//        ini_set('SMTP', 'mail.adm.tools');
-//        ini_set('smtp_port', '465');
-//        ini_set('sendmail_from', 'info@maxtransltd.com');
-//        ini_set('sendmail_path', '"/usr/sbin/sendmail -t -i"');
-//        mail($userInfo['email'], $subject, $message, $headers);
-//
-////        echo json_encode('code saved to DB');
-//        echo $cleanPost['language'];
-//    } else {
-//        echo 'nouser';
-//    }
-//}
-
 
 if ($cleanPost['request'] === 'AuthCode') {
     $adminPhone = '380951577726';
@@ -281,7 +269,6 @@ if ($cleanPost['request'] === 'AuthCode') {
     }
 }
 
-
 if ($cleanPost['request'] === "appRegisterOld") {
     if (!filter_var($cleanPost['email'], FILTER_VALIDATE_EMAIL)) {
         exit($GLOBALS['dictionary']['MSG_MSG_REGISTER_NEVERNYJ_EMAIL']);
@@ -311,9 +298,7 @@ if ($cleanPost['request'] === "appRegisterOld") {
     }
 }
 
-
 if ($cleanPost['request'] === "appRegister") {
-
 
     if (!filter_var($cleanPost['email'], FILTER_VALIDATE_EMAIL)) {
         exit($GLOBALS['dictionary']['MSG_MSG_REGISTER_NEVERNYJ_EMAIL']);
@@ -367,7 +352,6 @@ if ($cleanPost['request'] === "appRegister") {
 
     $password = bin2hex(random_bytes(8));
 
-
     if ($User->appRegister($arFields, $arData, $cleanPost['email'], $password)) {
 
         $getUser = $Db->getOne("SELECT id, name, second_name, phone, email, password FROM `" .  DB_PREFIX . "_clients`WHERE email = '" . $cleanPost['email'] . "'");
@@ -400,20 +384,16 @@ if ($cleanPost['request'] === "appRegister") {
         ini_set('sendmail_path', '"/usr/sbin/sendmail -t -i"');
         mail($cleanPost['email'], $subject, $message, $headers);
 
-        // Возврат ответа с зашифрованными данными пользователя
         echo json_encode($response);
     } else {
         echo 'error';
     }
 }
 
-
 if($cleanPost['request'] === 'faq') {
     $lang = $cleanPost['lang'];
 
     $faq_questions = $Db->getAll("SELECT id, question_".$lang." as question, answer_".$lang." as answer FROM `" .  DB_PREFIX . "_faq`WHERE active = '1'");
-
-
 
     if ($faq_questions) {
         echo json_encode($faq_questions);
@@ -422,7 +402,6 @@ if($cleanPost['request'] === 'faq') {
     }
 }
 
-
 if($cleanPost['request'] === 'getCities') {
     $lang = $cleanPost['lang'];
 
@@ -430,7 +409,7 @@ if($cleanPost['request'] === 'getCities') {
     $get_cities = [];
     if ($get_cities_raw) {
         foreach ($get_cities_raw as $city) {
-            $city['id'] = (int)$city['id']; // Приводим id к числу
+            $city['id'] = (int)$city['id'];
             $get_cities[] = $city;
         }
         echo json_encode($get_cities, JSON_UNESCAPED_UNICODE);
@@ -439,45 +418,96 @@ if($cleanPost['request'] === 'getCities') {
     }
 }
 
+/**
+ * ============================================================
+ *  SALE CITIES (работает и при direct legacy, и в Laravel include)
+ * ============================================================
+ */
 if ($cleanPost['request'] === 'getFromCitiesForSale') {
     $lang = $cleanPost['lang'];
+
+    $citiesTable = DB_PREFIX . '_cities';
+    $toursTable  = DB_PREFIX . '_tours';
+    $salesTable  = DB_PREFIX . '_tours_sales';
+    $pricesTable = DB_PREFIX . '_tours_stops_prices';
+
     $cacheKey = 'app_ajax.from_cities_for_sale.' . $lang;
 
-    $cities = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addMinutes(15), static function () use ($lang) {
-        $titleColumn = 'c.title_' . $lang;
+    $laravelAvailable = class_exists('\Illuminate\Support\Facades\DB') && class_exists('\Illuminate\Support\Facades\Cache');
 
-        $rows = \Illuminate\Support\Facades\DB::table('mt_cities as c')
-            ->selectRaw('DISTINCT c.id as id, ' . $titleColumn . ' as title, c.sort as sort')
-            ->where('c.active', 1)
-            ->where('c.station', 0)
-            ->where('c.section_id', '>', 0)
-            ->whereExists(function ($q) {
-                $q->selectRaw('1')
-                    ->from('mt_tours as t')
-                    ->join('mt_tours_sales as tsl', 'tsl.tour_id', '=', 't.id')
-                    ->join('mt_tours_stops_prices as tsp', 'tsp.tour_id', '=', 't.id')
-                    ->join('mt_cities as fs', 'fs.id', '=', 'tsp.from_stop')
-                    ->whereColumn('fs.section_id', 'c.id')
-                    ->where('t.active', 1)
-                    ->whereDate('tsl.tour_date', '>=', date('Y-m-d'))
-                    ->where('tsl.free_tickets', '>', 0)
-                    ->where('tsp.price', '>', 0)
-                    ->where('fs.active', 1)
-                    ->where('fs.station', 1);
-            })
-            ->orderByDesc('c.sort')
-            ->orderBy($titleColumn)
-            ->get();
+    if ($laravelAvailable) {
+        $cities = \Illuminate\Support\Facades\Cache::remember($cacheKey, 900, static function () use ($lang, $citiesTable, $toursTable, $salesTable, $pricesTable) {
+            $titleColumn = 'c.title_' . $lang;
 
-        return $rows->map(static function ($city) {
-            return [
-                'id' => (int) $city->id,
-                'title' => (string) $city->title,
-            ];
-        })->all();
-    });
+            $rows = \Illuminate\Support\Facades\DB::table($citiesTable . ' as c')
+                ->selectRaw('DISTINCT c.id as id, ' . $titleColumn . ' as title, c.sort as sort')
+                ->where('c.active', 1)
+                ->where('c.station', 0)
+                ->where('c.section_id', '>', 0)
+                ->whereExists(function ($q) use ($citiesTable, $toursTable, $salesTable, $pricesTable) {
+                    $q->selectRaw('1')
+                        ->from($toursTable . ' as t')
+                        ->join($salesTable . ' as tsl', 'tsl.tour_id', '=', 't.id')
+                        ->join($pricesTable . ' as tsp', 'tsp.tour_id', '=', 't.id')
+                        ->join($citiesTable . ' as fs', 'fs.id', '=', 'tsp.from_stop')
+                        ->whereColumn('fs.section_id', 'c.id')
+                        ->where('t.active', 1)
+                        ->whereDate('tsl.tour_date', '>=', date('Y-m-d'))
+                        ->where('tsl.free_tickets', '>', 0)
+                        ->where('tsp.price', '>', 0)
+                        ->where('fs.active', 1)
+                        ->where('fs.station', 1);
+                })
+                ->orderByDesc('c.sort')
+                ->orderByRaw($titleColumn . ' asc')
+                ->get();
+
+            return $rows->map(static function ($city) {
+                return [
+                    'id' => (int) $city->id,
+                    'title' => (string) ($city->title ?? ''),
+                ];
+            })->all();
+        });
+    } else {
+        $titleCol = 'title_' . $lang;
+
+        $sql = "SELECT DISTINCT c.id, c.$titleCol AS title
+                FROM `{$citiesTable}` c
+                WHERE c.active = 1
+                  AND c.station = 0
+                  AND c.section_id > 0
+                  AND EXISTS (
+                    SELECT 1
+                    FROM `{$toursTable}` t
+                    INNER JOIN `{$salesTable}` tsl ON tsl.tour_id = t.id
+                    INNER JOIN `{$pricesTable}` tsp ON tsp.tour_id = t.id
+                    INNER JOIN `{$citiesTable}` fs ON fs.id = tsp.from_stop
+                    WHERE fs.section_id = c.id
+                      AND t.active = 1
+                      AND tsl.tour_date >= CURDATE()
+                      AND tsl.free_tickets > 0
+                      AND tsp.price > 0
+                      AND fs.active = 1
+                      AND fs.station = 1
+                  )
+                ORDER BY c.sort DESC, c.$titleCol ASC";
+
+        $rows = $Db->getAll($sql);
+        $cities = [];
+
+        if ($rows) {
+            foreach ($rows as $r) {
+                $cities[] = [
+                    'id' => (int) ($r['id'] ?? 0),
+                    'title' => (string) ($r['title'] ?? ''),
+                ];
+            }
+        }
+    }
 
     echo json_encode($cities, JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 if ($cleanPost['request'] === 'getToCitiesForSale') {
@@ -486,50 +516,97 @@ if ($cleanPost['request'] === 'getToCitiesForSale') {
 
     if ($fromId <= 0) {
         echo json_encode([], JSON_UNESCAPED_UNICODE);
-        return;
+        exit;
     }
+
+    $citiesTable = DB_PREFIX . '_cities';
+    $toursTable  = DB_PREFIX . '_tours';
+    $salesTable  = DB_PREFIX . '_tours_sales';
+    $pricesTable = DB_PREFIX . '_tours_stops_prices';
 
     $cacheKey = 'app_ajax.to_cities_for_sale.' . $lang . '.from_' . $fromId;
 
-    $cities = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addMinutes(15), static function () use ($lang, $fromId) {
-        $titleColumn = 'c.title_' . $lang;
+    $laravelAvailable = class_exists('\Illuminate\Support\Facades\DB') && class_exists('\Illuminate\Support\Facades\Cache');
 
-        $rows = \Illuminate\Support\Facades\DB::table('mt_cities as c')
-            ->selectRaw('DISTINCT c.id as id, ' . $titleColumn . ' as title, c.sort as sort')
-            ->where('c.active', 1)
-            ->where('c.station', 0)
-            ->where('c.section_id', '>', 0)
-            ->whereExists(function ($q) use ($fromId) {
-                $q->selectRaw('1')
-                    ->from('mt_tours as t')
-                    ->join('mt_tours_sales as tsl', 'tsl.tour_id', '=', 't.id')
-                    ->join('mt_tours_stops_prices as tsp', 'tsp.tour_id', '=', 't.id')
-                    ->join('mt_cities as fs', 'fs.id', '=', 'tsp.from_stop')
-                    ->join('mt_cities as ts', 'ts.id', '=', 'tsp.to_stop')
-                    ->whereColumn('ts.section_id', 'c.id')
-                    ->where('fs.section_id', $fromId)
-                    ->where('t.active', 1)
-                    ->whereDate('tsl.tour_date', '>=', date('Y-m-d'))
-                    ->where('tsl.free_tickets', '>', 0)
-                    ->where('tsp.price', '>', 0)
-                    ->where('fs.active', 1)
-                    ->where('fs.station', 1)
-                    ->where('ts.active', 1)
-                    ->where('ts.station', 1);
-            })
-            ->orderByDesc('c.sort')
-            ->orderBy($titleColumn)
-            ->get();
+    if ($laravelAvailable) {
+        $cities = \Illuminate\Support\Facades\Cache::remember($cacheKey, 900, static function () use ($lang, $fromId, $citiesTable, $toursTable, $salesTable, $pricesTable) {
+            $titleColumn = 'c.title_' . $lang;
 
-        return $rows->map(static function ($city) {
-            return [
-                'id' => (int) $city->id,
-                'title' => (string) $city->title,
-            ];
-        })->all();
-    });
+            $rows = \Illuminate\Support\Facades\DB::table($citiesTable . ' as c')
+                ->selectRaw('DISTINCT c.id as id, ' . $titleColumn . ' as title, c.sort as sort')
+                ->where('c.active', 1)
+                ->where('c.station', 0)
+                ->where('c.section_id', '>', 0)
+                ->whereExists(function ($q) use ($fromId, $citiesTable, $toursTable, $salesTable, $pricesTable) {
+                    $q->selectRaw('1')
+                        ->from($toursTable . ' as t')
+                        ->join($salesTable . ' as tsl', 'tsl.tour_id', '=', 't.id')
+                        ->join($pricesTable . ' as tsp', 'tsp.tour_id', '=', 't.id')
+                        ->join($citiesTable . ' as fs', 'fs.id', '=', 'tsp.from_stop')
+                        ->join($citiesTable . ' as ts', 'ts.id', '=', 'tsp.to_stop')
+                        ->whereColumn('ts.section_id', 'c.id')
+                        ->where('fs.section_id', $fromId)
+                        ->where('t.active', 1)
+                        ->whereDate('tsl.tour_date', '>=', date('Y-m-d'))
+                        ->where('tsl.free_tickets', '>', 0)
+                        ->where('tsp.price', '>', 0)
+                        ->where('fs.active', 1)
+                        ->where('fs.station', 1)
+                        ->where('ts.active', 1)
+                        ->where('ts.station', 1);
+                })
+                ->orderByDesc('c.sort')
+                ->orderByRaw($titleColumn . ' asc')
+                ->get();
+
+            return $rows->map(static function ($city) {
+                return [
+                    'id' => (int) $city->id,
+                    'title' => (string) ($city->title ?? ''),
+                ];
+            })->all();
+        });
+    } else {
+        $titleCol = 'title_' . $lang;
+
+        $sql = "SELECT DISTINCT c.id, c.$titleCol AS title
+                FROM `{$citiesTable}` c
+                WHERE c.active = 1
+                  AND c.station = 0
+                  AND c.section_id > 0
+                  AND EXISTS (
+                    SELECT 1
+                    FROM `{$toursTable}` t
+                    INNER JOIN `{$salesTable}` tsl ON tsl.tour_id = t.id
+                    INNER JOIN `{$pricesTable}` tsp ON tsp.tour_id = t.id
+                    INNER JOIN `{$citiesTable}` fs ON fs.id = tsp.from_stop
+                    INNER JOIN `{$citiesTable}` ts ON ts.id = tsp.to_stop
+                    WHERE ts.section_id = c.id
+                      AND fs.section_id = {$fromId}
+                      AND t.active = 1
+                      AND tsl.tour_date >= CURDATE()
+                      AND tsl.free_tickets > 0
+                      AND tsp.price > 0
+                      AND fs.active = 1 AND fs.station = 1
+                      AND ts.active = 1 AND ts.station = 1
+                  )
+                ORDER BY c.sort DESC, c.$titleCol ASC";
+
+        $rows = $Db->getAll($sql);
+        $cities = [];
+
+        if ($rows) {
+            foreach ($rows as $r) {
+                $cities[] = [
+                    'id' => (int) ($r['id'] ?? 0),
+                    'title' => (string) ($r['title'] ?? ''),
+                ];
+            }
+        }
+    }
 
     echo json_encode($cities, JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 if ($cleanPost['request'] === 'terms') {
@@ -554,16 +631,10 @@ if ($cleanPost['request'] === 'persData') {
     }
 }
 
-
-
-
-
 if ($cleanPost['request'] === 'app_filter_date') {
     $departure = $_POST['departure'];
     $arrival = $_POST['arrival'];
 
-/*    $tourParams = $Db->getAll("SELECT departure_closed, stops_closed, races_future_date FROM `" .  DB_PREFIX . "_tours`WHERE id =".$Elem['id']."");
-    $tourParams['0']['races_future_date'];*/
     $daysResult = $Db->getAll("SELECT DISTINCT t.days, t.races_future_date
                 FROM `" . DB_PREFIX . "_tours` t
                 LEFT JOIN `" .  DB_PREFIX . "_cities`dc ON dc.id = t.departure
@@ -580,17 +651,6 @@ if ($cleanPost['request'] === 'app_filter_date') {
                 IN(SELECT id FROM `" .  DB_PREFIX . "_cities`WHERE section_id = '".(int)$cleanPost['arrival']."' ) ))
                 ORDER BY dc.section_id ASC,tsp.price DESC");
 
-
-   /* $highlightedDays = [];*/
-    /*$dataMap = [
-        '1' => 2,
-        '2' => 3,
-        '3' => 4,
-        '4' => 5,
-        '5' => 6,
-        '6' => 7,
-        '7' => 1
-    ];*/
     $dataMap = [
         '1' => 1,
         '2' => 2,
@@ -603,49 +663,15 @@ if ($cleanPost['request'] === 'app_filter_date') {
     $days = [];
 
     foreach ($daysResult as $day) {
-
         $ds = explode(",", $day['days']);
-
-
-
-
-            foreach ($ds as $d) {
-                $days[] = $dataMap[$d];
-            }
-
-
-
-
+        foreach ($ds as $d) {
+            $days[] = $dataMap[$d];
+        }
     }
     $days = implode(',', $days);
     $daysResult[0]['days'] = $days;
     exit(json_encode($daysResult));
-    /*foreach ($daysResult as $row) {
-        if (isset($row['days'])) {
-            $tourDays = explode(',', $row['days']);
-            foreach ($tourDays as $day) {
-                if (!in_array($day, $highlightedDays)) {
-                    $highlightedDays[] = $day;
-                }
-            }
-        }
-    }
-
-
-
-    $highlightedDays = json_encode($highlightedDays);
-    $highlightedDaysString = implode(",", $highlightedDays);
-
-    $data = [
-        'daysOfWeek' => $highlightedDays,
-        'countAvailableDays' => 1,
-    ];
-
-    exit(json_encode($data));*/
-
-    //exit($highlightedDays);
 }
-
 
 if ($cleanPost['request'] === 'searchTickets') {
     $lang = $cleanPost['lang'];
@@ -655,11 +681,6 @@ if ($cleanPost['request'] === 'searchTickets') {
 
     $departureTitle = $Db->getOne("SELECT title_".$lang." as dep_title FROM `" .  DB_PREFIX . "_cities`WHERE id = ".$departure."");
     $arrivalTitle = $Db->getOne("SELECT title_".$lang." as arr_title FROM `" .  DB_PREFIX . "_cities`WHERE id = ".$arrival."");
-
-    $lang = $cleanPost['lang'];
-    $arrival = $cleanPost['arrival'];
-    $departure = $cleanPost['departure'];
-    $date = $cleanPost['date'];
 
     $ticketParams = new \App\Repository\Races\Params\TicketParams(
         $departure,
@@ -676,7 +697,6 @@ if ($cleanPost['request'] === 'searchTickets') {
     ];
 
     echo json_encode($response);
-
 }
 
 if ($cleanPost['request'] === 'canOrderTicket') {
@@ -699,22 +719,15 @@ if ($cleanPost['request'] === 'canOrderTicket') {
 
     $departureDateTime = strtotime($date . ' ' . $checkTicketDeparture['departure_time']);
 
-
     if (strtotime($date) < strtotime($currentDate)) {
         $canOrderTicket = false;
-    }
-
-    elseif (strtotime($date) == strtotime($currentDate)) {
-
+    } elseif (strtotime($date) == strtotime($currentDate)) {
         if ($currentTime >= $toursDepartureClosedTime || $currentTime >= $toursStopsClosedTime) {
             $canOrderTicket = false;
-        }
-
-        elseif ($currentTime < $toursDepartureClosedTime && $currentTime >= $checkTicketDeparture['departure_time']) {
+        } elseif ($currentTime < $toursDepartureClosedTime && $currentTime >= $checkTicketDeparture['departure_time']) {
             $canOrderTicket = false;
         }
     }
-
 
     if($canOrderTicket) {
         echo 'ok';
@@ -723,14 +736,8 @@ if ($cleanPost['request'] === 'canOrderTicket') {
     }
 }
 
-
-
-
 if ($cleanPost['request'] === 'businfo') {
-
-
     $busId = $Db->getOne("SELECT bus FROM `" .  DB_PREFIX . "_tours`WHERE id = '".$cleanPost['tour_id']."'");
-
 
     $busTitle = $Db->getOne("SELECT title_".$cleanPost['lang']." AS title FROM `" .  DB_PREFIX . "_buses`WHERE id = ".$busId['bus']."");
 
@@ -742,7 +749,6 @@ if ($cleanPost['request'] === 'businfo') {
     ];
 
     echo json_encode($response);
-
 }
 
 if ($cleanPost['request'] === 'routeStations') {
@@ -757,7 +763,6 @@ if ($cleanPost['request'] === 'routeStations') {
     echo json_encode($response);
 }
 
-
 if ($cleanPost['request'] == 'order_uniqid') {
     function generateOrderId()
     {
@@ -768,11 +773,8 @@ if ($cleanPost['request'] == 'order_uniqid') {
 
     $response = ['order_id' => $order_id];
 
-
     echo json_encode($response);
 }
-
-
 
 if ($cleanPost['request'] === 'order_route'){
     $tourId = (int)$cleanPost['order']['tour_id'];
@@ -825,12 +827,10 @@ if ($cleanPost['request'] === 'order_route'){
         $fieldValue[] = '"' . $uniqId . '"';
         $order = $Db->query("INSERT INTO `" . DB_PREFIX . "_orders` (" . implode(',', $fieldName) . ") VALUES (" . implode(',', $fieldValue) . ") ");
         if ($order) {
-            $updPopular = $Db->query("UPDATE `" .  DB_PREFIX . "_tours`SET popular = popular + 1 WHERE id = '" . $tourId . "' ");
+            $Db->query("UPDATE `" .  DB_PREFIX . "_tours`SET popular = popular + 1 WHERE id = '" . $tourId . "' ");
             $tourDistance = $Db->getOne("SELECT distance FROM `" .  DB_PREFIX . "_tours_stops_prices`WHERE tour_id = '" . $tourId . "' AND from_stop = '" . $from . "' AND to_stop = '" . $to . "' ");
-            $updClientsMiles = $Db->query("UPDATE `" .  DB_PREFIX . "_clients`SET miles = miles + " . (int)$tourDistance['distance'] . " WHERE id = '" . $User->id . "' ");
-            $updSales = $Db->query("UPDATE `" .  DB_PREFIX . "_tours_sales`SET tickets_order = tickets_order + " . $passengers . " WHERE tour_id = '" . $tourId . "' AND tour_date = '" . $tourDate . "' ");
-
-
+            $Db->query("UPDATE `" .  DB_PREFIX . "_clients`SET miles = miles + " . (int)$tourDistance['distance'] . " WHERE id = '" . $User->id . "' ");
+            $Db->query("UPDATE `" .  DB_PREFIX . "_tours_sales`SET tickets_order = tickets_order + " . $passengers . " WHERE tour_id = '" . $tourId . "' AND tour_date = '" . $tourDate . "' ");
 
             $buyerData = [
                 'name' => $clientName,
@@ -862,10 +862,8 @@ if ($cleanPost['request'] === 'order_route'){
                 $fieldName[] = 'order_id';
                 $fieldValue[] = '"' . $uniqId . '"';
 
-
                 $Db->query("INSERT INTO `" . DB_PREFIX . "_orders_passangers` (" . implode(',', $fieldName) . ") VALUES (" . implode(',', $fieldValue) . ") ");
             }
-
 
             echo 'ok';
         } else {
@@ -955,10 +953,6 @@ if ($cleanPost['request'] === 'history') {
             $rideTime = calculateTotalTravelTime($getTicketStops, $futureRide['from_stop'], $futureRide['to_stop'], $futureRide['arrival_day']);
             $futureRidesArray[$k]['rideTime'] = $rideTime;
 
-            $getTicketStops = $Db->getAll("SELECT stop_id, arrival_time, departure_time FROM `" .  DB_PREFIX . "_tours_stops`WHERE tour_id = '" . $futureRide['tour_id'] . "' ORDER BY id ASC ");
-            $rideTime = calculateTotalTravelTime($getTicketStops, $futureRide['from_stop'], $futureRide['to_stop'], $futureRide['arrival_day']);
-            $futureRidesArray[$k]['rideTime'] = $rideTime;
-
             $timeParts = explode(':', $rideTime);
             $rideHours = isset($timeParts[0]) ? (int)$timeParts[0] : 0;
             $rideMinutes = isset($timeParts[1]) ? (int)$timeParts[1] : 0;
@@ -976,10 +970,8 @@ if ($cleanPost['request'] === 'history') {
                 $departureDateTime->modify("+{$rideSeconds} seconds");
             }
 
-
             $futureRidesArray[$k]['arrival_date'] = $departureDateTime->format('Y-m-d H:i:s');
         }
-
     }
 
     $pastRidesArray = [];
@@ -1019,7 +1011,6 @@ if ($cleanPost['request'] === 'history') {
 
     foreach ($getPastRides as $k => $potencialPastRide) {
         if (strtotime($potencialPastRide['tour_date'] . ' ' . $potencialPastRide['departure_time']) < time()) {
-
             $pastRidesArray[] = $potencialPastRide;
         }
     }
@@ -1056,12 +1047,9 @@ if ($cleanPost['request'] === 'history') {
 
             $pastRidesArray[$k]['arrival_date'] = $departureDateTime->format('Y-m-d H:i:s');
         }
-
     }
 
-
     $response = ['pastrides' => $pastRidesArray, 'futurerides' => $futureRidesArray];
-
 
     echo json_encode($response);
 }
@@ -1072,7 +1060,6 @@ if ($cleanPost['request'] === 'coopOffer') {
     $phone = $cleanPost['phone'];
     $company = $cleanPost['company'];
     $message = $cleanPost['comment'];
-
 
     function sendOfferMail($name, $email, $phone, $message, $company) {
         $to = env('MAIL_ADMIN');
@@ -1123,12 +1110,9 @@ if ($cleanPost['request'] === 'coopOffer') {
         } catch (Exception $e) {
             echo 'Message could not be sent. Error: ' . $e->getMessage();
         }
-
     }
 
-
     sendOfferMail($name, $email, $phone, $message, $company);
-
 }
 
 if ($cleanPost['request'] === 'getPassangers') {
@@ -1138,15 +1122,11 @@ if ($cleanPost['request'] === 'getPassangers') {
     echo json_encode($getOrderedTickets);
 }
 
-
 if ($cleanPost['request'] === 'returnTickets'){
-
-
     $tikcetsIds = $cleanPost['ticketsIds'];
     $idsString = implode(',', array_map('intval', $tikcetsIds));
 
     $returnedTickets = count($tikcetsIds);
-
 
     $ticketInfo = $Db->getOne("SELECT o.client_name, o.client_phone, o.client_surname, o.tour_date, o.client_email,o.from_stop,o.to_stop,o.tour_id, o.uniqid, fs.title_uk AS from_title, fs.section_id AS from_city_id, ts.section_id AS to_city_id, tc.title_uk AS to_city_title, fc.title_uk AS from_city_title, ts.title_uk AS to_title, tsp.price
     FROM `".DB_PREFIX."_orders` o
@@ -1159,24 +1139,17 @@ if ($cleanPost['request'] === 'returnTickets'){
 
     $upd = $Db->query("UPDATE `".DB_PREFIX."_orders_passangers` SET ticket_return = '1',return_reason = '".(int)$cleanPost['reason']."',return_payment_type = '".(int)$cleanPost['return_payments']."',return_date = NOW() WHERE id IN ($idsString) ");
 
-
-
-
-
-
     if ($upd){
 
         $checkOrder = $Db->getAll("SELECT id FROM `".DB_PREFIX."_orders_passangers` WHERE order_id = '".$ticketInfo['uniqid']."' AND ticket_return = 0");
 
         if (empty($checkOrder)) {
 
-            $updOrder = $Db->query("UPDATE `".DB_PREFIX."_orders` SET ticket_return = '1',return_reason = '".(int)$cleanPost['reason']."',return_payment_type = '".(int)$cleanPost['return_payments']."',return_date = NOW() WHERE id = '".(int)$cleanPost['id']."' ");
+            $Db->query("UPDATE `".DB_PREFIX."_orders` SET ticket_return = '1',return_reason = '".(int)$cleanPost['reason']."',return_payment_type = '".(int)$cleanPost['return_payments']."',return_date = NOW() WHERE id = '".(int)$cleanPost['id']."' ");
 
             $returnMiles = $Db->getOne("SELECT distance FROM `".DB_PREFIX."_tours_stops_prices` WHERE tour_id = '".$ticketInfo['tour_id']."' AND from_stop = '".$ticketInfo['from_stop']."' AND to_stop = '".$ticketInfo['to_stop']."' ");
-            $updClientMiles = $Db->query("UPDATE `".DB_PREFIX."_clients` SET miles = miles - ".(int)$returnMiles['distance']." WHERE id = '".$User->id."' ");
-
+            $Db->query("UPDATE `".DB_PREFIX."_clients` SET miles = miles - ".(int)$returnMiles['distance']." WHERE id = '".$User->id."' ");
         }
-
 
         $clientName = $ticketInfo['client_name'];
         $clientSurname = $ticketInfo['client_surname'];
@@ -1189,7 +1162,7 @@ if ($cleanPost['request'] === 'returnTickets'){
         $email = $ticketInfo['client_email'];
         $total = $ticketInfo['price'] * $returnedTickets;
         $imagePath = asset('images/legacy/upload/logos/mailLogo.jpeg');
-        $to1 = env('MAIL_ADMIN');  // Замените на email администратора max210183@ukr.net
+        $to1 = env('MAIL_ADMIN');
         $subject1 = 'Повернення квитків';
         $message1 = "
         <html>
@@ -1249,8 +1222,6 @@ if ($cleanPost['request'] === 'returnTickets'){
                         <td>$date</td>
                     </tr>
                     <tr>
-
-                    <tr>
                         <td class='email-titles'>E-mail</td>
                         <td>$email</td>
                     </tr>
@@ -1293,7 +1264,6 @@ if ($cleanPost['request'] === 'returnTickets'){
                 .img_logo img{
                     pointer-events: none;
                 }
-                }
                 .logo {
                     max-width: 150px;
                 }
@@ -1331,13 +1301,11 @@ if ($cleanPost['request'] === 'returnTickets'){
         $headers .= 'Reply-To: ' . $fromEmail . "\r\n";
         $headers .= 'X-Mailer: PHP/' . phpversion();
 
-        // Настройка параметров SMTP
         ini_set('SMTP', 'mail.adm.tools');
-        ini_set('smtp_port', '465'); // Порт для SSL
+        ini_set('smtp_port', '465');
         ini_set('sendmail_from', 'info@maxtransltd.com');
         ini_set('sendmail_path', '"/usr/sbin/sendmail -t -i"');
 
-        // Функция для отправки почты через mail() с использованием SMTP
         function sendMail($to, $subject, $message, $headers) {
             $result = mail($to, $subject, $message, $headers);
             if (!$result) {
@@ -1362,9 +1330,6 @@ if ($cleanPost['request'] === 'returnTickets'){
         } catch (Exception $e) {
             echo 'Ошибка отправки второго сообщения. Error: ' . $e->getMessage();
         }
-
-
-
     } else {
         echo 'error';
     }

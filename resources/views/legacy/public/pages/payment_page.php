@@ -610,9 +610,16 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
         .payment_v2 .purchase_steps_wrapper{
             margin: 0 0 38px;
             background:#fff;
-            padding: 26px 0 30px;               /* отступы внутри белой плашки */
+            padding: 18px 0 16px;               /* отступы внутри белой плашки */
+                margin-top: 20px;
             box-shadow: 0 10px 24px rgba(53,186,240,.12); /* лёгкая тень вниз как на скрине */
         }
+        .tabs_links_container {
+    margin: initial;
+    max-width: 1700px;
+    padding-left: 50px;
+    width: 100%;
+}
 
         /* Убираем возможные стили темы у контейнера вокруг */
         .payment_v2 .tabs_links_container{
@@ -1441,8 +1448,28 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                             }
                         });
 
+                                                var orderDbId = r.order_db_id || r.order_id || r.orderId || '';
+                        var orderUniq = r.uniqid || r.uniqId || '';
+                        if (orderDbId) {
+                            try { sessionStorage.setItem('last_order_id', orderDbId); } catch (e) {}
+                        }
+                        if (orderUniq) {
+                            try { sessionStorage.setItem('last_order_uniqid', orderUniq); } catch (e) {}
+                        }
+                        try { sessionStorage.setItem('last_payment_method', 'cash'); } catch (e) {}
+
+                        var thankYouUrl = '<?php echo $Router->writelink(90)?>';
+                        var params = [];
+                        if (orderDbId) params.push('order_id=' + encodeURIComponent(orderDbId));
+                        if (orderUniq) params.push('uniqid=' + encodeURIComponent(orderUniq));
+                        params.push('payment_method=cash');
+                        if (params.length) {
+                            thankYouUrl += (thankYouUrl.indexOf('?') === -1 ? '?' : '&') + params.join('&');
+                        }
+
+
                         deleteOrderTourId();
-                        window.location.href = '<?php echo $Router->writelink(90)?>';
+                        window.location.href = thankYouUrl;
                         return;
                     }
 
@@ -1456,8 +1483,19 @@ Header("Last-Modified: " . gmdate("D, d M Y H:i:s") . "GMT");
                         return;
                     }
 
+                                        var fallbackOrderId = r.order_db_id || r.order_id || r.orderId || '';
+                    var fallbackUniq = r.uniqid || r.uniqId || '';
+                    var fallbackUrl = '<?php echo $Router->writelink(90)?>';
+                    var fallbackParams = [];
+                    if (fallbackOrderId) fallbackParams.push('order_id=' + encodeURIComponent(fallbackOrderId));
+                    if (fallbackUniq) fallbackParams.push('uniqid=' + encodeURIComponent(fallbackUniq));
+                    if (fallbackParams.length) {
+                        fallbackUrl += (fallbackUrl.indexOf('?') === -1 ? '?' : '&') + fallbackParams.join('&');
+                    }
+
+
                     deleteOrderTourId();
-                    window.location.href = '<?php echo $Router->writelink(90)?>';
+                    window.location.href = fallbackUrl;
                 },
 
                 error: function (xhr, textStatus, errorThrown) {
