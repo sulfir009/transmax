@@ -339,8 +339,22 @@
             lang: '{{ app()->getLocale() }}'
         }).then((response) => {
             const fromCities = Array.isArray(response) ? response : [];
-            fillSelectOptions(depSel, fromCities, initialDeparture);
 
+            if (fromCities.length > 0) {
+                fillSelectOptions(depSel, fromCities, initialDeparture);
+                return fromCities;
+            }
+
+            // safety fallback: если sale-endpoint временно пуст/недоступен, не оставляем форму без городов
+            return requestSaleCities({
+                request: 'getCities',
+                lang: '{{ app()->getLocale() }}'
+            }).then((fallbackResponse) => {
+                const fallbackCities = Array.isArray(fallbackResponse) ? fallbackResponse : [];
+                fillSelectOptions(depSel, fallbackCities, initialDeparture);
+                return fallbackCities;
+            });
+        }).then(() => {
             const selectedDeparture = depSel?.value || '';
             if (!selectedDeparture) {
                 resetArrivalSelect(true);

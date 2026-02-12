@@ -444,24 +444,28 @@ if ($cleanPost['request'] === 'getFromCitiesForSale') {
     $cacheKey = 'app_ajax.from_cities_for_sale.' . $lang;
 
     $cities = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addMinutes(15), static function () use ($lang) {
-        $titleColumn = 'from_city.title_' . $lang;
+        $titleColumn = 'c.title_' . $lang;
 
-        $rows = \Illuminate\Support\Facades\DB::table('mt_tours as t')
-            ->selectRaw('DISTINCT from_city.id as id, ' . $titleColumn . ' as title, from_city.sort as sort')
-            ->join('mt_tours_sales as tsl', 'tsl.tour_id', '=', 't.id')
-            ->join('mt_tours_stops_prices as tsp', 'tsp.tour_id', '=', 't.id')
-            ->join('mt_cities as from_station', 'from_station.id', '=', 'tsp.from_stop')
-            ->join('mt_cities as from_city', 'from_city.id', '=', 'from_station.section_id')
-            ->where('t.active', 1)
-            ->whereDate('tsl.tour_date', '>=', date('Y-m-d'))
-            ->where('tsl.free_tickets', '>', 0)
-            ->where('tsp.price', '>', 0)
-            ->where('from_station.active', 1)
-            ->where('from_station.station', 1)
-            ->where('from_city.active', 1)
-            ->where('from_city.station', 0)
-            ->where('from_city.section_id', '>', 0)
-            ->orderByDesc('from_city.sort')
+        $rows = \Illuminate\Support\Facades\DB::table('mt_cities as c')
+            ->selectRaw('DISTINCT c.id as id, ' . $titleColumn . ' as title, c.sort as sort')
+            ->where('c.active', 1)
+            ->where('c.station', 0)
+            ->where('c.section_id', '>', 0)
+            ->whereExists(function ($q) {
+                $q->selectRaw('1')
+                    ->from('mt_tours as t')
+                    ->join('mt_tours_sales as tsl', 'tsl.tour_id', '=', 't.id')
+                    ->join('mt_tours_stops_prices as tsp', 'tsp.tour_id', '=', 't.id')
+                    ->join('mt_cities as fs', 'fs.id', '=', 'tsp.from_stop')
+                    ->whereColumn('fs.section_id', 'c.id')
+                    ->where('t.active', 1)
+                    ->whereDate('tsl.tour_date', '>=', date('Y-m-d'))
+                    ->where('tsl.free_tickets', '>', 0)
+                    ->where('tsp.price', '>', 0)
+                    ->where('fs.active', 1)
+                    ->where('fs.station', 1);
+            })
+            ->orderByDesc('c.sort')
             ->orderBy($titleColumn)
             ->get();
 
@@ -488,31 +492,32 @@ if ($cleanPost['request'] === 'getToCitiesForSale') {
     $cacheKey = 'app_ajax.to_cities_for_sale.' . $lang . '.from_' . $fromId;
 
     $cities = \Illuminate\Support\Facades\Cache::remember($cacheKey, now()->addMinutes(15), static function () use ($lang, $fromId) {
-        $titleColumn = 'to_city.title_' . $lang;
+        $titleColumn = 'c.title_' . $lang;
 
-        $rows = \Illuminate\Support\Facades\DB::table('mt_tours as t')
-            ->selectRaw('DISTINCT to_city.id as id, ' . $titleColumn . ' as title, to_city.sort as sort')
-            ->join('mt_tours_sales as tsl', 'tsl.tour_id', '=', 't.id')
-            ->join('mt_tours_stops_prices as tsp', 'tsp.tour_id', '=', 't.id')
-            ->join('mt_cities as from_station', 'from_station.id', '=', 'tsp.from_stop')
-            ->join('mt_cities as from_city', 'from_city.id', '=', 'from_station.section_id')
-            ->join('mt_cities as to_station', 'to_station.id', '=', 'tsp.to_stop')
-            ->join('mt_cities as to_city', 'to_city.id', '=', 'to_station.section_id')
-            ->where('t.active', 1)
-            ->whereDate('tsl.tour_date', '>=', date('Y-m-d'))
-            ->where('tsl.free_tickets', '>', 0)
-            ->where('tsp.price', '>', 0)
-            ->where('from_station.active', 1)
-            ->where('from_station.station', 1)
-            ->where('from_city.active', 1)
-            ->where('from_city.station', 0)
-            ->where('from_city.id', $fromId)
-            ->where('to_station.active', 1)
-            ->where('to_station.station', 1)
-            ->where('to_city.active', 1)
-            ->where('to_city.station', 0)
-            ->where('to_city.section_id', '>', 0)
-            ->orderByDesc('to_city.sort')
+        $rows = \Illuminate\Support\Facades\DB::table('mt_cities as c')
+            ->selectRaw('DISTINCT c.id as id, ' . $titleColumn . ' as title, c.sort as sort')
+            ->where('c.active', 1)
+            ->where('c.station', 0)
+            ->where('c.section_id', '>', 0)
+            ->whereExists(function ($q) use ($fromId) {
+                $q->selectRaw('1')
+                    ->from('mt_tours as t')
+                    ->join('mt_tours_sales as tsl', 'tsl.tour_id', '=', 't.id')
+                    ->join('mt_tours_stops_prices as tsp', 'tsp.tour_id', '=', 't.id')
+                    ->join('mt_cities as fs', 'fs.id', '=', 'tsp.from_stop')
+                    ->join('mt_cities as ts', 'ts.id', '=', 'tsp.to_stop')
+                    ->whereColumn('ts.section_id', 'c.id')
+                    ->where('fs.section_id', $fromId)
+                    ->where('t.active', 1)
+                    ->whereDate('tsl.tour_date', '>=', date('Y-m-d'))
+                    ->where('tsl.free_tickets', '>', 0)
+                    ->where('tsp.price', '>', 0)
+                    ->where('fs.active', 1)
+                    ->where('fs.station', 1)
+                    ->where('ts.active', 1)
+                    ->where('ts.station', 1);
+            })
+            ->orderByDesc('c.sort')
             ->orderBy($titleColumn)
             ->get();
 
