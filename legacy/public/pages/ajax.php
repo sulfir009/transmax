@@ -1452,7 +1452,15 @@ if ($request === 'order_route') {
 
 
 if ($cleanPost['request'] === 'update_client_phone'){
-    $upd = $Db->query("UPDATE `".DB_PREFIX."_clients` SET `phone_code` = '".$cleanPost['phone_code']."',`phone` = '".$cleanPost['phone']."' WHERE id = '".$User->id."' ");
+    $phoneCode = (int)($cleanPost['phone_code'] ?? 0);
+    $phone = trim((string)($cleanPost['phone'] ?? ''));
+
+    if ($phoneCode <= 0 || $phone === '') {
+        echo 'err';
+        exit;
+    }
+
+    $upd = $Db->query("UPDATE `".DB_PREFIX."_clients` SET `phone_code` = '".$phoneCode."',`phone` = '".$phone."' WHERE id = '".$User->id."' ");
     if ($upd){
         echo 'ok';
     }else{
@@ -1461,10 +1469,15 @@ if ($cleanPost['request'] === 'update_client_phone'){
 }
 
 if ($cleanPost['request'] === 'update_client_info'){
-    $upd = $Db->query("UPDATE `".DB_PREFIX."_clients` SET name = '".$cleanPost['name']."',
-    second_name = '".$cleanPost['second_name']."',
-    patronymic = '".$cleanPost['patronymic']."',
-    birth_date = '".$cleanPost['birth_date']."'
+    $name = trim((string)($cleanPost['name'] ?? ''));
+    $secondName = trim((string)($cleanPost['second_name'] ?? ''));
+    $patronymic = trim((string)($cleanPost['patronymic'] ?? ''));
+    $birthDate = trim((string)($cleanPost['birth_date'] ?? ''));
+
+    $upd = $Db->query("UPDATE `".DB_PREFIX."_clients` SET name = '".$name."',
+    second_name = '".$secondName."',
+    patronymic = '".$patronymic."',
+    birth_date = '".$birthDate."'
     WHERE id = '".$User->id."' ");
     if ($upd){
         echo 'ok';

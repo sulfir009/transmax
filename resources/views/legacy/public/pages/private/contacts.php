@@ -153,7 +153,7 @@
                                     </div>
                                 </div>
                                 <div class="col-sm-5">
-                                    <button class="contact_act_btn blue_btn h4_title" onclick="updatePhone()">
+                                    <button type="button" class="contact_act_btn blue_btn h4_title" onclick="updatePhone(event)">
                                         <?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_ZMINITI_TELEFON']?>
                                     </button>
                                 </div>
@@ -182,29 +182,6 @@
                                                    <?php if (trim($clientInfo['second_name']) != ''){?>
                                                        value="<?php echo $clientInfo['second_name']?>"
                                                    <?php }?> id="client_second_name">
-                                        </div>
-                                    </div>
-                                    <div class="col-lg-6">
-                                        <div class="row">
-                                            <input type="text" class="c_input" placeholder="<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_OTCHESTVO']?>"
-                                                <?php if (trim($clientInfo['patronymic']) != ''){?>
-                                                   value="<?php echo $clientInfo['patronymic']?>"
-                                                   <?php }?>
-                                                    id="client_patronymic">
-                                        </div>
-                                    </div>
-                                    <div class="col-lg-6">
-                                        <div class="row">
-                                            <div class="client_birth_date_wrapper">
-                                                <input type="text" class="c_input birthdate_input"
-                                                    <?php if ($clientInfo['birth_date'] != '0000-00-00'){?>
-                                                        value="<?php echo $clientInfo['birth_date']?>"
-                                                    <?php }?>
-                                                       id="client_birth_date">
-                                                <button class="private_calendar_btn" onclick="toggleBirthDateCalendar()">
-                                                    <img src="<?php echo  asset('images/legacy/common/private_calendar.svg'); ?>" alt="calendar">
-                                                </button>
-                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -269,9 +246,19 @@
         $('.customer_phone_input').attr('placeholder',$(selectedOption).data('placeholder'));
     };
 
-    function updatePhone(){
+    function updatePhone(event){
+        if (event) {
+            event.preventDefault();
+        }
+
         let phone_code = $('#phone_code').val();
         let phone = $.trim($('#phone').val());
+
+        if (phone === '') {
+            out('<?php echo $GLOBALS['dictionary']['MSG_MSG_REGISTER_VVEDITE_NOMER_TELEFONA']?>');
+            return;
+        }
+
         initLoader();
         $.ajax({
            type:'post',
@@ -286,11 +273,20 @@
             },
             success:function(response){
                 removeLoader();
-                if ($.trim(response) == 'err'){
+
+                const result = typeof response === 'string'
+                    ? $.trim(response)
+                    : $.trim(response?.data || response?.result || '');
+
+                if (result === 'err'){
                     out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
                 }else{
                     out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
                 }
+            },
+            error:function(){
+                removeLoader();
+                out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })
     };
@@ -298,8 +294,6 @@
     function updateClientInfo(){
         let name = $.trim($('#client_name').val());
         let second_name = $.trim($('#client_second_name').val());
-        let patronymic = $.trim($('#client_patronymic').val());
-        let birth_date = $.trim($('#client_birth_date').val());
         updatePhone();
         initLoader();
         $.ajax({
@@ -311,9 +305,7 @@
             data:{
                 'request':'update_client_info',
                 'name':name,
-                'second_name':second_name,
-                'patronymic':patronymic,
-                'birth_date':birth_date
+                'second_name':second_name
             },
             success:function(response){
                 removeLoader();
@@ -326,16 +318,6 @@
         })
     };
 
-    const clientBirthDatePicker = flatpickr("#client_birth_date", {
-        dateFormat: "Y-m-d",
-        locale:'<?php echo $Router->lang?>',
-        static:true,
-        "maxDate": threeYearsAgo
-    });
-
-    function toggleBirthDateCalendar(){
-        clientBirthDatePicker.open()
-    }
 </script>
 </body>
 </html>
