@@ -42,7 +42,7 @@
 
                 $durationText = $h . ' ' . __('dictionary.MSG_MSG_TICKETS_GOD') . ' ' . $m . ' ' . __('dictionary.MSG_MSG_TICKETS_HV_V_DOROZI');
             } catch (\Throwable $e) {
-                $durationText = '—';
+                $durationText = __('dictionary.BOOKING_DASH_PLACEHOLDER');
             }
         }
 
