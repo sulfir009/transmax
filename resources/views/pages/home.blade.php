@@ -422,6 +422,7 @@ body.fp-filter-open .passengers_filter_wrapper {
         <div class="container">
             @include('pages.home.partials.routes', [
                 'countries' => $countries,
+                'homeCountries' => $homeCountries,
                 'cities' => $cities,
                 'internationalTours' => $internationalTours,
                 'homeTours' => $homeTours
