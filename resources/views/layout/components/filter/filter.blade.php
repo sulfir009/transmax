@@ -14,16 +14,11 @@
                         @lang('dictionary.MSG_ALL_ZVIDKI')
                     </div>
 
-                    <select class="filter_city_select" id="filter_departure" name="from">
-                        {{-- ВАЖНО: НЕ disabled. Это реальный пункт, который можно выбрать обратно --}}
-                        <option value="" {{ empty($filterDeparture) ? 'selected' : '' }}>Выберите город</option>
-
-                        @foreach($cities as $city)
-                            <option value="{{ $city['id'] }}"
-                                {{ !empty($filterDeparture) && (int)$filterDeparture === (int)$city['id'] ? 'selected' : '' }}>
-                                {!! html_entity_decode($city['title']) !!}
-                            </option>
-                        @endforeach
+                    <select class="filter_city_select"
+                            id="filter_departure"
+                            name="from"
+                            data-initial-value="{{ (int)($filterDeparture ?? 0) }}">
+                        <option value="" selected>Выберите город</option>
                     </select>
 
                     <button class="reverse_filter_btn" onclick="switchDirections()" type="button">
@@ -41,16 +36,13 @@
                         @lang('dictionary.MSG_ALL_KUDA')
                     </div>
 
-                    {{-- ВАЖНО: name="arrival" --}}
-                    <select class="filter_city_select" id="filter_arrival" name="to">
-                        <option value="" {{ empty($filterArrival) ? 'selected' : '' }}>Выберите город</option>
-
-                        @foreach($cities as $city)
-                            <option value="{{ $city['id'] }}"
-                                {{ !empty($filterArrival) && (int)$filterArrival === (int)$city['id'] ? 'selected' : '' }}>
-                                {!! html_entity_decode($city['title']) !!}
-                            </option>
-                        @endforeach
+                    {{-- ВАЖНО: name="to" --}}
+                    <select class="filter_city_select"
+                            id="filter_arrival"
+                            name="to"
+                            data-initial-value="{{ (int)($filterArrival ?? 0) }}"
+                            disabled>
+                        <option value="" selected>Выберите город</option>
                     </select>
                 </div>
             </div>
@@ -188,6 +180,78 @@
         }
     }
 
+    function requestSaleCities(payload) {
+        if (!window.jQuery) {
+            return Promise.reject(new Error('jQuery is required'));
+        }
+
+        return jQuery.ajax({
+            type: 'post',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            },
+            url: '{{ rtrim(url('/api'), '/') }}',
+            data: payload
+        });
+    }
+
+    function fillSelectOptions(selectEl, items, selectedValue) {
+        if (!selectEl) return;
+
+        const prev = selectedValue != null ? String(selectedValue) : '';
+        selectEl.innerHTML = '';
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Выберите город';
+        selectEl.appendChild(placeholder);
+
+        (Array.isArray(items) ? items : []).forEach((item) => {
+            const option = document.createElement('option');
+            option.value = String(item.id);
+            option.textContent = item.title || '';
+            if (prev && option.value === prev) {
+                option.selected = true;
+            }
+            selectEl.appendChild(option);
+        });
+
+        if (hasSelect2()) {
+            jQuery(selectEl).trigger('change.select2');
+        }
+    }
+
+    function resetArrivalSelect(disabled) {
+        const arr = document.getElementById('filter_arrival');
+        fillSelectOptions(arr, [], '');
+        if (arr) arr.disabled = !!disabled;
+    }
+
+    function loadToCitiesForSale(fromId, selectedArrival = '') {
+        const arr = document.getElementById('filter_arrival');
+
+        if (!fromId) {
+            resetArrivalSelect(true);
+            return Promise.resolve([]);
+        }
+
+        if (arr) arr.disabled = true;
+
+        return requestSaleCities({
+            request: 'getToCitiesForSale',
+            lang: '{{ app()->getLocale() }}',
+            from_id: fromId
+        }).then((response) => {
+            const items = Array.isArray(response) ? response : [];
+            fillSelectOptions(arr, items, selectedArrival);
+            if (arr) arr.disabled = false;
+            return items;
+        }).catch(() => {
+            resetArrivalSelect(false);
+            return [];
+        });
+    }
+
     // Если в URL нет параметров — ставим "Выберите город"
     function forceDefaultIfNoParams() {
         const params = new URLSearchParams(window.location.search);
@@ -205,14 +269,23 @@
     }
 
     // Меняем местами значения
-    function switchDirections() {
+    async function switchDirections() {
         const dep = document.getElementById('filter_departure');
         const arr = document.getElementById('filter_arrival');
         if (!dep || !arr) return;
 
-        const tmp = dep.value;
-        setSelectValue(dep, arr.value);
-        setSelectValue(arr, tmp);
+        const currentDeparture = dep.value;
+        const currentArrival = arr.value;
+
+        if (!currentDeparture || !currentArrival) return;
+
+        setSelectValue(dep, currentArrival);
+        await loadToCitiesForSale(currentArrival, currentDeparture);
+
+        if (window.jQuery) {
+            jQuery(dep).trigger('change');
+            jQuery(arr).trigger('change');
+        }
     }
     window.switchDirections = switchDirections;
 
@@ -253,16 +326,49 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        // 1) сначала ставим дефолт, пока Select2 ещё не вмешался
-        forceDefaultIfNoParams();
+        const depSel = document.getElementById('filter_departure');
+        const arrSel = document.getElementById('filter_arrival');
 
-        // 2) инициализируем Select2 (если ещё не был инициализирован в footer_scripts)
-        initSelect2IfNeeded();
+        const initialDeparture = depSel?.dataset?.initialValue || '';
+        const initialArrival = arrSel?.dataset?.initialValue || '';
 
-        // 3) ещё раз — после инициализации (перебиваем “автовыбор первого города”)
-        setTimeout(forceDefaultIfNoParams, 0);
-        setTimeout(forceDefaultIfNoParams, 200);
-        setTimeout(forceDefaultIfNoParams, 600);
+        resetArrivalSelect(true);
+
+        requestSaleCities({
+            request: 'getFromCitiesForSale',
+            lang: '{{ app()->getLocale() }}'
+        }).then((response) => {
+            const fromCities = Array.isArray(response) ? response : [];
+            fillSelectOptions(depSel, fromCities, initialDeparture);
+
+            const selectedDeparture = depSel?.value || '';
+            if (!selectedDeparture) {
+                resetArrivalSelect(true);
+                return;
+            }
+
+            loadToCitiesForSale(selectedDeparture, initialArrival);
+        }).catch(() => {
+            fillSelectOptions(depSel, [], '');
+            resetArrivalSelect(true);
+        }).finally(() => {
+            // инициализируем Select2 после наполнения списков
+            initSelect2IfNeeded();
+
+            // ещё раз — после инициализации (перебиваем “автовыбор первого города”)
+            setTimeout(forceDefaultIfNoParams, 0);
+            setTimeout(forceDefaultIfNoParams, 200);
+            setTimeout(forceDefaultIfNoParams, 600);
+        });
+
+        if (window.jQuery) {
+            jQuery('#filter_departure').on('change', function () {
+                const fromId = this.value || '';
+                loadToCitiesForSale(fromId, '').then(() => {
+                    jQuery('#filter_arrival').trigger('change');
+                });
+            });
+        }
 
         // Редирект если города не выбраны
         document.querySelectorAll('.main_filter').forEach((form) => {
