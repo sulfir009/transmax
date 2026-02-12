@@ -1159,7 +1159,11 @@ span.flatpickr-weekday {
     }
 
     function removeLoader() {
-        document.querySelector(".loader").remove();
+        var loader = document.querySelector('.loader');
+
+        if (loader) {
+            loader.remove();
+        }
     };
 
     document.querySelectorAll('[data-close]').forEach(function (el) {
