@@ -22,4 +22,13 @@ return [
     'MSG_ALL_COUNTRY_BULGARIA' => 'Bulgaria',
     'MSG_ALL_COUNTRY_GREECE' => 'Greece',
     'MSG_ALL_KRANI' => 'Countries',
+
+    'BOOKING_CONTACT_INFORMATION' => 'Contact information',
+    'BOOKING_CONTACT_INFORMATION_HINT' => 'Enter a valid e-mail and phone number to receive your ticket.',
+    'BOOKING_LEGEND_SEND_TICKET' => 'We will send your ticket',
+    'BOOKING_LEGEND_NOTIFY_CHANGES' => 'We will notify you about changes',
+    'BOOKING_PASSENGER_CONTACT_DATA' => 'Passenger contact details',
+    'BOOKING_REMOVE_PASSENGER' => 'Remove passenger',
+    'BOOKING_ADD_PASSENGER' => 'Add passenger',
+    'BOOKING_CHILDREN_UNDER_THREE_NOTICE' => 'Children under 3 travel free of charge, without an additional seat*',
 ];

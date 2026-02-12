@@ -22,4 +22,13 @@ return [
     'MSG_ALL_COUNTRY_BULGARIA' => 'Болгарія',
     'MSG_ALL_COUNTRY_GREECE' => 'Греція',
     'MSG_ALL_KRANI' => 'Країни',
+
+    'BOOKING_CONTACT_INFORMATION' => 'Контактна інформація',
+    'BOOKING_CONTACT_INFORMATION_HINT' => 'Введіть коректні e-mail і номер телефону, щоб отримати квиток.',
+    'BOOKING_LEGEND_SEND_TICKET' => 'Надішлемо квиток',
+    'BOOKING_LEGEND_NOTIFY_CHANGES' => 'Повідомимо про зміни',
+    'BOOKING_PASSENGER_CONTACT_DATA' => 'Контактні дані пасажира',
+    'BOOKING_REMOVE_PASSENGER' => 'Видалити пасажира',
+    'BOOKING_ADD_PASSENGER' => 'Додати пасажира',
+    'BOOKING_CHILDREN_UNDER_THREE_NOTICE' => 'Дітям до 3 років проїзд — безкоштовно, без надання додаткового місця*',
 ];

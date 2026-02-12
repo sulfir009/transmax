@@ -273,6 +273,14 @@
             color:#6E7172;
         }
 
+        .booking_v2 .b2_child_notice{
+            margin-top:6px;
+            font-family: Montserrat, system-ui;
+            font-weight:700;
+            font-size:12px;
+            color:#6E7172;
+        }
+
         /* Шаги (пилюли как на фото) */
         .booking_v2 .purchase_steps_wrapper{
             margin: 0px 0 14px;

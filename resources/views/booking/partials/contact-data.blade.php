@@ -1,11 +1,11 @@
 {{-- Контактная информация (V2 под дизайн как на фото) --}}
 <div class="customer_contact_data shadow_block">
     <div class="block_title">
-        Контактная информация
+        @lang('dictionary.BOOKING_CONTACT_INFORMATION')
     </div>
 
     <div class="par">
-        Введите корректные e-mail и номер телефона, чтобы получить билет.
+        @lang('dictionary.BOOKING_CONTACT_INFORMATION_HINT')
     </div>
 
     <div class="b2_grid" style="margin-top:10px;">
@@ -48,12 +48,12 @@
 <div class="b2_legend">
     <div class="b2_legend_item">
         <img class="b2_legend_icon" src="{{ asset('images/booking/send_ticket.png') }}" alt="">
-        <span>Отправим билет<span class="b2_req">*</span></span>
+        <span>@lang('dictionary.BOOKING_LEGEND_SEND_TICKET')<span class="b2_req">*</span></span>
     </div>
 
     <div class="b2_legend_item">
         <img class="b2_legend_icon" src="{{ asset('images/booking/notify_changes.png') }}" alt="">
-        <span>Сообщим об изменениях<span class="b2_req">*</span></span>
+        <span>@lang('dictionary.BOOKING_LEGEND_NOTIFY_CHANGES')<span class="b2_req">*</span></span>
     </div>
 </div>
 
