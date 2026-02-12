@@ -294,6 +294,18 @@ foreach ($privateMenuLinks as $pageId => $link) {
         $('.customer_phone_input').attr('placeholder',$(selectedOption).data('placeholder'));
     };
 
+    function startLoaderSafe(){
+        if (typeof initLoader === 'function') {
+            initLoader();
+        }
+    }
+
+    function stopLoaderSafe(){
+        if (typeof removeLoader === 'function') {
+            removeLoader();
+        }
+    }
+
     function parseAjaxResult(response){
         if (typeof response === 'string') {
             const trimmed = $.trim(response);
@@ -326,7 +338,7 @@ foreach ($privateMenuLinks as $pageId => $link) {
             return;
         }
 
-        initLoader();
+        startLoaderSafe();
         $.ajax({
            type:'post',
             headers: {
@@ -339,7 +351,7 @@ foreach ($privateMenuLinks as $pageId => $link) {
                 'phone':phone
             },
             success:function(response){
-                removeLoader();
+                stopLoaderSafe();
 
                 const result = parseAjaxResult(response);
 
@@ -350,7 +362,7 @@ foreach ($privateMenuLinks as $pageId => $link) {
                 }
             },
             error:function(){
-                removeLoader();
+                stopLoaderSafe();
                 out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })
@@ -365,7 +377,7 @@ foreach ($privateMenuLinks as $pageId => $link) {
             return;
         }
 
-        initLoader();
+        startLoaderSafe();
         $.ajax({
            type:'post',
             headers: {
@@ -378,7 +390,7 @@ foreach ($privateMenuLinks as $pageId => $link) {
                 'second_name':second_name
             },
             success:function(response){
-                removeLoader();
+                stopLoaderSafe();
 
                 const result = parseAjaxResult(response);
 
@@ -389,7 +401,7 @@ foreach ($privateMenuLinks as $pageId => $link) {
                 }
             },
             error:function(){
-                removeLoader();
+                stopLoaderSafe();
                 out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })

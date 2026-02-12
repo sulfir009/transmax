@@ -246,6 +246,18 @@
         $('.customer_phone_input').attr('placeholder',$(selectedOption).data('placeholder'));
     };
 
+    function startLoaderSafe(){
+        if (typeof initLoader === 'function') {
+            initLoader();
+        }
+    }
+
+    function stopLoaderSafe(){
+        if (typeof removeLoader === 'function') {
+            removeLoader();
+        }
+    }
+
     function parseAjaxResult(response){
         if (typeof response === 'string') {
             const trimmed = $.trim(response);
@@ -278,7 +290,7 @@
             return;
         }
 
-        initLoader();
+        startLoaderSafe();
         $.ajax({
            type:'post',
             headers: {
@@ -291,7 +303,7 @@
                 'phone':phone
             },
             success:function(response){
-                removeLoader();
+                stopLoaderSafe();
 
                 const result = parseAjaxResult(response);
 
@@ -302,7 +314,7 @@
                 }
             },
             error:function(){
-                removeLoader();
+                stopLoaderSafe();
                 out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })
@@ -317,7 +329,7 @@
             return;
         }
 
-        initLoader();
+        startLoaderSafe();
         $.ajax({
            type:'post',
             headers: {
@@ -330,7 +342,7 @@
                 'second_name':second_name
             },
             success:function(response){
-                removeLoader();
+                stopLoaderSafe();
 
                 const result = parseAjaxResult(response);
 
@@ -341,7 +353,7 @@
                 }
             },
             error:function(){
-                removeLoader();
+                stopLoaderSafe();
                 out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })
