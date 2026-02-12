@@ -51,20 +51,8 @@ if (isset($_POST['kids'])) {
                 <div class="filter_city_select_wrapper flex-row">
                     <div class="filter_block_title city_select_title par"><?php echo  $GLOBALS['dictionary']['MSG_ALL_ZVIDKI'] ?></div>
                     <input type="hidden" name="_token" value="<?php echo  csrf_token() ?>" />
-                    <select class="filter_city_select" id="filter_departure" name="departure">
-                        <?php $getCities = $Db->getall("SELECT id,title_".$Router->lang." AS title FROM `" .  DB_PREFIX . "_cities`WHERE active = 1 AND section_id > 0 AND station = 0 ORDER BY sort DESC,title_".$Router->lang." ASC");
-                        foreach ($getCities as $k => $city) { ?>
-                            <option value="<?php echo  $city['id'] ?>" <?php if ($filterDeparture == $city['id'] || ($filterDeparture == "" && mb_strtoupper(mb_substr($city['title'], 0, 1)) === 'А')) {
-                                echo  'selected';
-                            } ?>>
-                                <?php if ($city['station'] == 0){
-                                    echo  $city['title'];
-                                }else{
-                                    echo  $city['city_title'].' '.$city['title'];
-                                }?>
-                            </option>
-
-                        <?php } ?>
+                    <select class="filter_city_select" id="filter_departure" name="departure" data-initial-value="<?php echo (int) $filterDeparture; ?>">
+                        <option value=""></option>
                     </select>
                     <button class="reverse_filter_btn" onclick="switchDirections()" type="button">
                         <img src="<?php echo  asset('images/legacy/common/pair_arrows.svg'); ?>" alt="pair_arrows">
@@ -76,18 +64,8 @@ if (isset($_POST['kids'])) {
             <div class="filter_block_wrapper">
                 <div class="filter_city_select_wrapper flex-row">
                     <div class="filter_block_title city_select_title par"><?php echo  $GLOBALS['dictionary']['MSG_ALL_KUDA'] ?></div>
-                    <select class="filter_city_select" id="filter_arrival" name="arrival">
-                        <?php foreach ($getCities as $k => $city) { ?>
-                            <option value="<?php echo  $city['id'] ?>" <?php if ($filterArrival == $city['id'] || ($filterDeparture == "" && mb_strtoupper(mb_substr($city['title'], 0, 1)) === 'А')) {
-                                echo  'selected';
-                            } ?>>
-                                <?php if ($city['station'] == 0){
-                                    echo  $city['title'];
-                                }else{
-                                    echo  $city['city_title'].' '.$city['title'];
-                                }?>
-                            </option>
-                        <?php } ?>
+                    <select class="filter_city_select" id="filter_arrival" name="arrival" data-initial-value="<?php echo (int) $filterArrival; ?>" disabled>
+                        <option value=""></option>
                     </select>
                 </div>
             </div>
