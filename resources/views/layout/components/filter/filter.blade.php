@@ -79,10 +79,6 @@
                             <span class="adults_total">{{ $filterAdults }}</span>
                             {{ $dictionary['MSG_ALL_DOROSLIH'] ?? __('dictionary.MSG_ALL_DOROSLIH') }}
                         </div>
-                        <div>
-                            <span class="kids_total">{{ $filterKids }}</span>
-                            {{ $dictionary['MSG_ALL_DITEJ'] ?? __('dictionary.MSG_ALL_DITEJ') }}
-                        </div>
                     </div>
                 </div>
 
@@ -111,30 +107,7 @@
                         </div>
                     </div>
 
-                    {{-- Дети --}}
-                    <div class="passengers_counter_block flex_ac">
-                        <div class="passengers_counter_title h5_title">
-                            {{ $dictionary['MSG_ALL_DITEJ'] ?? __('dictionary.MSG_ALL_DITEJ') }}
-                            <span>{{ $dictionary['MSG_ALL_DO_3_ROKIV_-_BEZKOSHTOVNO'] ?? __('dictionary.MSG_ALL_DO_3_ROKIV_-_BEZKOSHTOVNO') }}</span>
-                        </div>
-                        <div class="passengers_counter kids flex_ac">
-                            <button class="counter_btn minus"
-                                    onclick="countPassagers(this,'minus','kids')"
-                                    type="button">
-                                <img src="{{ asset('images/legacy/common/minus.svg') }}" alt="minus">
-                            </button>
-                            <div class="p_counter_value par kids_passagers">{{ $filterKids }}</div>
-                            <input type="hidden"
-                                   name="kids"
-                                   class="kids_passengers"
-                                   value="{{ $filterKids }}">
-                            <button class="counter_btn plus"
-                                    onclick="countPassagers(this,'plus','kids', 15)"
-                                    type="button">
-                                <img src="{{ asset('images/legacy/common/plus.svg') }}" alt="plus">
-                            </button>
-                        </div>
-                    </div>
+                    <input type="hidden" name="kids" class="kids_passengers" value="0">
                 </div>
             </div>
         </div>
@@ -277,6 +250,49 @@
         });
     }
 
+
+    function ensureFilterLoadingOverlay() {
+        let overlay = document.getElementById('filter_loading_overlay');
+        if (overlay) return overlay;
+
+        overlay = document.createElement('div');
+        overlay.id = 'filter_loading_overlay';
+        overlay.innerHTML = '<div style="width:36px;height:36px;border:3px solid rgba(64,166,255,.25);border-top-color:#40a6ff;border-radius:50%;animation:filterLoaderSpin .7s linear infinite;"></div>';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,.65);z-index:2147483646;display:none;align-items:center;justify-content:center;pointer-events:all;';
+
+        if (!document.getElementById('filter_loader_keyframes')) {
+            const style = document.createElement('style');
+            style.id = 'filter_loader_keyframes';
+            style.textContent = '@keyframes filterLoaderSpin{to{transform:rotate(360deg);}}';
+            document.head.appendChild(style);
+        }
+
+        document.body.appendChild(overlay);
+        return overlay;
+    }
+
+    function setFilterLoadingState(isLoading) {
+        const overlay = ensureFilterLoadingOverlay();
+        const forms = document.querySelectorAll('.main_filter');
+
+        forms.forEach((form) => {
+            form.querySelectorAll('input, select, button').forEach((el) => {
+                if (isLoading) {
+                    el.dataset.prevDisabled = el.disabled ? '1' : '0';
+                    el.disabled = true;
+                } else if (el.dataset.prevDisabled === '0') {
+                    el.disabled = false;
+                    delete el.dataset.prevDisabled;
+                } else if (el.dataset.prevDisabled === '1') {
+                    delete el.dataset.prevDisabled;
+                }
+            });
+        });
+
+        overlay.style.display = isLoading ? 'flex' : 'none';
+        window.__mxFilterLoading = !!isLoading;
+    }
+
     function forceDefaultIfNoParams() {
         const params = new URLSearchParams(window.location.search);
 
@@ -305,6 +321,7 @@
     }
 
     async function switchDirections() {
+        if (window.__mxFilterLoading) return;
         const dep = document.getElementById('filter_departure');
         const arr = document.getElementById('filter_arrival');
         if (!dep || !arr) return;
@@ -349,8 +366,9 @@
     function toggleSubmenu(element) {
         const submenu = element.nextElementSibling;
         if (submenu && submenu.classList.contains('filter_submenu')) {
-            submenu.classList.toggle('active');
-            element.classList.toggle('active');
+            const isOpen = submenu.style.display === 'block';
+            submenu.style.display = isOpen ? 'none' : 'block';
+            element.classList.toggle('active', !isOpen);
         }
     }
 
@@ -364,6 +382,8 @@
     }
 
     document.addEventListener('DOMContentLoaded', function () {
+        setFilterLoadingState(true);
+
         const depSel = document.getElementById('filter_departure');
         const arrSel = document.getElementById('filter_arrival');
 
@@ -404,6 +424,7 @@
             resetArrivalSelect(true);
         }).finally(() => {
             initSelect2IfNeeded();
+            setFilterLoadingState(false);
 
             // перебиваем “автовыбор первого города”
             setTimeout(forceDefaultIfNoParams, 0);
@@ -442,8 +463,8 @@
             if (passengersWrapper && !passengersWrapper.contains(event.target)) {
                 const submenu = passengersWrapper.querySelector('.filter_submenu');
                 const block = passengersWrapper.querySelector('.filter_block');
-                if (submenu && submenu.classList.contains('active')) {
-                    submenu.classList.remove('active');
+                if (submenu && submenu.style.display === 'block') {
+                    submenu.style.display = 'none';
                     block.classList.remove('active');
                 }
             }

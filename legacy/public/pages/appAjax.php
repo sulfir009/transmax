@@ -428,7 +428,6 @@ if ($cleanPost['request'] === 'getFromCitiesForSale') {
 
     $citiesTable = DB_PREFIX . '_cities';
     $toursTable  = DB_PREFIX . '_tours';
-    $salesTable  = DB_PREFIX . '_tours_sales';
     $pricesTable = DB_PREFIX . '_tours_stops_prices';
 
     $cacheKey = 'app_ajax.from_cities_for_sale.' . $lang;
@@ -436,7 +435,7 @@ if ($cleanPost['request'] === 'getFromCitiesForSale') {
     $laravelAvailable = class_exists('\Illuminate\Support\Facades\DB') && class_exists('\Illuminate\Support\Facades\Cache');
 
     if ($laravelAvailable) {
-        $cities = \Illuminate\Support\Facades\Cache::remember($cacheKey, 900, static function () use ($lang, $citiesTable, $toursTable, $salesTable, $pricesTable) {
+        $cities = \Illuminate\Support\Facades\Cache::remember($cacheKey, 900, static function () use ($lang, $citiesTable, $toursTable, $pricesTable) {
             $titleColumn = 'c.title_' . $lang;
 
             $rows = \Illuminate\Support\Facades\DB::table($citiesTable . ' as c')
@@ -444,16 +443,13 @@ if ($cleanPost['request'] === 'getFromCitiesForSale') {
                 ->where('c.active', 1)
                 ->where('c.station', 0)
                 ->where('c.section_id', '>', 0)
-                ->whereExists(function ($q) use ($citiesTable, $toursTable, $salesTable, $pricesTable) {
+                ->whereExists(function ($q) use ($citiesTable, $toursTable, $pricesTable) {
                     $q->selectRaw('1')
                         ->from($toursTable . ' as t')
-                        ->join($salesTable . ' as tsl', 'tsl.tour_id', '=', 't.id')
                         ->join($pricesTable . ' as tsp', 'tsp.tour_id', '=', 't.id')
                         ->join($citiesTable . ' as fs', 'fs.id', '=', 'tsp.from_stop')
                         ->whereColumn('fs.section_id', 'c.id')
                         ->where('t.active', 1)
-                        ->whereDate('tsl.tour_date', '>=', date('Y-m-d'))
-                        ->where('tsl.free_tickets', '>', 0)
                         ->where('tsp.price', '>', 0)
                         ->where('fs.active', 1)
                         ->where('fs.station', 1);
@@ -480,13 +476,10 @@ if ($cleanPost['request'] === 'getFromCitiesForSale') {
                   AND EXISTS (
                     SELECT 1
                     FROM `{$toursTable}` t
-                    INNER JOIN `{$salesTable}` tsl ON tsl.tour_id = t.id
                     INNER JOIN `{$pricesTable}` tsp ON tsp.tour_id = t.id
                     INNER JOIN `{$citiesTable}` fs ON fs.id = tsp.from_stop
                     WHERE fs.section_id = c.id
                       AND t.active = 1
-                      AND tsl.tour_date >= CURDATE()
-                      AND tsl.free_tickets > 0
                       AND tsp.price > 0
                       AND fs.active = 1
                       AND fs.station = 1
@@ -521,7 +514,6 @@ if ($cleanPost['request'] === 'getToCitiesForSale') {
 
     $citiesTable = DB_PREFIX . '_cities';
     $toursTable  = DB_PREFIX . '_tours';
-    $salesTable  = DB_PREFIX . '_tours_sales';
     $pricesTable = DB_PREFIX . '_tours_stops_prices';
 
     $cacheKey = 'app_ajax.to_cities_for_sale.' . $lang . '.from_' . $fromId;
@@ -529,7 +521,7 @@ if ($cleanPost['request'] === 'getToCitiesForSale') {
     $laravelAvailable = class_exists('\Illuminate\Support\Facades\DB') && class_exists('\Illuminate\Support\Facades\Cache');
 
     if ($laravelAvailable) {
-        $cities = \Illuminate\Support\Facades\Cache::remember($cacheKey, 900, static function () use ($lang, $fromId, $citiesTable, $toursTable, $salesTable, $pricesTable) {
+        $cities = \Illuminate\Support\Facades\Cache::remember($cacheKey, 900, static function () use ($lang, $fromId, $citiesTable, $toursTable, $pricesTable) {
             $titleColumn = 'c.title_' . $lang;
 
             $rows = \Illuminate\Support\Facades\DB::table($citiesTable . ' as c')
@@ -537,18 +529,15 @@ if ($cleanPost['request'] === 'getToCitiesForSale') {
                 ->where('c.active', 1)
                 ->where('c.station', 0)
                 ->where('c.section_id', '>', 0)
-                ->whereExists(function ($q) use ($fromId, $citiesTable, $toursTable, $salesTable, $pricesTable) {
+                ->whereExists(function ($q) use ($fromId, $citiesTable, $toursTable, $pricesTable) {
                     $q->selectRaw('1')
                         ->from($toursTable . ' as t')
-                        ->join($salesTable . ' as tsl', 'tsl.tour_id', '=', 't.id')
                         ->join($pricesTable . ' as tsp', 'tsp.tour_id', '=', 't.id')
                         ->join($citiesTable . ' as fs', 'fs.id', '=', 'tsp.from_stop')
                         ->join($citiesTable . ' as ts', 'ts.id', '=', 'tsp.to_stop')
                         ->whereColumn('ts.section_id', 'c.id')
                         ->where('fs.section_id', $fromId)
                         ->where('t.active', 1)
-                        ->whereDate('tsl.tour_date', '>=', date('Y-m-d'))
-                        ->where('tsl.free_tickets', '>', 0)
                         ->where('tsp.price', '>', 0)
                         ->where('fs.active', 1)
                         ->where('fs.station', 1)
@@ -577,15 +566,12 @@ if ($cleanPost['request'] === 'getToCitiesForSale') {
                   AND EXISTS (
                     SELECT 1
                     FROM `{$toursTable}` t
-                    INNER JOIN `{$salesTable}` tsl ON tsl.tour_id = t.id
                     INNER JOIN `{$pricesTable}` tsp ON tsp.tour_id = t.id
                     INNER JOIN `{$citiesTable}` fs ON fs.id = tsp.from_stop
                     INNER JOIN `{$citiesTable}` ts ON ts.id = tsp.to_stop
                     WHERE ts.section_id = c.id
                       AND fs.section_id = {$fromId}
                       AND t.active = 1
-                      AND tsl.tour_date >= CURDATE()
-                      AND tsl.free_tickets > 0
                       AND tsp.price > 0
                       AND fs.active = 1 AND fs.station = 1
                       AND ts.active = 1 AND ts.station = 1
