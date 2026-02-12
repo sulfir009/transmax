@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use App\Helpers\TicketUrlHelper;
 use Illuminate\Http\JsonResponse;
 use App\Helpers\LocaleHelper;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class TicketController extends Controller
@@ -26,6 +27,7 @@ class TicketController extends Controller
 
     protected $router;
     protected $db;
+    protected array $arrivalDateDebugLogged = [];
 
     public function __construct(
         TicketRepository $ticketRepository,
@@ -661,9 +663,8 @@ class TicketController extends Controller
             $ticketDepartureDate = $this->findNearestDayOfWeek(date('Y-m-d'), explode(',', $ticket['days']));
         }
 
-        $dateArray = explode('-', $ticketDepartureDate);
-        $month = $this->cityRepository->getMonthTitle((int)$dateArray[1]);
-        $departureDate = $dateArray[2] . ' ' . $month['title'] . ' ' . $dateArray[0];
+        $departureAt = $this->buildDateTimeFromDateAndTime($ticketDepartureDate, (string) ($ticket['dep_time'] ?? ''));
+        $arrivalAt = $this->resolveArrivalAt($ticket, $ticketDepartureDate, $departureAt);
 
         $departureDetails = $this->ticketRepository->getDepartureDetails($ticket['id'], $tourDeparture);
         $arrivalDetails = $this->ticketRepository->getArrivalDetails($ticket['id'], $tourArrival);
@@ -688,7 +689,8 @@ class TicketController extends Controller
         );
 
         return array_merge($ticket, [
-            'departure_date_formatted' => $departureDate,
+            'departure_date_formatted' => $departureAt?->format('d.m.Y'),
+            'arrival_date_formatted' => $arrivalAt?->format('d.m.Y'),
             'departure_details' => $departureDetails,
             'arrival_details' => $arrivalDetails,
             'ride_time' => $rideTime,
@@ -696,6 +698,120 @@ class TicketController extends Controller
             'ticket_price' => $ticketPrice,
             'ticket_stops' => $ticketStops
         ]);
+    }
+
+    protected function resolveArrivalAt(array $ticket, string $filterDate, ?Carbon $departureAt): ?Carbon
+    {
+        // A) Явная дата и время прибытия в данных билета
+        foreach (['arrival_datetime', 'arrival_at', 'arrive_at', 'arriveDateTime'] as $field) {
+            $value = $ticket[$field] ?? null;
+            if (!empty($value)) {
+                try {
+                    return Carbon::parse($value);
+                } catch (\Throwable $e) {
+                    $this->logArrivalDebugOnce($ticket, 'invalid_arrival_datetime', ['field' => $field]);
+                }
+            }
+        }
+
+        // B) Длительность поездки
+        $durationMinutes = $this->extractDurationMinutes($ticket);
+        if ($durationMinutes !== null && $departureAt !== null) {
+            return $departureAt->copy()->addMinutes($durationMinutes);
+        }
+
+        // C) Только время прибытия
+        $arrivalTime = (string) ($ticket['arr_time'] ?? '');
+        if ($departureAt !== null && $this->isTimeValue($arrivalTime)) {
+            $arrivalAt = $this->buildDateTimeFromDateAndTime($filterDate, $arrivalTime);
+            if ($arrivalAt === null) {
+                return null;
+            }
+
+            if ($arrivalAt->lt($departureAt)) {
+                $arrivalAt->addDay();
+            }
+
+            return $arrivalAt;
+        }
+
+        // D) Недостаточно данных
+        $this->logArrivalDebugOnce($ticket, 'missing_arrival_data', [
+            'has_departure_at' => $departureAt !== null,
+            'has_arr_time' => !empty($arrivalTime),
+        ]);
+
+        return null;
+    }
+
+    protected function extractDurationMinutes(array $ticket): ?int
+    {
+        $durationSources = [
+            $ticket['duration_minutes'] ?? null,
+            $ticket['duration'] ?? null,
+            $ticket['travel_time'] ?? null,
+            $ticket['ride_time'] ?? null,
+        ];
+
+        foreach ($durationSources as $duration) {
+            if ($duration === null || $duration === '') {
+                continue;
+            }
+
+            if (is_numeric($duration)) {
+                return (int) $duration;
+            }
+
+            $duration = trim((string) $duration);
+            if (preg_match('/^(\d{1,3}):(\d{1,2})$/', $duration, $matches)) {
+                return ((int) $matches[1] * 60) + (int) $matches[2];
+            }
+
+            if (preg_match('/(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?/i', $duration, $matches)) {
+                $hours = isset($matches[1]) && $matches[1] !== '' ? (int) $matches[1] : 0;
+                $minutes = isset($matches[2]) && $matches[2] !== '' ? (int) $matches[2] : 0;
+                if ($hours > 0 || $minutes > 0) {
+                    return ($hours * 60) + $minutes;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    protected function buildDateTimeFromDateAndTime(string $date, string $time): ?Carbon
+    {
+        if (empty($date) || !$this->isTimeValue($time)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($date . ' ' . $time);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    protected function isTimeValue(string $value): bool
+    {
+        return (bool) preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', trim($value));
+    }
+
+    protected function logArrivalDebugOnce(array $ticket, string $reason, array $context = []): void
+    {
+        $ticketId = $ticket['id'] ?? 'unknown';
+        $key = $ticketId . ':' . $reason;
+
+        if (isset($this->arrivalDateDebugLogged[$key])) {
+            return;
+        }
+
+        $this->arrivalDateDebugLogged[$key] = true;
+
+        Log::debug('tickets.arrival_date_resolution', array_merge([
+            'ticket_id' => $ticketId,
+            'reason' => $reason,
+        ], $context));
     }
 
     /**

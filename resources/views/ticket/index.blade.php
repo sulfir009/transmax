@@ -121,6 +121,31 @@
                 padding: 10px 14px !important;
                 font-size: 14px !important;
             }
+
+
+            .ticket_ride_time {
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .ticket_ride_time img {
+                width: 16px;
+                min-width: 16px;
+                margin-top: 2px;
+            }
+
+            .ticket_ride_time_text {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+                line-height: 1.2;
+            }
+
+            .ticket_ride_date {
+                color: var(--main-text, #434343);
+                opacity: 0.65;
+                margin-top: 2px;
+            }
         }
 
         .tour-seo-section {
@@ -353,12 +378,6 @@ $fixedPageTitle = preg_replace(
                                             <div class="col-lg-9 col-xs-12">
                                                 <div class="ticket_info">
                                                     <div class="ticket_info_header flex_ac">
-                                                        <div class="ticket_info_date_block flex_ac">
-                                                            <img src="{{ asset('images/legacy/common/ticket_calendar.svg') }}" alt="calendar">
-                                                            <span class="ticket_info_date par">
-                                                                {{ $ticket['departure_date_formatted'] }}
-                                                            </span>
-                                                        </div>
                                                         <div class="ride_description_wrapper flex_ac">
                                                             <div class="ride_description par">
                                                                 <span>@lang('dictionary.MSG_MSG_TICKETS_REJS')</span>
@@ -376,9 +395,14 @@ $fixedPageTitle = preg_replace(
                                                             <div class="ticket_ride_departure ticket_ride_info">
                                                                 <div class="ticket_ride_time flex_ac">
                                                                     <img src="{{ asset('images/legacy/common/clock.svg') }}" alt="clock">
-                                                                    <span class="btn_txt">
-                                                                        {{ date("H:i", strtotime($ticket['dep_time'])) }}
-                                                                    </span>
+                                                                    <div class="ticket_ride_time_text">
+                                                                        <span class="btn_txt ticket_ride_time_value">
+                                                                            {{ date("H:i", strtotime($ticket['dep_time'])) }}
+                                                                        </span>
+                                                                        @if (!empty($ticket['departure_date_formatted']))
+                                                                            <span class="ticket_ride_date par">{{ $ticket['departure_date_formatted'] }}</span>
+                                                                        @endif
+                                                                    </div>
                                                                 </div>
                                                                 <div class="ticket_ride_city btn_txt">
                                                                     {!! $ticket['departure_details']['city'] !!}
@@ -416,9 +440,14 @@ $fixedPageTitle = preg_replace(
                                                             <div class="ticket_ride_arrival ticket_ride_info">
                                                                 <div class="ticket_ride_time flex_ac">
                                                                     <img src="{{ asset('images/legacy/common/clock.svg') }}" alt="clock">
-                                                                    <span class="btn_txt">
-                                                                        {{ date('H:i', strtotime($ticket['arr_time'])) }}
-                                                                    </span>
+                                                                    <div class="ticket_ride_time_text">
+                                                                        <span class="btn_txt ticket_ride_time_value">
+                                                                            {{ date('H:i', strtotime($ticket['arr_time'])) }}
+                                                                        </span>
+                                                                        @if (!empty($ticket['arrival_date_formatted']))
+                                                                            <span class="ticket_ride_date par">{{ $ticket['arrival_date_formatted'] }}</span>
+                                                                        @endif
+                                                                    </div>
                                                                 </div>
                                                                 <div class="ticket_ride_city btn_txt">
                                                                     {!! $ticket['arrival_details']['city'] !!}
