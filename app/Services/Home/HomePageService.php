@@ -51,6 +51,7 @@ class HomePageService
             'advantages' => $this->contentRepository->getAdvantages($lang),
             'welcomeInfo' => $this->contentRepository->getWelcomeInfo($lang),
             'countries' => $this->getCountriesForHome($lang),
+            'homeCountries' => $this->getFixedCountriesForHome($lang),
             'cities' => $this->getCitiesForHome($lang),
             'internationalTours' => $this->getInternationalTours($lang),
             'homeTours' => $this->getHomeTours($lang),
@@ -79,6 +80,37 @@ class HomePageService
                 $lang
             ) 
         ];
+    }
+
+    /**
+     * Получить фиксированный список стран для блока на главной странице.
+     */
+    private function getFixedCountriesForHome(string $lang): array
+    {
+        $countriesConfig = [
+            ['en' => 'Ukraine', 'key' => 'MSG_ALL_COUNTRY_UKRAINE'],
+            ['en' => 'Moldova', 'key' => 'MSG_ALL_COUNTRY_MOLDOVA'],
+            ['en' => 'Romania', 'key' => 'MSG_ALL_COUNTRY_ROMANIA'],
+            ['en' => 'Bulgaria', 'key' => 'MSG_ALL_COUNTRY_BULGARIA'],
+            ['en' => 'Greece', 'key' => 'MSG_ALL_COUNTRY_GREECE'],
+        ];
+
+        $countryIdsByTitle = $this->cityRepository->getCountryIdsByEnglishTitles(
+            array_column($countriesConfig, 'en')
+        );
+
+        return array_values(array_filter(array_map(function (array $country) use ($countryIdsByTitle) {
+            $countryId = $countryIdsByTitle[$country['en']] ?? null;
+
+            if ($countryId === null) {
+                return null;
+            }
+
+            return [
+                'id' => $countryId,
+                'title' => __('dictionary.' . $country['key']),
+            ];
+        }, $countriesConfig)));
     }
 
     private function getCountriesForHome(string $lang): array

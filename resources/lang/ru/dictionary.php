@@ -15,4 +15,11 @@ return [
     'BONUS_TYPE_MANUAL_ADD' => 'Ручное начисление',
     'BONUS_TYPE_CASHBACK' => 'Кешбек за билет',
     'BONUS_TYPE_REDEEM' => 'Списание бонусами',
+
+    'MSG_ALL_COUNTRY_UKRAINE' => 'Украина',
+    'MSG_ALL_COUNTRY_MOLDOVA' => 'Молдавия',
+    'MSG_ALL_COUNTRY_ROMANIA' => 'Румыния',
+    'MSG_ALL_COUNTRY_BULGARIA' => 'Болгария',
+    'MSG_ALL_COUNTRY_GREECE' => 'Греция',
+    'MSG_ALL_KRANI' => 'Страны',
 ];

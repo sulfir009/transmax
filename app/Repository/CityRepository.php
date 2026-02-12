@@ -85,6 +85,27 @@ class CityRepository
     }
 
     /**
+     * Получить ID стран по их английским названиям.
+     *
+     * @param array<int, string> $englishTitles
+     * @return array<string, int>
+     */
+    public function getCountryIdsByEnglishTitles(array $englishTitles): array
+    {
+        if (empty($englishTitles)) {
+            return [];
+        }
+
+        return DB::table($this->dbPrefix . '_cities')
+            ->where('active', '1')
+            ->where('section_id', '0')
+            ->whereIn('title_en', $englishTitles)
+            ->pluck('id', 'title_en')
+            ->map(fn ($id) => (int) $id)
+            ->toArray();
+    }
+
+    /**
      * Получить города для главной страницы
      */
     public function getCitiesForHome(string $lang): array

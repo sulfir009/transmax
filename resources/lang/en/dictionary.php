@@ -15,4 +15,11 @@ return [
     'BONUS_TYPE_MANUAL_ADD' => 'Manual credit',
     'BONUS_TYPE_CASHBACK' => 'Ticket cashback',
     'BONUS_TYPE_REDEEM' => 'Redeem bonuses',
+
+    'MSG_ALL_COUNTRY_UKRAINE' => 'Ukraine',
+    'MSG_ALL_COUNTRY_MOLDOVA' => 'Moldova',
+    'MSG_ALL_COUNTRY_ROMANIA' => 'Romania',
+    'MSG_ALL_COUNTRY_BULGARIA' => 'Bulgaria',
+    'MSG_ALL_COUNTRY_GREECE' => 'Greece',
+    'MSG_ALL_KRANI' => 'Countries',
 ];

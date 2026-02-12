@@ -15,11 +15,11 @@
             @lang('MSG_ALL_KRANI')
         </div>
         <div class="route_list">
-            @foreach($countries as $country)
+            @foreach($homeCountries as $country)
                 <div>
-                <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}?country={{ $country->id }}"
+                <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}?country={{ $country['id'] }}"
                        class="shedule_link">
-                        {{ $country->title }}
+                        {{ $country['title'] }}
                     </a>
                 </div>
             @endforeach
