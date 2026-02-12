@@ -18,7 +18,7 @@
 
         {{-- Пассажир №1 (всегда видимый, основной покупатель) --}}
         <div class="b2_passenger_title">
-            Контактные данные пассажира №1
+            @lang('dictionary.BOOKING_PASSENGER_CONTACT_DATA') №1
         </div>
 
         <div class="b2_grid">
@@ -51,6 +51,10 @@
             @lang('dictionary.MSG_MSG_BOOKING_VILINA_ROZSADKA') <span class="b2_req">*</span>
         </div>
 
+        <div class="b2_child_notice par">
+            @lang('dictionary.BOOKING_CHILDREN_UNDER_THREE_NOTICE')
+        </div>
+
         {{-- Остальные пассажиры (генерируются в DOM, но скрыты display:none, если их нет в выборе) --}}
         {{-- Цикл начинаем с 1, так как 0 (первый) уже выведен выше --}}
         @for ($i = 1; $i < 10; $i++) {{-- Генерируем с запасом или используем $passengersCount, если лимит жесткий --}}
@@ -59,15 +63,15 @@
 
 
                 <div class="b2_passenger_title">
-                    Контактные данные пассажира №{{ $i + 1 }}
+                    @lang('dictionary.BOOKING_PASSENGER_CONTACT_DATA') №{{ $i + 1 }}
 
                     {{-- Кнопка удаления пассажира --}}
                     <button
                         type="button"
                         class="b2_remove_dot js_remove_passenger"
                         data-passenger-index="{{ $i }}"
-                        title="Удалить пассажира"
-                        aria-label="Удалить пассажира №{{ $i + 1 }}"
+                        title="@lang('dictionary.BOOKING_REMOVE_PASSENGER')"
+                        aria-label="@lang('dictionary.BOOKING_REMOVE_PASSENGER') №{{ $i + 1 }}"
                     ></button>
                 </div>
 
@@ -104,7 +108,7 @@
             <button type="button" class="b2_add_btn" id="b2_add_passenger_btn">+</button>
 
             <button type="button" class="b2_add_text_btn" id="b2_add_passenger_text">
-                Добавить пассажира<span class="b2_req">*</span>
+                @lang('dictionary.BOOKING_ADD_PASSENGER')<span class="b2_req">*</span>
             </button>
         </div>
 
