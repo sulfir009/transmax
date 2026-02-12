@@ -294,6 +294,37 @@ foreach ($privateMenuLinks as $pageId => $link) {
         $('.customer_phone_input').attr('placeholder',$(selectedOption).data('placeholder'));
     };
 
+    function startLoaderSafe(){
+        if (typeof initLoader === 'function') {
+            initLoader();
+        }
+    }
+
+    function stopLoaderSafe(){
+        if (typeof removeLoader === 'function') {
+            removeLoader();
+        }
+    }
+
+    function parseAjaxResult(response){
+        if (typeof response === 'string') {
+            const trimmed = $.trim(response);
+
+            if (trimmed === 'ok' || trimmed === 'err') {
+                return trimmed;
+            }
+
+            try {
+                const parsed = JSON.parse(trimmed);
+                return $.trim(parsed?.data || parsed?.result || parsed?.status || '');
+            } catch (e) {
+                return trimmed;
+            }
+        }
+
+        return $.trim(response?.data || response?.result || response?.status || '');
+    }
+
     function updatePhone(event){
         if (event) {
             event.preventDefault();
@@ -307,7 +338,7 @@ foreach ($privateMenuLinks as $pageId => $link) {
             return;
         }
 
-        initLoader();
+        startLoaderSafe();
         $.ajax({
            type:'post',
             headers: {
@@ -320,11 +351,9 @@ foreach ($privateMenuLinks as $pageId => $link) {
                 'phone':phone
             },
             success:function(response){
-                removeLoader();
+                stopLoaderSafe();
 
-                const result = typeof response === 'string'
-                    ? $.trim(response)
-                    : $.trim(response?.data || response?.result || '');
+                const result = parseAjaxResult(response);
 
                 if (result === 'err'){
                     out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
@@ -333,7 +362,7 @@ foreach ($privateMenuLinks as $pageId => $link) {
                 }
             },
             error:function(){
-                removeLoader();
+                stopLoaderSafe();
                 out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })
@@ -342,8 +371,13 @@ foreach ($privateMenuLinks as $pageId => $link) {
     function updateClientInfo(){
         let name = $.trim($('#client_name').val());
         let second_name = $.trim($('#client_second_name').val());
-        updatePhone();
-        initLoader();
+
+        if (name === '' || second_name === '') {
+            out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
+            return;
+        }
+
+        startLoaderSafe();
         $.ajax({
            type:'post',
             headers: {
@@ -356,12 +390,19 @@ foreach ($privateMenuLinks as $pageId => $link) {
                 'second_name':second_name
             },
             success:function(response){
-                removeLoader();
-                if ($.trim(response) == 'ok'){
+                stopLoaderSafe();
+
+                const result = parseAjaxResult(response);
+
+                if (result === 'ok'){
                     out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
                 }else{
                     out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
                 }
+            },
+            error:function(){
+                stopLoaderSafe();
+                out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })
     };

@@ -246,6 +246,37 @@
         $('.customer_phone_input').attr('placeholder',$(selectedOption).data('placeholder'));
     };
 
+    function startLoaderSafe(){
+        if (typeof initLoader === 'function') {
+            initLoader();
+        }
+    }
+
+    function stopLoaderSafe(){
+        if (typeof removeLoader === 'function') {
+            removeLoader();
+        }
+    }
+
+    function parseAjaxResult(response){
+        if (typeof response === 'string') {
+            const trimmed = $.trim(response);
+
+            if (trimmed === 'ok' || trimmed === 'err') {
+                return trimmed;
+            }
+
+            try {
+                const parsed = JSON.parse(trimmed);
+                return $.trim(parsed?.data || parsed?.result || parsed?.status || '');
+            } catch (e) {
+                return trimmed;
+            }
+        }
+
+        return $.trim(response?.data || response?.result || response?.status || '');
+    }
+
     function updatePhone(event){
         if (event) {
             event.preventDefault();
@@ -259,24 +290,22 @@
             return;
         }
 
-        initLoader();
+        startLoaderSafe();
         $.ajax({
            type:'post',
             headers: {
                  'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
             },
-            url:'/ajax/ru',
+            url:'<?php echo $Router->writelink(3)?>',
             data:{
                 'request':'update_client_phone',
                 'phone_code':phone_code,
                 'phone':phone
             },
             success:function(response){
-                removeLoader();
+                stopLoaderSafe();
 
-                const result = typeof response === 'string'
-                    ? $.trim(response)
-                    : $.trim(response?.data || response?.result || '');
+                const result = parseAjaxResult(response);
 
                 if (result === 'err'){
                     out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
@@ -285,7 +314,7 @@
                 }
             },
             error:function(){
-                removeLoader();
+                stopLoaderSafe();
                 out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })
@@ -294,26 +323,38 @@
     function updateClientInfo(){
         let name = $.trim($('#client_name').val());
         let second_name = $.trim($('#client_second_name').val());
-        updatePhone();
-        initLoader();
+
+        if (name === '' || second_name === '') {
+            out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
+            return;
+        }
+
+        startLoaderSafe();
         $.ajax({
            type:'post',
             headers: {
                  'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
             },
-            url:'/ajax/ru',
+            url:'<?php echo $Router->writelink(3)?>',
             data:{
                 'request':'update_client_info',
                 'name':name,
                 'second_name':second_name
             },
             success:function(response){
-                removeLoader();
-                if ($.trim(response) == 'ok'){
+                stopLoaderSafe();
+
+                const result = parseAjaxResult(response);
+
+                if (result === 'ok'){
                     out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
                 }else{
                     out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
                 }
+            },
+            error:function(){
+                stopLoaderSafe();
+                out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })
     };
