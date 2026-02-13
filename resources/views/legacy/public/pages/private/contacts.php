@@ -258,6 +258,20 @@
         }
     }
 
+    function notifySafe(message, title){
+        if (typeof out === 'function') {
+            out(message, title);
+            return;
+        }
+
+        if (typeof window !== 'undefined' && window.toastr && typeof window.toastr.info === 'function') {
+            window.toastr.info(message, title || '');
+            return;
+        }
+
+        alert(message);
+    }
+
     function parseAjaxResult(response){
         if (typeof response === 'string') {
             const trimmed = $.trim(response);
@@ -286,7 +300,7 @@
         let phone = $.trim($('#phone').val());
 
         if (phone === '') {
-            out('<?php echo $GLOBALS['dictionary']['MSG_MSG_REGISTER_VVEDITE_NOMER_TELEFONA']?>');
+            notifySafe('<?php echo $GLOBALS['dictionary']['MSG_MSG_REGISTER_VVEDITE_NOMER_TELEFONA']?>');
             return;
         }
 
@@ -308,14 +322,14 @@
                 const result = parseAjaxResult(response);
 
                 if (result === 'err'){
-                    out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
+                    notifySafe('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
                 }else{
-                    out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
+                    notifySafe('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
                 }
             },
             error:function(){
                 stopLoaderSafe();
-                out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
+                notifySafe('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })
     };
@@ -325,7 +339,7 @@
         let second_name = $.trim($('#client_second_name').val());
 
         if (name === '' || second_name === '') {
-            out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
+            notifySafe('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             return;
         }
 
@@ -347,14 +361,14 @@
                 const result = parseAjaxResult(response);
 
                 if (result === 'ok'){
-                    out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
+                    notifySafe('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
                 }else{
-                    out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
+                    notifySafe('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
                 }
             },
             error:function(){
                 stopLoaderSafe();
-                out('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
+                notifySafe('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })
     };
