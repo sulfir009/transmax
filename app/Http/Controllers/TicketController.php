@@ -143,6 +143,10 @@ class TicketController extends Controller
             $filterMonth        = null;
             $weekDay            = date('N');
             $popularRoutes      = $this->scheduleService->getPopularRoutesForView($lang);
+            $countries         = $this->scheduleRepository->getCountriesForHome();
+            $scheduleCities    = $this->scheduleRepository->getPopularCities(10);
+            $internationalRoutes = $this->scheduleRepository->getInternationalRoutes();
+            $domesticRoutes    = $this->scheduleRepository->getDomesticRoutes();
             $seoText            = null;
             $seoTitle           = null;
 
@@ -172,6 +176,10 @@ class TicketController extends Controller
                 'dictionary',
                 'lang',
                 'popularRoutes',
+                'countries',
+                'scheduleCities',
+                'internationalRoutes',
+                'domesticRoutes',
                 'seoText',
                 'seoTitle'
             ));
@@ -334,6 +342,10 @@ class TicketController extends Controller
         }
 
         $popularRoutes = $this->scheduleService->getPopularRoutesForView($lang);
+        $countries = $this->scheduleRepository->getCountriesForHome();
+        $scheduleCities = $this->scheduleRepository->getPopularCities(10);
+        $internationalRoutes = $this->scheduleRepository->getInternationalRoutes();
+        $domesticRoutes = $this->scheduleRepository->getDomesticRoutes();
         $seoText = $this->resolveTourSeoText($filterDeparture, $filterArrival, $lang);
         $seoTitle = $this->buildSeoTitle($departureCityTitle, $arrivalCityTitle);
 
@@ -363,6 +375,10 @@ class TicketController extends Controller
             'dictionary',
             'lang',
             'popularRoutes',
+            'countries',
+            'scheduleCities',
+            'internationalRoutes',
+            'domesticRoutes',
             'seoText',
             'seoTitle'
         ));
