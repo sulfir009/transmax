@@ -923,6 +923,8 @@ document.addEventListener('click', function(e){
 <div class="rr3_scope">
     <div class="rr3_list">
 
+        @php $isRomaniaPage = ($tour ?? null) === 'romania'; @endphp
+
         @foreach($regularRaces as $alias => $races)
             @if ($races->isEmpty() || ($stations[$alias] ?? collect())->isEmpty())
                 @continue
@@ -932,46 +934,273 @@ document.addEventListener('click', function(e){
                 @php
                     $stopsById = $race->stops->keyBy('stop_id');
                     $racePrices = $tourStopPrices[$race->id] ?? [];
+                    $romaniaEndGroups = [];
+
+                    if ($isRomaniaPage) {
+                        foreach ($racePrices as $fromStopId => $toStops) {
+                            foreach ($toStops as $toStopId => $priceItem) {
+                                $fromStop = $stopsById->get((int)$fromStopId);
+                                $toStop = $stopsById->get((int)$toStopId);
+
+                                if (!$fromStop || !$toStop) {
+                                    continue;
+                                }
+
+                                if ($stopId > 0 && (int)$fromStopId !== (int)$stopId) {
+                                    continue;
+                                }
+
+                                if (!isset($romaniaEndGroups[$toStopId])) {
+                                    $romaniaEndGroups[$toStopId] = [
+                                        'toStop' => $toStop,
+                                        'items' => [],
+                                    ];
+                                }
+
+                                $romaniaEndGroups[$toStopId]['items'][] = [
+                                    'fromStop' => $fromStop,
+                                    'toStop' => $toStop,
+                                ];
+                            }
+                        }
+                    }
                 @endphp
 
-                @foreach($racePrices as $fromStopId => $toStops)
-                    @foreach($toStops as $toStopId => $priceItem)
+                @if($isRomaniaPage)
+                    @foreach($romaniaEndGroups as $endGroup)
                         @php
-                            $fromStop = $stopsById->get((int)$fromStopId);
-                            $toStop = $stopsById->get((int)$toStopId);
+                            $groupToStop = $endGroup['toStop'];
+                            $groupTitle = trim(($groupToStop->stopCity ?? '').' '.$rr3Decode($groupToStop->stopTitle ?? ''));
                         @endphp
 
-                        @if(!$fromStop || !$toStop)
+                        @if(empty($endGroup['items']))
                             @continue
                         @endif
 
-                        @if($stopId > 0 && (int)$fromStopId !== (int)$stopId)
-                            @continue
-                        @endif
+                        <div class="rr3_group_title">
+                            <h2>{{ $groupTitle }}</h2>
+                        </div>
 
-                        @php
-                            $depTimeRaw = $fromStop->departure_time ?? $fromStop->arrival_time;
-                            $arrTimeRaw = $toStop->arrival_time ?? $toStop->departure_time;
+                        @foreach($endGroup['items'] as $groupItem)
+                            @php
+                                $fromStop = $groupItem['fromStop'];
+                                $toStop = $groupItem['toStop'];
 
-                            $depTime = $depTimeRaw ? date('H:i', strtotime($depTimeRaw)) : '';
-                            $arrTime = $arrTimeRaw ? date('H:i', strtotime($arrTimeRaw)) : '';
+                                $depTimeRaw = $fromStop->departure_time ?? $fromStop->arrival_time;
+                                $arrTimeRaw = $toStop->arrival_time ?? $toStop->departure_time;
 
-                            $depStation = $rr3Decode($fromStop->stopTitle ?? '');
-                            $arrStation = $rr3Decode($toStop->stopTitle ?? '');
-                            $depCountryCode = $flagCode($fromStop->stopCountryEn ?? null);
-                            $arrCountryCode = $flagCode($toStop->stopCountryEn ?? null);
+                                $depTime = $depTimeRaw ? date('H:i', strtotime($depTimeRaw)) : '';
+                                $arrTime = $arrTimeRaw ? date('H:i', strtotime($arrTimeRaw)) : '';
 
-                            if ($lang === 'en') {
-                                $daysText = collect($race)->get('days_en', '');
-                            } elseif ($lang === 'ua') {
-                                $daysText = collect($race)->get('days_ua', '');
-                            } else {
-                                $daysText = collect($race)->get('days_ru', '');
-                            }
+                                $depStation = $rr3Decode($fromStop->stopTitle ?? '');
+                                $arrStation = $rr3Decode($toStop->stopTitle ?? '');
+                                $depCountryCode = $flagCode($fromStop->stopCountryEn ?? null);
+                                $arrCountryCode = $flagCode($toStop->stopCountryEn ?? null);
 
-                            $routeTitle = trim(($fromStop->stopCity ?? '').' — '.($toStop->stopCity ?? ''));
-                            $durationText = '11 год. 30 хв в дорозі';
-                        @endphp
+                                if ($lang === 'en') {
+                                    $daysText = collect($race)->get('days_en', '');
+                                } elseif ($lang === 'ua') {
+                                    $daysText = collect($race)->get('days_ua', '');
+                                } else {
+                                    $daysText = collect($race)->get('days_ru', '');
+                                }
+
+                                $routeTitle = trim(($fromStop->stopCity ?? '').' — '.($toStop->stopCity ?? ''));
+                                $durationText = '11 год. 30 хв в дорозі';
+                            @endphp
+
+                            <article class="rr3_card">
+
+                                <div class="rr3_badge">{{ $routeTitle }}</div>
+
+                                <div class="rr3_media">
+                                    <img src="{{ $busImgMob }}" alt="bus" loading="lazy">
+                                </div>
+
+                                <div class="rr3_body">
+
+                                    <div class="rr3_toprow">
+                                        {{-- Departure --}}
+                                        <div class="rr3_side rr3_side--dep">
+
+                                            <div class="rr3_time">{{ $depTime }}</div>
+
+                                            <div class="rr3_place">
+                                                <div class="rr3_cityline">
+                                                    <div class="rr3_city">м. {{ $fromStop->stopCity }}</div>
+                                                    <span class="rr3_flag {{ $depCountryCode }}" aria-hidden="true"></span>
+                                                </div>
+                                                <div class="rr3_station">{{ $depStation }}</div>
+                                            </div>
+                                        </div>
+
+                                        {{-- Mid --}}
+                                        <div class="rr3_mid">
+<div class="rr3_dash" aria-hidden="true">
+    <img class="rr3_dash_img" src="{{ $busCenterIcon }}" alt="" loading="lazy">
+</div>
+
+
+                                            <div class="rr3_duration" hidden>
+                                                {!! $ico('rr3-duration.svg','rr3_duration_img','duration') !!}
+                                                <span>{{ $durationText }}</span>
+                                            </div>
+                                        </div>
+
+                                        {{-- Arrival --}}
+                                        <div class="rr3_side rr3_side--arr">
+                                            {!! $ico('rr3-clock.svg','rr3_clock_img','clock') !!}
+                                            <div class="rr3_time">{{ $arrTime }}</div>
+
+                                            <div class="rr3_place">
+                                                <div class="rr3_cityline">
+                                                    <div class="rr3_city">м. {{ $toStop->stopCity }}</div>
+                                                    <span class="rr3_flag {{ $arrCountryCode }}" aria-hidden="true"></span>
+                                                </div>
+                                                <div class="rr3_station">{{ $arrStation }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {{-- Icons --}}
+                                    <div class="rr3_icons">
+                                        <div class="rr3_chip" title="Wi-Fi">{!! $ico('rr3-wifi.svg','rr3_chip_icon','wifi') !!}</div>
+                                        <div class="rr3_chip" title="Video">{!! $ico('rr3-video.svg','rr3_chip_icon','video') !!}</div>
+                                        <div class="rr3_chip" title="220V">{!! $ico('rr3-plug.svg','rr3_chip_icon','plug') !!}</div>
+                                        <div class="rr3_chip" title="A/C">{!! $ico('rr3-snow.svg','rr3_chip_icon','snow') !!}</div>
+                                    </div>
+
+                                    {{-- Schedule --}}
+                                    <div class="rr3_schedule">
+                                        <div class="rr3_chip" aria-hidden="true">{!! $ico('rr3-calendar.svg','rr3_chip_icon','calendar') !!}</div>
+                                        <span class="rr3_schedule_label">График поездок:</span>
+                                        <div class="rr3_schedule_value" title="{{ $daysText ?: '—' }}">
+                                            {{ $daysText ?: '—' }}
+                                        </div>
+                                    </div>
+
+                                    {{-- Details button --}}
+                                    <button class="rr3_details_btn" type="button" data-rr3-details-btn aria-expanded="false">
+                                        Детали маршрута <span class="rr3_chev" aria-hidden="true"></span>
+                                    </button>
+
+                                    {{-- Details body --}}
+                                    <div class="rr3_details_body" data-rr3-details-body hidden>
+                                        <div class="rr3_stops_wrap">
+
+                                            <div class="rr3_stops">
+                                                <div class="rr3_line" aria-hidden="true"></div>
+
+                                                @foreach($race->stops as $stop)
+                                                    @php $stopTitle = $rr3Decode($stop->stopTitle ?? ''); @endphp
+
+                                                    <div class="rr3_stop">
+                                                        <div class="rr3_stop_left">
+                                                            <span class="rr3_dot" aria-hidden="true"></span>
+                                                            <div class="rr3_stop_txt" title="{{ date('H:i',strtotime($stop->arrival_time)) }} - м. {{ $stop->stopCity }}">
+                                                                {{ date('H:i',strtotime($stop->arrival_time)) }} - м. {{ $stop->stopCity }}
+                                                            </div>
+                                                        </div>
+                                                        <div class="rr3_stop_station" title="{{ $stopTitle }}">
+                                                            {{ $stopTitle }}
+                                                        </div>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+
+                                            <div class="rr3_map" aria-hidden="true"></div>
+                                        </div>
+                                    </div>
+
+                                    {{-- Actions --}}
+                                    <div class="rr3_actions">
+                                        @php
+                                            $todayKyiv = \Carbon\Carbon::now('Europe/Kyiv')->startOfDay();
+                                            $daysList = array_filter(array_map('intval', explode(',', $race->days ?? '')));
+                                            $nearestDate = null;
+
+                                            if (!empty($daysList)) {
+                                                for ($i = 0; $i <= 14; $i++) {
+                                                    $candidate = $todayKyiv->copy()->addDays($i);
+                                                    if (in_array($candidate->dayOfWeekIso, $daysList, true)) {
+                                                        $nearestDate = $candidate->toDateString();
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            $nearestDate = $nearestDate ?? $todayKyiv->toDateString();
+                                        @endphp
+                                        <button
+                                            class="rr3_btn buy buy-online-btn"
+                                            data-days="{{ $race->days }}"
+                                            data-arrival="{{ $toStop->stop_id }}"
+                                            data-departure="{{ $fromStop->stop_id }}"
+                                            data-redirect="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
+                                            data-date="{{ $nearestDate }}"
+                                            data-today="{{ $todayKyiv->toDateString() }}"
+                                            type="button"
+                                        >
+                                            @lang('buy_online')
+                                        </button>
+
+                                        <a
+                                            href="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
+                                            class="rr3_btn reserve book-btn buy-online-btn"
+                                            data-days="{{ $race->days }}"
+                                            data-arrival="{{ $toStop->stop_id }}"
+                                            data-departure="{{ $fromStop->stop_id }}"
+                                            data-redirect="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
+                                            data-date="{{ $nearestDate }}"
+                                            data-today="{{ $todayKyiv->toDateString() }}"
+                                        >
+                                            @lang('reserve')
+                                        </a>
+                                    </div>
+
+                                </div>
+                            </article>
+                        @endforeach
+                    @endforeach
+                @else
+                    @foreach($racePrices as $fromStopId => $toStops)
+                        @foreach($toStops as $toStopId => $priceItem)
+                            @php
+                                $fromStop = $stopsById->get((int)$fromStopId);
+                                $toStop = $stopsById->get((int)$toStopId);
+                            @endphp
+
+                            @if(!$fromStop || !$toStop)
+                                @continue
+                            @endif
+
+                            @if($stopId > 0 && (int)$fromStopId !== (int)$stopId)
+                                @continue
+                            @endif
+
+                            @php
+                                $depTimeRaw = $fromStop->departure_time ?? $fromStop->arrival_time;
+                                $arrTimeRaw = $toStop->arrival_time ?? $toStop->departure_time;
+
+                                $depTime = $depTimeRaw ? date('H:i', strtotime($depTimeRaw)) : '';
+                                $arrTime = $arrTimeRaw ? date('H:i', strtotime($arrTimeRaw)) : '';
+
+                                $depStation = $rr3Decode($fromStop->stopTitle ?? '');
+                                $arrStation = $rr3Decode($toStop->stopTitle ?? '');
+                                $depCountryCode = $flagCode($fromStop->stopCountryEn ?? null);
+                                $arrCountryCode = $flagCode($toStop->stopCountryEn ?? null);
+
+                                if ($lang === 'en') {
+                                    $daysText = collect($race)->get('days_en', '');
+                                } elseif ($lang === 'ua') {
+                                    $daysText = collect($race)->get('days_ua', '');
+                                } else {
+                                    $daysText = collect($race)->get('days_ru', '');
+                                }
+
+                                $routeTitle = trim(($fromStop->stopCity ?? '').' — '.($toStop->stopCity ?? ''));
+                                $durationText = '11 год. 30 хв в дорозі';
+                            @endphp
 
                         <article class="rr3_card">
 
@@ -1124,8 +1353,9 @@ document.addEventListener('click', function(e){
 
                             </div>
                         </article>
+                        @endforeach
                     @endforeach
-                @endforeach
+                @endif
             @endforeach
         @endforeach
 
