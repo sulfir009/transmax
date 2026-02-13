@@ -268,9 +268,10 @@
     line-height:16.8px;
     color:#878D8F;
     text-decoration:underline;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    white-space:nowrap;
+    overflow:visible;
+    text-overflow:clip;
+    white-space:normal;
+    word-break:break-word;
     min-width:0;
     max-width:240px;
 }
