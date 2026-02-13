@@ -358,7 +358,7 @@
                 const result = parseAjaxResult(response);
                 const payload = parseAjaxPayload(response);
 
-                if (result === 'err'){
+                if (result !== 'ok'){
                     notifySafe('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
                 }else{
                     if (payload?.phone_code) {
