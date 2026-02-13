@@ -924,8 +924,8 @@
     position:absolute;
     opacity:0;
     pointer-events:none;
-    width:1px;
-    height:1px;
+    width:0;
+    height:0;
     border-radius:10px;
     border:1px solid #dce6f6;
     padding:0 14px;
@@ -938,6 +938,7 @@
 .rr3_calendar_cancel{ background:#E74444 !important; color:#fff !important; border:none !important; }
 
 .rr3_calendar_modal_dialog .flatpickr-calendar{ box-shadow:none; border:0; width:100%; margin:0 auto 14px; }
+.rr3_calendar_modal_dialog .flatpickr-calendar.inline{ display:block; }
 .rr3_calendar_modal_dialog .flatpickr-current-month .flatpickr-monthDropdown-months,
 .rr3_calendar_modal_dialog .flatpickr-current-month input.cur-year{ font-size:24px; font-weight:700; color:#303233; }
 .rr3_calendar_modal_dialog .flatpickr-weekday{ font-size:11px; color:#303233; font-weight:600; }
@@ -1190,8 +1191,8 @@ document.addEventListener('click', function(e){
                                     @lang('buy_online')
                                 </button>
 
-                                <a
-                                    href="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
+                                <button
+                                    type="button"
                                     class="rr3_btn reserve book-btn buy-online-btn"
                                     data-days="{{ $race->days }}"
                                     data-arrival="{{ $toStop->stop_id }}"
@@ -1202,7 +1203,7 @@ document.addEventListener('click', function(e){
                                     data-today="{{ $todayKyiv->toDateString() }}"
                                 >
                                     @lang('reserve')
-                                </a>
+                                </button>
                             </div>
 
                         </div>
@@ -1349,8 +1350,7 @@ document.addEventListener('click', function(e){
         modalDatePicker = flatpickr(calendarInput, {
             minDate: 'today',
             dateFormat: 'Y-m-d',
-            altInput: true,
-            altFormat: 'F j, Y',
+            inline: true,
             defaultDate: state.date || fallbackDate,
             locale: @json($lang),
             disableMobile: true,
@@ -1432,6 +1432,10 @@ document.addEventListener('click', function(e){
         const button = event.target.closest('.buy-online-btn');
         if (button) {
             event.preventDefault();
+            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === 'function') {
+                event.stopImmediatePropagation();
+            }
 
             const arrivalId = button.getAttribute('data-arrival');
             const departureId = button.getAttribute('data-departure');
