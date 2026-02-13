@@ -1173,8 +1173,8 @@
     align-items:center !important;
     justify-content:center !important;
 
-    font-family: Montserrat,system-ui !important;
-    font-weight: 600 !important;
+    font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif !important;
+    font-weight: 500 !important;
     font-size: 11px !important;
     line-height: 24.72px !important;
 
@@ -1191,6 +1191,7 @@
     background:#40A6FF !important;
     border-color:#40A6FF !important;
     color:#fff !important;
+    font-weight: 600 !important;
 }
 
 /* 6) Пунктир между шагами как на /oplata */
