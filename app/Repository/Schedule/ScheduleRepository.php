@@ -199,16 +199,27 @@ class ScheduleRepository
     {
         $lang = Site::lang();
         $dbPrefix = env('DB_PREFIX', 'mt');
-        
-        return DB::table("{$dbPrefix}_tours as t")
-            ->join("{$dbPrefix}_cities as departure_city", 't.departure', '=', 'departure_city.id')
-            ->join("{$dbPrefix}_cities as arrival_city", 't.arrival', '=', 'arrival_city.id')
-            ->where('departure_city.section_id', '13')
-            ->where('arrival_city.section_id', '13')
+        $ukraineCountryId = $this->getUkraineCountryId($dbPrefix);
+
+        if ($ukraineCountryId === null) {
+            return collect();
+        }
+
+        return DB::table("{$dbPrefix}_tours_stops_prices as tsp")
+            ->join("{$dbPrefix}_tours as t", 't.id', '=', 'tsp.tour_id')
+            ->join("{$dbPrefix}_cities as from_station", 'from_station.id', '=', 'tsp.from_stop')
+            ->join("{$dbPrefix}_cities as to_station", 'to_station.id', '=', 'tsp.to_stop')
+            ->join("{$dbPrefix}_cities as departure_city", 'departure_city.id', '=', 'from_station.section_id')
+            ->join("{$dbPrefix}_cities as arrival_city", 'arrival_city.id', '=', 'to_station.section_id')
+            ->where('t.active', 1)
+            ->where('tsp.price', '>', 0)
+            ->where('departure_city.section_id', $ukraineCountryId)
+            ->where('arrival_city.section_id', $ukraineCountryId)
+            ->whereColumn('departure_city.id', '!=', 'arrival_city.id')
             ->select([
-                't.id',
-                't.departure',
-                't.arrival',
+                DB::raw('MIN(t.id) as id'),
+                DB::raw('departure_city.id as departure'),
+                DB::raw('arrival_city.id as arrival'),
                 "departure_city.title_{$lang} as departure_city",
                 'departure_city.id as departure_city_id',
                 "departure_city.slug_{$lang} as departure_city_slug",
@@ -216,8 +227,27 @@ class ScheduleRepository
                 'arrival_city.id as arrival_city_id',
                 "arrival_city.slug_{$lang} as arrival_city_slug"
             ])
-            ->distinct()
+            ->groupBy([
+                'departure_city.id',
+                'arrival_city.id',
+                'departure_city.title_' . $lang,
+                'arrival_city.title_' . $lang,
+                'departure_city.slug_' . $lang,
+                'arrival_city.slug_' . $lang,
+            ])
+            ->orderBy('departure_city.title_' . $lang)
+            ->orderBy('arrival_city.title_' . $lang)
             ->get();
+    }
+
+    private function getUkraineCountryId(string $dbPrefix): ?int
+    {
+        $countryId = DB::table("{$dbPrefix}_cities")
+            ->where('section_id', 0)
+            ->where('title_en', 'Ukraine')
+            ->value('id');
+
+        return $countryId !== null ? (int) $countryId : null;
     }
     
     public function getMinPriceForRoute(int $departureId, int $arrivalId): ?float
