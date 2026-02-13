@@ -1,4 +1,23 @@
 <section class="ticketing">
+    <style>
+        .ticket-step-back {
+            align-items: center;
+            background: transparent;
+            border: none;
+            color: #cc4fe2;
+            cursor: pointer;
+            display: inline-flex;
+            font-size: 18px;
+            font-weight: 600;
+            gap: 8px;
+            margin: 0 0 20px 0;
+            padding: 0;
+        }
+
+        .ticket-step-back:hover {
+            opacity: 0.85;
+        }
+    </style>
     <div class="tickets-line-left">
         <img src="<?= asset('images/legacy/tickets-line-left.png'); ?>" alt="tickets-line-left">
     </div>
@@ -408,6 +427,10 @@
     </div>
 
     <div class="step-ticketing" id="step-ticketing3">
+        <button class="ticket-step-back" type="button" data-step="2" aria-label="Шаг назад">
+            <span aria-hidden="true">←</span>
+            <span>Шаг назад</span>
+        </button>
         <div class="ticket-payment-container">
             <h2 class="ticket-form-title">Оплата</h2>
             <p class="ticket-form-description">Ваши платежные и личные данные надежно защищены в соответствии 
