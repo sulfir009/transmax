@@ -1454,35 +1454,44 @@ if ($request === 'order_route') {
 if ($cleanPost['request'] === 'update_client_phone'){
     $phoneCode = (int)($cleanPost['phone_code'] ?? 0);
     $phone = trim((string)($cleanPost['phone'] ?? ''));
-    $normalizedPhone = preg_replace('/[^0-9+]/', '', $phone);
+    $formattedPhone = preg_replace('/\s+/', ' ', $phone);
+    $digitsOnlyPhone = preg_replace('/[^0-9]/', '', $formattedPhone);
 
     \Illuminate\Support\Facades\Log::info('[CABINET_CONTACTS] update_client_phone request', [
         'client_id' => $User->id ?? null,
         'phone_code' => $phoneCode,
-        'phone' => $normalizedPhone,
+        'phone' => $formattedPhone,
     ]);
 
-    if ($phoneCode <= 0 || $normalizedPhone === '' || mb_strlen($normalizedPhone) < 7) {
+    if ($phoneCode <= 0 || $formattedPhone === '' || mb_strlen($digitsOnlyPhone) < 7) {
         \Illuminate\Support\Facades\Log::warning('[CABINET_CONTACTS] update_client_phone validation failed', [
             'client_id' => $User->id ?? null,
             'phone_code' => $phoneCode,
-            'phone' => $normalizedPhone,
+            'phone' => $formattedPhone,
         ]);
-        echo 'err';
-        exit;
+        ajax_json([
+            'data' => 'err',
+        ]);
     }
 
-    $upd = $Db->query("UPDATE `".DB_PREFIX."_clients` SET `phone_code` = '".$phoneCode."',`phone` = '".$normalizedPhone."' WHERE id = '".$User->id."' ");
+    $upd = $Db->query("UPDATE `".DB_PREFIX."_clients` SET `phone_code` = '".$phoneCode."',`phone` = '".$formattedPhone."' WHERE id = '".$User->id."' ");
 
     \Illuminate\Support\Facades\Log::info('[CABINET_CONTACTS] update_client_phone result', [
         'client_id' => $User->id ?? null,
         'success' => (bool)$upd,
+        'phone' => $formattedPhone,
     ]);
 
     if ($upd){
-        echo 'ok';
+        ajax_json([
+            'data' => 'ok',
+            'phone_code' => $phoneCode,
+            'phone' => $formattedPhone,
+        ]);
     }else{
-        echo 'err';
+        ajax_json([
+            'data' => 'err',
+        ]);
     }
 }
 
@@ -1502,8 +1511,9 @@ if ($cleanPost['request'] === 'update_client_info'){
             'name' => $name,
             'second_name' => $secondName,
         ]);
-        echo 'err';
-        exit;
+        ajax_json([
+            'data' => 'err',
+        ]);
     }
 
     $upd = $Db->query("UPDATE `".DB_PREFIX."_clients` SET name = '".$name."',
@@ -1513,12 +1523,20 @@ if ($cleanPost['request'] === 'update_client_info'){
     \Illuminate\Support\Facades\Log::info('[CABINET_CONTACTS] update_client_info result', [
         'client_id' => $User->id ?? null,
         'success' => (bool)$upd,
+        'name' => $name,
+        'second_name' => $secondName,
     ]);
 
     if ($upd){
-        echo 'ok';
+        ajax_json([
+            'data' => 'ok',
+            'name' => $name,
+            'second_name' => $secondName,
+        ]);
     }else{
-        echo 'err';
+        ajax_json([
+            'data' => 'err',
+        ]);
     }
 }
 

@@ -291,6 +291,20 @@
         return $.trim(response?.data || response?.result || response?.status || '');
     }
 
+    function parseAjaxPayload(response){
+        if (typeof response === 'string') {
+            const trimmed = $.trim(response);
+
+            try {
+                return JSON.parse(trimmed);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        return response && typeof response === 'object' ? response : null;
+    }
+
     function updatePhone(event){
         if (event) {
             event.preventDefault();
@@ -320,10 +334,19 @@
                 stopLoaderSafe();
 
                 const result = parseAjaxResult(response);
+                const payload = parseAjaxPayload(response);
 
                 if (result === 'err'){
                     notifySafe('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
                 }else{
+                    if (payload?.phone_code) {
+                        $('#phone_code').val(payload.phone_code).trigger('change');
+                    }
+
+                    if (payload?.phone) {
+                        $('#phone').val(payload.phone);
+                    }
+
                     notifySafe('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
                 }
             },
@@ -359,8 +382,17 @@
                 stopLoaderSafe();
 
                 const result = parseAjaxResult(response);
+                const payload = parseAjaxPayload(response);
 
                 if (result === 'ok'){
+                    if (payload?.name) {
+                        $('#client_name').val(payload.name);
+                    }
+
+                    if (payload?.second_name) {
+                        $('#client_second_name').val(payload.second_name);
+                    }
+
                     notifySafe('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
                 }else{
                     notifySafe('<?php echo $GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
