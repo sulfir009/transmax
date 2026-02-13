@@ -155,7 +155,29 @@ foreach ($privateMenuLinks as $pageId => $link) {
         </div>
         <div class="page_content_wrapper">
             <div class="container">
-                <?$clientInfo = $Db->getOne("SELECT name,second_name,patronymic,birth_date,email,phone,phone_code FROM `".DB_PREFIX."_clients` WHERE id = '".$User->id."' ")?>
+                <?
+                $clientId = (int)($User->id ?? 0);
+                if ($clientId <= 0) {
+                    $clientId = (int)($_SESSION['user']['id'] ?? 0);
+                }
+                if ($clientId <= 0) {
+                    $clientId = (int)($_COOKIE['mt_client_id'] ?? 0);
+                }
+
+                $clientInfo = null;
+                if ($clientId > 0) {
+                    $clientInfo = $Db->getOne("SELECT name,second_name,patronymic,birth_date,email,phone,phone_code FROM `".DB_PREFIX."_clients` WHERE id = '".$clientId."' ");
+                }
+
+                \Illuminate\Support\Facades\Log::channel('cabinet')->info('[CABINET_CONTACTS] contacts page load', [
+                    'client_id' => $clientId,
+                    'user_id' => (int)($User->id ?? 0),
+                    'session_user_id' => (int)($_SESSION['user']['id'] ?? 0),
+                    'phone' => $clientInfo['phone'] ?? null,
+                    'phone_code' => isset($clientInfo['phone_code']) ? (int)$clientInfo['phone_code'] : null,
+                    'db_error' => isset($Db->db) && $Db->db instanceof \mysqli ? mysqli_error($Db->db) : null,
+                ]);
+                ?>
                 <div class="flex-row gap-x-32 gap-y-60">
                     <div class="col-xxl-6">
                         <div class="shadow_block private_contacts_block">
@@ -384,7 +406,7 @@ foreach ($privateMenuLinks as $pageId => $link) {
                 const result = parseAjaxResult(response);
                 const payload = parseAjaxPayload(response);
 
-                if (result === 'err'){
+                if (result !== 'ok'){
                     notifySafe('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
                 }else{
                     if (payload?.phone_code) {

@@ -164,6 +164,121 @@ if ($cleanPost['request'] === 'appAuth') {
     }
 }
 
+
+if ($cleanPost['request'] === 'update_client_phone') {
+    $phoneCode = (int)($cleanPost['phone_code'] ?? 0);
+    $phone = trim((string)($cleanPost['phone'] ?? ''));
+    $formattedPhone = preg_replace('/\s+/', ' ', $phone);
+    $digitsOnlyPhone = preg_replace('/[^0-9]/', '', $formattedPhone);
+
+    $clientId = (int)($User->id ?? 0);
+    if ($clientId <= 0) {
+        $clientId = (int)($_SESSION['user']['id'] ?? 0);
+    }
+    if ($clientId <= 0) {
+        $clientId = (int)($_COOKIE['mt_client_id'] ?? 0);
+    }
+
+    \Illuminate\Support\Facades\Log::channel('cabinet')->info('[CABINET_CONTACTS] appAjax update_client_phone request', [
+        'client_id' => $clientId,
+        'user_id' => (int)($User->id ?? 0),
+        'session_user_id' => (int)($_SESSION['user']['id'] ?? 0),
+        'phone_code' => $phoneCode,
+        'phone' => $formattedPhone,
+    ]);
+
+    if ($clientId <= 0 || $phoneCode <= 0 || $formattedPhone === '' || mb_strlen($digitsOnlyPhone) < 7) {
+        \Illuminate\Support\Facades\Log::channel('cabinet')->warning('[CABINET_CONTACTS] appAjax update_client_phone validation failed', [
+            'client_id' => $clientId,
+            'phone_code' => $phoneCode,
+            'phone' => $formattedPhone,
+        ]);
+        echo json_encode(['data' => 'err'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $phoneSql = isset($Db->db) && $Db->db instanceof \mysqli ? mysqli_real_escape_string($Db->db, $formattedPhone) : addslashes($formattedPhone);
+    $upd = $Db->query("UPDATE `" . DB_PREFIX . "_clients` SET `phone_code` = '" . $phoneCode . "', `phone` = '" . $phoneSql . "' WHERE `id` = '" . $clientId . "' LIMIT 1");
+    $dbError = isset($Db->db) && $Db->db instanceof \mysqli ? mysqli_error($Db->db) : null;
+    $affectedRows = isset($Db->db) && $Db->db instanceof \mysqli ? mysqli_affected_rows($Db->db) : null;
+
+    \Illuminate\Support\Facades\Log::channel('cabinet')->info('[CABINET_CONTACTS] appAjax update_client_phone result', [
+        'client_id' => $clientId,
+        'success' => (bool)$upd,
+        'affected_rows' => $affectedRows,
+        'db_error' => $dbError,
+        'phone_code' => $phoneCode,
+        'phone' => $formattedPhone,
+    ]);
+
+    if ($upd && $dbError === '') {
+        echo json_encode([
+            'data' => 'ok',
+            'phone_code' => $phoneCode,
+            'phone' => $formattedPhone,
+        ], JSON_UNESCAPED_UNICODE);
+    } else {
+        echo json_encode(['data' => 'err'], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
+if ($cleanPost['request'] === 'update_client_info') {
+    $name = trim((string)($cleanPost['name'] ?? ''));
+    $secondName = trim((string)($cleanPost['second_name'] ?? ''));
+
+    $clientId = (int)($User->id ?? 0);
+    if ($clientId <= 0) {
+        $clientId = (int)($_SESSION['user']['id'] ?? 0);
+    }
+    if ($clientId <= 0) {
+        $clientId = (int)($_COOKIE['mt_client_id'] ?? 0);
+    }
+
+    \Illuminate\Support\Facades\Log::channel('cabinet')->info('[CABINET_CONTACTS] appAjax update_client_info request', [
+        'client_id' => $clientId,
+        'user_id' => (int)($User->id ?? 0),
+        'name' => $name,
+        'second_name' => $secondName,
+    ]);
+
+    if ($clientId <= 0 || $name === '' || $secondName === '') {
+        \Illuminate\Support\Facades\Log::channel('cabinet')->warning('[CABINET_CONTACTS] appAjax update_client_info validation failed', [
+            'client_id' => $clientId,
+            'name' => $name,
+            'second_name' => $secondName,
+        ]);
+        echo json_encode(['data' => 'err'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $nameSql = isset($Db->db) && $Db->db instanceof \mysqli ? mysqli_real_escape_string($Db->db, $name) : addslashes($name);
+    $secondNameSql = isset($Db->db) && $Db->db instanceof \mysqli ? mysqli_real_escape_string($Db->db, $secondName) : addslashes($secondName);
+    $upd = $Db->query("UPDATE `" . DB_PREFIX . "_clients` SET `name` = '" . $nameSql . "', `second_name` = '" . $secondNameSql . "' WHERE `id` = '" . $clientId . "' LIMIT 1");
+    $dbError = isset($Db->db) && $Db->db instanceof \mysqli ? mysqli_error($Db->db) : null;
+    $affectedRows = isset($Db->db) && $Db->db instanceof \mysqli ? mysqli_affected_rows($Db->db) : null;
+
+    \Illuminate\Support\Facades\Log::channel('cabinet')->info('[CABINET_CONTACTS] appAjax update_client_info result', [
+        'client_id' => $clientId,
+        'success' => (bool)$upd,
+        'affected_rows' => $affectedRows,
+        'db_error' => $dbError,
+        'name' => $name,
+        'second_name' => $secondName,
+    ]);
+
+    if ($upd && $dbError === '') {
+        echo json_encode([
+            'data' => 'ok',
+            'name' => $name,
+            'second_name' => $secondName,
+        ], JSON_UNESCAPED_UNICODE);
+    } else {
+        echo json_encode(['data' => 'err'], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
 if ($cleanPost['request'] === 'AuthSMS') {
 
     $userInfo = $Db->getOne("SELECT id, email FROM `" .  DB_PREFIX . "_clients`WHERE phone = '" . $cleanPost['phone'] . "'");
