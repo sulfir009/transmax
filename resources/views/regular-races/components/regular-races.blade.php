@@ -1108,7 +1108,16 @@ document.addEventListener('click', function(e){
                                         @lang('buy_online')
                                     </button>
 
-                                    <a href="#form-callback-reserve" class="rr3_btn reserve book-btn">
+                                    <a
+                                        href="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
+                                        class="rr3_btn reserve book-btn buy-online-btn"
+                                        data-days="{{ $race->days }}"
+                                        data-arrival="{{ $toStop->stop_id }}"
+                                        data-departure="{{ $fromStop->stop_id }}"
+                                        data-redirect="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
+                                        data-date="{{ $nearestDate }}"
+                                        data-today="{{ $todayKyiv->toDateString() }}"
+                                    >
                                         @lang('reserve')
                                     </a>
                                 </div>
