@@ -787,6 +787,9 @@ $orderPassengersCount = max(1, min(10, (int)$orderPassengersCount));
         $depTime  = isset($ticketInfo->departure_time) ? substr((string)$ticketInfo->departure_time, 0, 5) : '';
         $tourDate = (string)($orderInfo->tour_date ?? '');
         $price    = (string)($ticketInfo->price ?? '');
+        $totalBeforeDiscountCents = Money::priceToKopeksFromDb($ticketInfo->price ?? 0) * max(1, $this->getPassengersCountFromOrder($orderInfo));
+        $discountCents = Money::clamp((int)($orderInfo->bonus_redeemed_cents ?? 0), 0, $totalBeforeDiscountCents);
+        $totalCents = max($totalBeforeDiscountCents - $discountCents, 0);
         $paymentLabel = $this->buildTicketPaymentLabel($orderInfo);
         if (trim($paymentLabel) === '') {
             $paymentLabel = $this->isCashPayment($orderInfo) ? 'Наличными при посадке' : 'Онлайн';
@@ -796,9 +799,6 @@ $orderPassengersCount = max(1, min(10, (int)$orderPassengersCount));
         $bonusCashbackCents = (int)($orderInfo->bonus_cashback_cents ?? 0);
         $bonusHtml = '';
 
-        if ($bonusRedeemedCents > 0) {
-            $bonusHtml .= '<div><b>Списано бонусами</b>: ' . htmlspecialchars(Money::kopeksToUahString($bonusRedeemedCents), ENT_QUOTES, 'UTF-8') . ' грн</div>';
-        }
         if ($bonusCashbackCents > 0) {
             $bonusHtml .= '<div><b>Нараховано кешбеком</b>: ' . htmlspecialchars(Money::kopeksToUahString($bonusCashbackCents), ENT_QUOTES, 'UTF-8') . ' грн</div>';
         }
@@ -878,8 +878,8 @@ $orderPassengersCount = max(1, min(10, (int)$orderPassengersCount));
               <td><b>Проїзд<br>Passage</b><div>' . $this->pdfText($price) . '</div></td>
               <td><b>Багаж<br>Luggage</b><div></div></td>
               <td><b>Тип<br>Type</b><div>ПОВНИЙ</div></td>
-              <td><b>Знижка<br>Discount</b><div></div></td>
-              <td><b>Всього, грн<br>Total, UAH</b><div>' . $this->pdfText($price) . '</div></td>
+              <td><b>Знижка<br>Discount</b><div>' . ($discountCents > 0 ? $this->pdfText(Money::kopeksToUahString($discountCents)) : '') . '</div></td>
+              <td><b>Всього, грн<br>Total, UAH</b><div>' . $this->pdfText(Money::kopeksToUahString($totalCents)) . '</div></td>
             </tr>
           </table>
 
@@ -1081,7 +1081,9 @@ $cnt = ($passengers && method_exists($passengers, 'count') && $passengers->count
 
 $cnt = max(1, min(10, (int)$cnt));
 
-$totalPriceCents = Money::priceToKopeksFromDb($ticketInfo->price ?? 0) * $cnt;
+            $totalBeforeDiscountCents = Money::priceToKopeksFromDb($ticketInfo->price ?? 0) * $cnt;
+            $discountCents = Money::clamp((int)($orderInfo->bonus_redeemed_cents ?? 0), 0, $totalBeforeDiscountCents);
+            $totalAfterDiscountCents = max($totalBeforeDiscountCents - $discountCents, 0);
 
             $emailData = [
                 'orderInfo' => $orderInfo,
@@ -1092,8 +1094,8 @@ $totalPriceCents = Money::priceToKopeksFromDb($ticketInfo->price ?? 0) * $cnt;
                 'fromStop' => (string)($fromStop->title_uk ?? ''),
                 'toStop' => (string)($toStop->title_uk ?? ''),
                 'paymentMethodLabel' => $this->detectPaymentLabel($paymentData),
-                'totalPrice' => Money::kopeksToUahString($totalPriceCents),
-                'bonusRedeemedCents' => (int)($orderInfo->bonus_redeemed_cents ?? 0),
+                'totalPrice' => Money::kopeksToUahString($totalAfterDiscountCents),
+                'bonusRedeemedCents' => $discountCents,
                 'bonusCashbackCents' => (int)($orderInfo->bonus_cashback_cents ?? 0),
             ];
 
@@ -1490,7 +1492,7 @@ $totalPriceCents = Money::priceToKopeksFromDb($ticketInfo->price ?? 0) * $cnt;
 
         $bonusRows = '';
         if ($bonusRedeemedCents > 0) {
-            $bonusRows .= "<tr><td style='font-weight:bold;'>Списано бонусами</td><td>{$e(Money::kopeksToUahString($bonusRedeemedCents))}</td></tr>";
+            $bonusRows .= "<tr><td style='font-weight:bold;'>Знижка</td><td>{$e(Money::kopeksToUahString($bonusRedeemedCents))}</td></tr>";
         }
         if ($bonusCashbackCents > 0) {
             $bonusRows .= "<tr><td style='font-weight:bold;'>Нараховано кешбеком</td><td>{$e(Money::kopeksToUahString($bonusCashbackCents))}</td></tr>";
@@ -1498,8 +1500,8 @@ $totalPriceCents = Money::priceToKopeksFromDb($ticketInfo->price ?? 0) * $cnt;
 
 
         $html .= "
-                <tr><td style='font-weight:bold;'>Сумма замовлення</td><td>{$e($data['totalPrice'])}</td></tr>
                 {$bonusRows}
+                <tr><td style='font-weight:bold;'>Сумма замовлення</td><td>{$e($data['totalPrice'])}</td></tr>
             </table>
             <p>У вартість квитка включено перевезення одного місця багажу вагою до 25 кг.</p>
             <p>Перевізник: Maks Trans LTD</p>
@@ -1569,7 +1571,7 @@ $totalPriceCents = Money::priceToKopeksFromDb($ticketInfo->price ?? 0) * $cnt;
 
         $bonusRows = '';
         if ($bonusRedeemedCents > 0) {
-            $bonusRows .= "<tr><td style='font-weight:bold;'>Списано бонусами</td><td>{$e(Money::kopeksToUahString($bonusRedeemedCents))}</td></tr>";
+            $bonusRows .= "<tr><td style='font-weight:bold;'>Знижка</td><td>{$e(Money::kopeksToUahString($bonusRedeemedCents))}</td></tr>";
         }
         if ($bonusCashbackCents > 0) {
             $bonusRows .= "<tr><td style='font-weight:bold;'>Нараховано кешбеком</td><td>{$e(Money::kopeksToUahString($bonusCashbackCents))}</td></tr>";
@@ -1577,8 +1579,8 @@ $totalPriceCents = Money::priceToKopeksFromDb($ticketInfo->price ?? 0) * $cnt;
 
 
         $html .= "
-            <tr><td style='font-weight:bold;'>Сумма замовлення</td><td>{$e($data['totalPrice'])}</td></tr>
             {$bonusRows}
+            <tr><td style='font-weight:bold;'>Сумма замовлення</td><td>{$e($data['totalPrice'])}</td></tr>
             <tr><td style='font-weight:bold;'>Спосіб оплати</td><td>{$e($data['paymentMethodLabel'] ?? 'Онлайн')}</td></tr>
         </table>
         <p>Перевізник: Maks Trans LTD</p>
