@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Repository\TicketRepository;
+use App\Repository\TicketSearchRepository;
 use App\Repository\CityRepository;
 use App\Repository\Schedule\ScheduleRepository;
 use App\Repository\Races\Params\TicketParams;
@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Log;
 
 class TicketController extends Controller
 {
-    protected TicketRepository $ticketRepository;
+    protected TicketSearchRepository $ticketRepository;
     protected CityRepository $cityRepository;
     protected ScheduleRepository $scheduleRepository;
     protected TicketService $ticketService;
@@ -38,7 +38,7 @@ class TicketController extends Controller
         ScheduleService $scheduleService,
         HomePageService $homePageService
     ) {
-        $this->ticketRepository = new TicketRepository();
+        $this->ticketRepository = new TicketSearchRepository();
         $this->cityRepository   = $cityRepository;
         $this->scheduleRepository = $scheduleRepository;
         $this->ticketService    = $ticketService;
