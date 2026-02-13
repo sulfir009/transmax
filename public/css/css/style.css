@@ -4497,10 +4497,12 @@ input.order_bus_input:-internal-autofill-selected {
     background: none;
     padding: 13px 20px;
     cursor: pointer;
-    font-weight: bold;
+    font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
+    font-weight: 500;
     color: #40A6FF;
     border: 2px solid #40A6FF;
     border-radius: 40px;
+
 }
 
 .separator {
@@ -4515,6 +4517,8 @@ input.order_bus_input:-internal-autofill-selected {
 .nav-steps-ticketing button.active {
     color: white;
     background-color: #40A6FF;
+    font-weight: 600;
+
 }
 
 .step-ticketing {
@@ -4587,23 +4591,22 @@ button.primary:hover {
 
 .ticket-form-title {
     margin-bottom: 25px;
-    font-family: Montserrat;
+    font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
     font-weight: 600;
-    font-size: 36px;
+    font-size: 34px;
     line-height: 124%;
     letter-spacing: 0%;
 
 }
 
 .ticket-form-description {
-    font-size: 14px;
     color: #555;
-    font-family: Montserrat;
-    font-weight: 600;
-    font-size: 20px;
-    line-height: 124%;
+    font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
+    font-weight: 400;
+    font-size: 18px;
+    line-height: 140%;
     letter-spacing: 0%;
-    margin-bottom: 82px;
+    margin-bottom: 64px;
 
 }
 
@@ -4613,12 +4616,13 @@ button.primary:hover {
 }
 
 .ticket-form-subtitle {
-    font-family: Montserrat;
+    font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
     font-weight: 600;
     font-size: 20px;
     line-height: 124%;
     letter-spacing: 0%;
     color: black;
+
 }
 
 .ticket-form-input {
@@ -4632,11 +4636,12 @@ button.primary:hover {
     padding-left: 20px;
     padding-bottom: 22px;
     margin-bottom: 25px;
-    font-family: Montserrat;
-    font-weight: 600;
-    font-size: 20px;
+    font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
+    font-weight: 500;
+    font-size: 18px;
     line-height: 140%;
-    letter-spacing: 5%;
+    letter-spacing: 0%;
+
 }
 
 .tickets-count-block {
@@ -4880,14 +4885,15 @@ button.primary:hover {
 }
 
 .trip-price-btn {
-    font-family: Montserrat;
+    font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
     font-weight: 600;
-    font-size: 24px;
+    font-size: 22px;
     color: #FFFFFF;
     padding: 18px 120px;
     max-width: 477px;
     background: linear-gradient(325.65deg, #63D5F8 3.55%, #34B9F0 84.56%);
     border-radius: 36px;
+
 }
 
 .trip-price {
@@ -4955,12 +4961,13 @@ button.primary:hover {
 
 .payment-checker__label {
     margin-right: auto;
-    font-family: Montserrat;
-    font-weight: 600;
-    font-size: 20px;
+    font-family: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
+    font-weight: 500;
+    font-size: 18px;
     line-height: 140%;
-    letter-spacing: 5%;
-    color: grey;
+    letter-spacing: 0%;
+    color: #374151;
+
 }
 
 .payment-checker__icon {
