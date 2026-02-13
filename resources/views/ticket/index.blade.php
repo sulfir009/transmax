@@ -558,10 +558,16 @@ $fixedPageTitle = preg_replace(
                         <div class="route_list_title h3_title">@lang('dictionary.MSG_ALL_KRANI')</div>
                         <div class="route_list">
                             @foreach(($countries ?? collect()) as $country)
-                                <div>
-                                    <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}?country={{ $country->id }}"
-                                       class="shedule_link">{{ $country->title }}</a>
-                                </div>
+                                @php
+                                    $countryId = data_get($country, 'id');
+                                    $countryTitle = data_get($country, 'title');
+                                @endphp
+                                @if($countryId)
+                                    <div>
+                                        <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}?country={{ $countryId }}"
+                                           class="shedule_link">{{ $countryTitle }}</a>
+                                    </div>
+                                @endif
                             @endforeach
                         </div>
                     </div>
