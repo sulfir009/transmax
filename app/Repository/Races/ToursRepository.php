@@ -94,7 +94,12 @@ class ToursRepository
     public function getHomeTours(string $lang): array
     {
         $dbPrefix = config('database.prefix', 'mt');
-        
+        $ukraineCountryId = $this->getUkraineCountryId($dbPrefix);
+
+        if ($ukraineCountryId === null) {
+            return [];
+        }
+
         return DB::table($dbPrefix . '_tours as t')
             ->join($dbPrefix . '_cities as departure_city', 't.departure', '=', 'departure_city.id')
             ->join($dbPrefix . '_cities as arrival_city', 't.arrival', '=', 'arrival_city.id')
@@ -109,12 +114,23 @@ class ToursRepository
                 departure_city.slug_{$lang} AS departure_city_slug,
                 arrival_city.slug_{$lang} AS arrival_city_slug
             ")
-            ->where('departure_city.section_id', '13')
-            ->where('arrival_city.section_id', '13')
+            ->where('t.active', 1)
+            ->where('departure_city.section_id', $ukraineCountryId)
+            ->where('arrival_city.section_id', $ukraineCountryId)
             ->get()
             ->map(function ($item) {
                 return (array) $item;
             })
             ->toArray();
+    }
+
+    private function getUkraineCountryId(string $dbPrefix): ?int
+    {
+        $countryId = DB::table($dbPrefix . '_cities')
+            ->where('section_id', 0)
+            ->where('title_en', 'Ukraine')
+            ->value('id');
+
+        return $countryId !== null ? (int) $countryId : null;
     }
 }
