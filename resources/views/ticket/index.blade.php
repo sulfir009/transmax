@@ -542,6 +542,78 @@ $fixedPageTitle = preg_replace(
                 @include('schedule.partials.popular-routes', ['popularRoutes' => $popularRoutes ?? collect()])
             </div>
 
+            @php
+                $todayKyiv = \Carbon\Carbon::now('Europe/Kyiv')->toDateString();
+            @endphp
+            <section class="mt_schedule_routes">
+                <div class="routes_title h2_title">
+                    @lang('dictionary.MSG__NASHI_NAPRAVLENNYA')
+                </div>
+                <div class="routes_subtitle par">
+                    @lang('dictionary.MSG__BEZLICH_VARIANTIV_AVTOBUSNIH_POZDOK_DLYA_VASHIH_PODOROZHEJ_U_BUDI')
+                </div>
+
+                <div class="routes_lists_wrapper">
+                    <div class="route_list_block">
+                        <div class="route_list_title h3_title">@lang('dictionary.MSG_ALL_KRANI')</div>
+                        <div class="route_list">
+                            @foreach(($countries ?? collect()) as $country)
+                                <div>
+                                    <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}?country={{ $country->id }}"
+                                       class="shedule_link">{{ $country->title }}</a>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <div class="route_list_block">
+                        <div class="route_list_title h3_title">@lang('dictionary.MSG_ALL_ROZKLAD')</div>
+                        <div class="route_list">
+                            @foreach(($scheduleCities ?? collect()) as $city)
+                                <div>
+                                    <a href="{{ \App\Helpers\LocaleHelper::localizedRoute('schedule') }}?city={{ $city->id }}"
+                                       class="shedule_link">{{ $city->title }}</a>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <div class="route_list_block">
+                        <div class="route_list_title h3_title">@lang('dictionary.MSG_ALL_MIZHNARODNI')</div>
+                        <div class="route_list">
+                            @php $printedRoutes = []; @endphp
+                            @foreach(($internationalRoutes ?? collect()) as $route)
+                                @php $routeString = $route->departure_city_id . '_' . $route->arrival_city_id; @endphp
+                                @if(!in_array($routeString, $printedRoutes, true))
+                                    <div>
+                                        <a href="{{ \App\Helpers\TicketUrlHelper::make($route->departure_city_id, $route->arrival_city_id, ['from' => $route->departure_city_id, 'to' => $route->arrival_city_id, 'date' => $todayKyiv]) }}"
+                                           class="shedule_link">{{ $route->departure_city }} → {{ $route->arrival_city }}</a>
+                                    </div>
+                                    @php $printedRoutes[] = $routeString; @endphp
+                                @endif
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <div class="route_list_block">
+                        <div class="route_list_title h3_title">@lang('dictionary.MSG_ALL_VNUTRISHNI')</div>
+                        <div class="route_list">
+                            @php $printedRoutes = []; @endphp
+                            @foreach(($domesticRoutes ?? collect()) as $route)
+                                @php $routeString = $route->departure_city_id . '_' . $route->arrival_city_id; @endphp
+                                @if(!in_array($routeString, $printedRoutes, true))
+                                    <div>
+                                        <a href="{{ \App\Helpers\TicketUrlHelper::make($route->departure_city_id, $route->arrival_city_id, ['from' => $route->departure_city_id, 'to' => $route->arrival_city_id, 'date' => $todayKyiv]) }}"
+                                           class="shedule_link">{{ $route->departure_city }} → {{ $route->arrival_city }}</a>
+                                    </div>
+                                    @php $printedRoutes[] = $routeString; @endphp
+                                @endif
+                            @endforeach
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             @if(!empty($seoText))
                 <section class="tour-seo-section">
                     <div class="tour-seo-text-wrapper">
