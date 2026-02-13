@@ -73,9 +73,32 @@ class TicketService
                }
            }
         }
-       /* dd($ticketsData);*/
+
+        usort($ticketsData, function (array $left, array $right): int {
+            $leftTime = $this->normalizeTimeForSort((string) ($left['dep_time'] ?? ''));
+            $rightTime = $this->normalizeTimeForSort((string) ($right['dep_time'] ?? ''));
+
+            return [$leftTime, (int) ($left['id'] ?? 0)] <=> [$rightTime, (int) ($right['id'] ?? 0)];
+        });
+
+        /* dd($ticketsData);*/
         /*Log::error(json_encode($ticketsData));*/
         return $ticketsData;
+    }
+
+    private function normalizeTimeForSort(string $time): string
+    {
+        $trimmed = trim($time);
+
+        if ($trimmed === '') {
+            return '99:99:99';
+        }
+
+        if (preg_match('/^\d{2}:\d{2}$/', $trimmed)) {
+            return $trimmed . ':00';
+        }
+
+        return $trimmed;
     }
 
     private function calculateTotalTravelTime($stops, $startStopId, $endStopId, $arrival_day) {
