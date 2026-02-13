@@ -32,14 +32,13 @@ class TicketController extends Controller
     protected array $arrivalDateDebugLogged = [];
 
     public function __construct(
-        TicketRepository $ticketRepository,
         CityRepository $cityRepository,
         ScheduleRepository $scheduleRepository,
         TicketService $ticketService,
         ScheduleService $scheduleService,
         HomePageService $homePageService
     ) {
-        $this->ticketRepository = $ticketRepository;
+        $this->ticketRepository = new TicketRepository();
         $this->cityRepository   = $cityRepository;
         $this->scheduleRepository = $scheduleRepository;
         $this->ticketService    = $ticketService;
