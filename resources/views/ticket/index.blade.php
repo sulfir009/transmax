@@ -169,6 +169,8 @@
             padding: 24px 28px;
             color: #3a3f51;
             line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
         }
 
         .tour-seo-title {
@@ -547,7 +549,7 @@ $fixedPageTitle = preg_replace(
                             <div class="tour-seo-title">{{ $seoTitle }}</div>
                         @endif
                         <div class="tour-seo-text">
-                            {!! $seoText !!}
+                            {{ $seoText }}
                         </div>
                     </div>
                 </section>

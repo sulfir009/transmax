@@ -453,17 +453,41 @@ function sanitizeSeoText(?string $html): string
                                     чтобы включить сохранение SEO текстов.
                                 </div>
                             <? } ?>
+                            <style>
+                                .seo-text-hint {
+                                    margin-top: 6px;
+                                    color: #6c757d;
+                                    font-size: 12px;
+                                }
+
+                                .seo-text-preview {
+                                    margin-top: 8px;
+                                    border: 1px solid #d8dde7;
+                                    border-radius: 4px;
+                                    background: #f8f9fc;
+                                    padding: 12px;
+                                    min-height: 90px;
+                                    white-space: pre-wrap;
+                                    word-break: break-word;
+                                }
+                            </style>
                             <div class="form-group">
                                 <label>SEO текст (UA)</label>
-                                <textarea class="form-control" name="seo_text_uk" rows="6"><?= htmlspecialchars($Elem['seo_text_uk'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                                <textarea class="form-control js-seo-textarea" name="seo_text_uk" rows="6" data-preview-target="seo-preview-uk"><?= htmlspecialchars($Elem['seo_text_uk'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                                <div class="seo-text-hint">Перенос строки и пустые строки сохраняются на сайте. HTML-теги не поддерживаются.</div>
+                                <div class="seo-text-preview" id="seo-preview-uk"></div>
                             </div>
                             <div class="form-group">
                                 <label>SEO текст (RU)</label>
-                                <textarea class="form-control" name="seo_text_ru" rows="6"><?= htmlspecialchars($Elem['seo_text_ru'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                                <textarea class="form-control js-seo-textarea" name="seo_text_ru" rows="6" data-preview-target="seo-preview-ru"><?= htmlspecialchars($Elem['seo_text_ru'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                                <div class="seo-text-hint">Перенос строки и пустые строки сохраняются на сайте. HTML-теги не поддерживаются.</div>
+                                <div class="seo-text-preview" id="seo-preview-ru"></div>
                             </div>
                             <div class="form-group">
                                 <label>SEO текст (EN)</label>
-                                <textarea class="form-control" name="seo_text_en" rows="6"><?= htmlspecialchars($Elem['seo_text_en'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                                <textarea class="form-control js-seo-textarea" name="seo_text_en" rows="6" data-preview-target="seo-preview-en"><?= htmlspecialchars($Elem['seo_text_en'] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+                                <div class="seo-text-hint">Перенос строки и пустые строки сохраняются на сайте. HTML-теги не поддерживаются.</div>
+                                <div class="seo-text-preview" id="seo-preview-en"></div>
                             </div>
                         </div>
                     </div>
@@ -537,6 +561,31 @@ function sanitizeSeoText(?string $html): string
             }
         })
     }
+
+
+    function updateSeoPreview(textarea) {
+        let previewId = textarea.getAttribute('data-preview-target');
+        if (!previewId) {
+            return;
+        }
+
+        let preview = document.getElementById(previewId);
+        if (!preview) {
+            return;
+        }
+
+        preview.textContent = textarea.value;
+    }
+
+    document.querySelectorAll('.js-seo-textarea').forEach(function (textarea) {
+        updateSeoPreview(textarea);
+        textarea.addEventListener('input', function () {
+            updateSeoPreview(textarea);
+        });
+        textarea.addEventListener('keyup', function () {
+            updateSeoPreview(textarea);
+        });
+    });
 
     function addStop(){
         let station = $('#station_select').val();

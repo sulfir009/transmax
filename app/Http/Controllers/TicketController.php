@@ -402,9 +402,7 @@ class TicketController extends Controller
             return null;
         }
 
-        $seoText = $this->sanitizeSeoHtml($seoText);
-
-        return $seoText !== '' ? $seoText : null;
+        return trim($seoText) !== '' ? $seoText : null;
     }
 
     private function getTourSeoText(Tour $tour, string $lang): ?string
