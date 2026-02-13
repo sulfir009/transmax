@@ -10,6 +10,7 @@ use App\Repository\Races\Params\TicketParams;
 use App\Service\Tour\TicketService;
 use App\Service\Schedule\ScheduleService;
 use App\Models\Tour;
+use App\Services\Home\HomePageService;
 use Illuminate\Http\Request;
 use App\Helpers\TicketUrlHelper;
 use Illuminate\Http\JsonResponse;
@@ -24,6 +25,7 @@ class TicketController extends Controller
     protected ScheduleRepository $scheduleRepository;
     protected TicketService $ticketService;
     protected ScheduleService $scheduleService;
+    protected HomePageService $homePageService;
 
     protected $router;
     protected $db;
@@ -34,13 +36,15 @@ class TicketController extends Controller
         CityRepository $cityRepository,
         ScheduleRepository $scheduleRepository,
         TicketService $ticketService,
-        ScheduleService $scheduleService
+        ScheduleService $scheduleService,
+        HomePageService $homePageService
     ) {
         $this->ticketRepository = $ticketRepository;
         $this->cityRepository   = $cityRepository;
         $this->scheduleRepository = $scheduleRepository;
         $this->ticketService    = $ticketService;
         $this->scheduleService  = $scheduleService;
+        $this->homePageService  = $homePageService;
 
         global $Router, $Db;
         $this->router = $Router;
@@ -143,6 +147,10 @@ class TicketController extends Controller
             $filterMonth        = null;
             $weekDay            = date('N');
             $popularRoutes      = $this->scheduleService->getPopularRoutesForView($lang);
+            $countries         = $this->homePageService->getFixedCountriesForHome($lang);
+            $scheduleCities    = $this->scheduleRepository->getPopularCities(10);
+            $internationalRoutes = $this->scheduleRepository->getInternationalRoutes();
+            $domesticRoutes    = $this->scheduleRepository->getDomesticRoutes();
             $seoText            = null;
             $seoTitle           = null;
 
@@ -172,6 +180,10 @@ class TicketController extends Controller
                 'dictionary',
                 'lang',
                 'popularRoutes',
+                'countries',
+                'scheduleCities',
+                'internationalRoutes',
+                'domesticRoutes',
                 'seoText',
                 'seoTitle'
             ));
@@ -334,6 +346,10 @@ class TicketController extends Controller
         }
 
         $popularRoutes = $this->scheduleService->getPopularRoutesForView($lang);
+        $countries = $this->homePageService->getFixedCountriesForHome($lang);
+        $scheduleCities = $this->scheduleRepository->getPopularCities(10);
+        $internationalRoutes = $this->scheduleRepository->getInternationalRoutes();
+        $domesticRoutes = $this->scheduleRepository->getDomesticRoutes();
         $seoText = $this->resolveTourSeoText($filterDeparture, $filterArrival, $lang);
         $seoTitle = $this->buildSeoTitle($departureCityTitle, $arrivalCityTitle);
 
@@ -363,6 +379,10 @@ class TicketController extends Controller
             'dictionary',
             'lang',
             'popularRoutes',
+            'countries',
+            'scheduleCities',
+            'internationalRoutes',
+            'domesticRoutes',
             'seoText',
             'seoTitle'
         ));
