@@ -106,6 +106,27 @@
         $key = strtolower(trim((string) $countryName));
         return $countryCodeMap[$key] ?? '';
     };
+
+    // Карточку маршрута показываем только если в тарифной таблице есть хотя бы одна валидная цена (> 0).
+    $filteredRegularRaces = [];
+    $filteredStations = [];
+
+    foreach ($regularRaces as $alias => $races) {
+        $visibleRaces = $races->filter(function ($race) use ($tourStopPrices) {
+            return !empty($tourStopPrices[$race->id] ?? []);
+        })->values();
+
+        if ($visibleRaces->isEmpty()) {
+            continue;
+        }
+
+        $filteredRegularRaces[$alias] = $visibleRaces;
+        $filteredStations[$alias] = ($stations[$alias] ?? collect())
+            ->filter(fn ($stops, $raceId) => $visibleRaces->contains('id', (int) $raceId));
+    }
+
+    $regularRaces = collect($filteredRegularRaces);
+    $stations = collect($filteredStations);
 @endphp
 
 @once
@@ -247,9 +268,10 @@
     line-height:16.8px;
     color:#878D8F;
     text-decoration:underline;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    white-space:nowrap;
+    overflow:visible;
+    text-overflow:clip;
+    white-space:normal;
+    word-break:break-word;
     min-width:0;
     max-width:240px;
 }

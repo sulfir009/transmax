@@ -51,6 +51,11 @@
 
                 foreach ($regularRaces as $races) {
                     foreach ($races as $race) {
+                        // В таблицу и переключатель направлений попадают только маршруты с валидной ценой (> 0).
+                        if (empty($tourStopPrices[$race->id] ?? [])) {
+                            continue;
+                        }
+
                         $defaultRaceId = $defaultRaceId ?? $race->id;
                         $priceRoutes[$race->id] = [
                             'label' => trim(($race->departure ?? '') . ' — ' . ($race->arrive ?? '')),

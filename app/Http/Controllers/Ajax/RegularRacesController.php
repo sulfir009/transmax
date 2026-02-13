@@ -40,6 +40,7 @@ class RegularRacesController
             'light_trans' => $daysRegularRaces,
             'night_trans' => $nightRegularRaces,
         ];
+        $tourStopPrices = $regularRaceService->getTourStopPrices($tourIds);
 
         $stations = [
             'light_trans' => $regularRaceService->getStations($daysRegularRaces, $stopId),
@@ -53,6 +54,7 @@ class RegularRacesController
                 'regularRaces' => $regularRaces,
                 'stopId' => $stopId,
                 'stations' => $stations,
+                'tourStopPrices' => $tourStopPrices,
             ]
         );
     }
