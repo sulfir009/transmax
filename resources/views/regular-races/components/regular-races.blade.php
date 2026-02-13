@@ -1052,6 +1052,9 @@ document.addEventListener('click', function(e){
                         }
 
                         $routeTitle = trim(($fromStop->stopCity ?? '').' — '.($toStop->stopCity ?? ''));
+                        $fromTicketStopId = (int)($fromStop->section_id ?? $fromStop->stop_id ?? 0);
+                        $toTicketStopId = (int)($toStop->section_id ?? $toStop->stop_id ?? 0);
+                        $ticketRouteUrl = \App\Helpers\TicketUrlHelper::make($fromTicketStopId, $toTicketStopId, [], $lang);
                         $durationText = '11 год. 30 хв в дорозі';
                     @endphp
 
@@ -1180,10 +1183,10 @@ document.addEventListener('click', function(e){
                                 <button
                                     class="rr3_btn buy buy-online-btn"
                                     data-days="{{ $race->days }}"
-                                    data-arrival="{{ $toStop->stop_id }}"
-                                    data-departure="{{ $fromStop->stop_id }}"
+                                    data-arrival="{{ $toTicketStopId }}"
+                                    data-departure="{{ $fromTicketStopId }}"
                                     data-route="{{ trim(($fromStop->stopCity ?? '') . ' — ' . ($toStop->stopCity ?? '')) }}"
-                                    data-redirect="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
+                                    data-redirect="{{ $ticketRouteUrl }}"
                                     data-date="{{ $nearestDate }}"
                                     data-today="{{ $todayKyiv->toDateString() }}"
                                     type="button"
@@ -1195,10 +1198,10 @@ document.addEventListener('click', function(e){
                                     type="button"
                                     class="rr3_btn reserve book-btn buy-online-btn"
                                     data-days="{{ $race->days }}"
-                                    data-arrival="{{ $toStop->stop_id }}"
-                                    data-departure="{{ $fromStop->stop_id }}"
+                                    data-arrival="{{ $toTicketStopId }}"
+                                    data-departure="{{ $fromTicketStopId }}"
                                     data-route="{{ trim(($fromStop->stopCity ?? '') . ' — ' . ($toStop->stopCity ?? '')) }}"
-                                    data-redirect="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
+                                    data-redirect="{{ $ticketRouteUrl }}"
                                     data-date="{{ $nearestDate }}"
                                     data-today="{{ $todayKyiv->toDateString() }}"
                                 >
@@ -1409,16 +1412,15 @@ document.addEventListener('click', function(e){
     const buildRedirectUrl = () => {
         const redirectRaw = state.button?.getAttribute('data-redirect') || '';
         const langPrefix = getLangPrefix();
-        const basePath = `${langPrefix}/bilety`;
-        let redirectOrigin = window.location.origin;
+        const fallbackPath = `${langPrefix}/bilety`;
+        let url;
 
         try {
-            redirectOrigin = new URL(redirectRaw || basePath, window.location.origin).origin;
+            url = new URL(redirectRaw || fallbackPath, window.location.origin);
         } catch (error) {
-            redirectOrigin = window.location.origin;
+            url = new URL(fallbackPath, window.location.origin);
         }
 
-        const url = new URL(basePath, redirectOrigin);
         url.searchParams.set('from', state.departure || '');
         url.searchParams.set('to', state.arrival || '');
         url.searchParams.set('date', state.date || '');
