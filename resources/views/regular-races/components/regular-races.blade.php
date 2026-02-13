@@ -901,14 +901,14 @@
 .rr3_calendar_modal_backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.45); }
 .rr3_calendar_modal_dialog{
     position:relative;
-    width:min(420px, calc(100% - 24px));
-    margin:90px auto 0;
+    width:min(360px, calc(100% - 24px));
+    margin:80px auto 0;
     background:#fff;
-    border-radius:15px;
-    padding:18px 18px 20px;
+    border-radius:8px;
+    padding:14px 16px 16px;
     box-shadow:0 20px 50px rgba(0,0,0,.2);
 }
-.rr3_calendar_modal_dialog h3{ margin:0 28px 6px 0; font-size:22px; line-height:1.3; }
+.rr3_calendar_modal_dialog h3{ margin:0 28px 4px 0; text-align:center; font-size:12px; line-height:1.35; font-weight:500; color:#6F7476; }
 .rr3_calendar_modal_close{
     position:absolute;
     right:10px;
@@ -919,17 +919,37 @@
     line-height:1;
     cursor:pointer;
 }
-.rr3_calendar_route{ color:#878D8F; margin-bottom:12px; }
+.rr3_calendar_route{ color:#878D8F; margin-bottom:6px; text-align:center; font-size:12px; font-weight:500; min-height:18px; }
 .rr3_calendar_input{
-    width:100%;
-    height:50px;
+    position:absolute;
+    opacity:0;
+    pointer-events:none;
+    width:1px;
+    height:1px;
     border-radius:10px;
     border:1px solid #dce6f6;
     padding:0 14px;
-    margin-bottom:14px;
-    font-size:16px;
+    margin:0;
+    font-size:14px;
 }
-.rr3_calendar_save{ width:100%; min-width:0 !important; }
+.rr3_calendar_actions{ display:flex; justify-content:space-between; gap:12px; }
+.rr3_calendar_save,
+.rr3_calendar_cancel{ min-width:0 !important; width:100%; border-radius:20px !important; height:34px !important; font-size:12px !important; }
+.rr3_calendar_cancel{ background:#E74444 !important; color:#fff !important; border:none !important; }
+
+.rr3_calendar_modal_dialog .flatpickr-calendar{ box-shadow:none; border:0; width:100%; margin:0 auto 14px; }
+.rr3_calendar_modal_dialog .flatpickr-current-month .flatpickr-monthDropdown-months,
+.rr3_calendar_modal_dialog .flatpickr-current-month input.cur-year{ font-size:24px; font-weight:700; color:#303233; }
+.rr3_calendar_modal_dialog .flatpickr-weekday{ font-size:11px; color:#303233; font-weight:600; }
+.rr3_calendar_modal_dialog .flatpickr-day{ border-radius:50%; max-width:34px; height:34px; line-height:34px; }
+.rr3_calendar_modal_dialog .flatpickr-day.today{ border-color:#35BAF0; color:#35BAF0; }
+.rr3_calendar_modal_dialog .flatpickr-day.selected{ background:#35BAF0; border-color:#35BAF0; color:#fff; }
+.rr3_calendar_modal_dialog .flatpickr-day.flatpickr-disabled{ color:#D5D7D8; }
+
+.rr3_calendar_modal_dialog .flatpickr-prev-month,
+.rr3_calendar_modal_dialog .flatpickr-next-month{ top:24px; }
+.rr3_calendar_modal_dialog .flatpickr-prev-month svg,
+.rr3_calendar_modal_dialog .flatpickr-next-month svg{ fill:#E74444; }
 
 
 </style>
@@ -1198,10 +1218,13 @@ document.addEventListener('click', function(e){
     <div class="rr3_calendar_modal_backdrop" data-rr3-calendar-close></div>
     <div class="rr3_calendar_modal_dialog" role="dialog" aria-modal="true" aria-labelledby="rr3-calendar-modal-title">
         <button class="rr3_calendar_modal_close" type="button" data-rr3-calendar-close aria-label="Close">×</button>
-        <h3 id="rr3-calendar-modal-title">Выберите дату отправления</h3>
+        <h3 id="rr3-calendar-modal-title">Выберите удобную дату поездки<br>и нажмите «Сохранить»</h3>
         <div class="rr3_calendar_route" data-rr3-calendar-route></div>
         <input type="text" class="rr3_calendar_input" data-rr3-calendar-input readonly>
-        <button class="rr3_btn buy rr3_calendar_save" type="button" data-rr3-calendar-save>Сохранить</button>
+        <div class="rr3_calendar_actions">
+            <button class="rr3_btn buy rr3_calendar_save" type="button" data-rr3-calendar-save>Сохранить</button>
+            <button class="rr3_btn rr3_calendar_cancel" type="button" data-rr3-calendar-close>Отмена</button>
+        </div>
     </div>
 </div>
 
@@ -1329,7 +1352,7 @@ document.addEventListener('click', function(e){
             altInput: true,
             altFormat: 'F j, Y',
             defaultDate: state.date || fallbackDate,
-            locale: '{{ \\App\\Service\\Site::lang() }}',
+            locale: '{{ \App\Service\Site::lang() }}',
             disableMobile: true,
             appendTo: modal.querySelector('.rr3_calendar_modal_dialog'),
             disable: [
