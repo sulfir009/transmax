@@ -306,6 +306,20 @@ foreach ($privateMenuLinks as $pageId => $link) {
         }
     }
 
+    function notifySafe(message, title){
+        if (typeof out === 'function') {
+            out(message, title);
+            return;
+        }
+
+        if (typeof window !== 'undefined' && window.toastr && typeof window.toastr.info === 'function') {
+            window.toastr.info(message, title || '');
+            return;
+        }
+
+        alert(message);
+    }
+
     function parseAjaxResult(response){
         if (typeof response === 'string') {
             const trimmed = $.trim(response);
@@ -325,6 +339,20 @@ foreach ($privateMenuLinks as $pageId => $link) {
         return $.trim(response?.data || response?.result || response?.status || '');
     }
 
+    function parseAjaxPayload(response){
+        if (typeof response === 'string') {
+            const trimmed = $.trim(response);
+
+            try {
+                return JSON.parse(trimmed);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        return response && typeof response === 'object' ? response : null;
+    }
+
     function updatePhone(event){
         if (event) {
             event.preventDefault();
@@ -334,7 +362,7 @@ foreach ($privateMenuLinks as $pageId => $link) {
         let phone = $.trim($('#phone').val());
 
         if (phone === '') {
-            out('<?=$GLOBALS['dictionary']['MSG_MSG_REGISTER_VVEDITE_NOMER_TELEFONA']?>');
+            notifySafe('<?=$GLOBALS['dictionary']['MSG_MSG_REGISTER_VVEDITE_NOMER_TELEFONA']?>');
             return;
         }
 
@@ -354,16 +382,25 @@ foreach ($privateMenuLinks as $pageId => $link) {
                 stopLoaderSafe();
 
                 const result = parseAjaxResult(response);
+                const payload = parseAjaxPayload(response);
 
                 if (result === 'err'){
-                    out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
+                    notifySafe('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
                 }else{
-                    out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
+                    if (payload?.phone_code) {
+                        $('#phone_code').val(payload.phone_code).trigger('change');
+                    }
+
+                    if (payload?.phone) {
+                        $('#phone').val(payload.phone);
+                    }
+
+                    notifySafe('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
                 }
             },
             error:function(){
                 stopLoaderSafe();
-                out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
+                notifySafe('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })
     };
@@ -373,7 +410,7 @@ foreach ($privateMenuLinks as $pageId => $link) {
         let second_name = $.trim($('#client_second_name').val());
 
         if (name === '' || second_name === '') {
-            out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
+            notifySafe('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             return;
         }
 
@@ -393,16 +430,25 @@ foreach ($privateMenuLinks as $pageId => $link) {
                 stopLoaderSafe();
 
                 const result = parseAjaxResult(response);
+                const payload = parseAjaxPayload(response);
 
                 if (result === 'ok'){
-                    out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
+                    if (payload?.name) {
+                        $('#client_name').val(payload.name);
+                    }
+
+                    if (payload?.second_name) {
+                        $('#client_second_name').val(payload.second_name);
+                    }
+
+                    notifySafe('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_DANNYE_USPESHNO_IZMENENY']?>');
                 }else{
-                    out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
+                    notifySafe('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
                 }
             },
             error:function(){
                 stopLoaderSafe();
-                out('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
+                notifySafe('<?=$GLOBALS['dictionary']['MSG_MSG_PRIVATE_CONTACTS_NE_UDALOSI_IZMENITI_NOMER_TELEFONA_POPROBUJTE_POZZHE']?>');
             }
         })
     };
