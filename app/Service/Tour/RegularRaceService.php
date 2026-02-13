@@ -72,7 +72,13 @@ class RegularRaceService
         $result = [];
         $stops = $this->stopPricesRepository->getStopPricesByTourIds($tourIds);
         foreach ($stops as $stop) {
-            $result[$stop->tour_id][$stop->from_stop][$stop->to_stop]['price'] = $stop->price;
+            // На странице regular_races показываем направления только с валидной ценой из тарифной таблицы.
+            $price = is_numeric($stop->price) ? (float)$stop->price : null;
+            if ($price === null || $price <= 0) {
+                continue;
+            }
+
+            $result[$stop->tour_id][$stop->from_stop][$stop->to_stop]['price'] = $price;
         }
 
         return $result;
