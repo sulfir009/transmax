@@ -94,27 +94,58 @@ class ToursRepository
     public function getHomeTours(string $lang): array
     {
         $dbPrefix = config('database.prefix', 'mt');
-        
-        return DB::table($dbPrefix . '_tours as t')
-            ->join($dbPrefix . '_cities as departure_city', 't.departure', '=', 'departure_city.id')
-            ->join($dbPrefix . '_cities as arrival_city', 't.arrival', '=', 'arrival_city.id')
+        $ukraineCountryId = $this->getUkraineCountryId($dbPrefix);
+
+        if ($ukraineCountryId === null) {
+            return [];
+        }
+
+        return DB::table($dbPrefix . '_tours_stops_prices as tsp')
+            ->join($dbPrefix . '_tours as t', 't.id', '=', 'tsp.tour_id')
+            ->join($dbPrefix . '_cities as from_station', 'from_station.id', '=', 'tsp.from_stop')
+            ->join($dbPrefix . '_cities as to_station', 'to_station.id', '=', 'tsp.to_stop')
+            ->join($dbPrefix . '_cities as departure_city', 'departure_city.id', '=', 'from_station.section_id')
+            ->join($dbPrefix . '_cities as arrival_city', 'arrival_city.id', '=', 'to_station.section_id')
             ->selectRaw("
-                t.id,
-                t.departure,
-                t.arrival,
+                MIN(t.id) as id,
+                departure_city.id as departure_city_id,
+                arrival_city.id as arrival_city_id,
+                departure_city.id as departure,
+                arrival_city.id as arrival,
                 departure_city.title_{$lang} AS departure_city,
                 arrival_city.title_{$lang} AS arrival_city,
-                departure_city.id AS departure_city_id,
-                arrival_city.id AS arrival_city_id,
                 departure_city.slug_{$lang} AS departure_city_slug,
                 arrival_city.slug_{$lang} AS arrival_city_slug
             ")
-            ->where('departure_city.section_id', '13')
-            ->where('arrival_city.section_id', '13')
+            ->where('t.active', 1)
+            ->where('tsp.price', '>', 0)
+            ->where('departure_city.section_id', $ukraineCountryId)
+            ->where('arrival_city.section_id', $ukraineCountryId)
+            ->whereColumn('departure_city.id', '!=', 'arrival_city.id')
+            ->groupBy([
+                'departure_city.id',
+                'arrival_city.id',
+                'departure_city.title_' . $lang,
+                'arrival_city.title_' . $lang,
+                'departure_city.slug_' . $lang,
+                'arrival_city.slug_' . $lang,
+            ])
+            ->orderBy('departure_city.title_' . $lang)
+            ->orderBy('arrival_city.title_' . $lang)
             ->get()
             ->map(function ($item) {
                 return (array) $item;
             })
             ->toArray();
+    }
+
+    private function getUkraineCountryId(string $dbPrefix): ?int
+    {
+        $countryId = DB::table($dbPrefix . '_cities')
+            ->where('section_id', 0)
+            ->where('title_en', 'Ukraine')
+            ->value('id');
+
+        return $countryId !== null ? (int) $countryId : null;
     }
 }
