@@ -1352,7 +1352,7 @@ document.addEventListener('click', function(e){
             altInput: true,
             altFormat: 'F j, Y',
             defaultDate: state.date || fallbackDate,
-            locale: '{{ \App\Service\Site::lang() }}',
+            locale: @json($lang),
             disableMobile: true,
             appendTo: modal.querySelector('.rr3_calendar_modal_dialog'),
             disable: [
