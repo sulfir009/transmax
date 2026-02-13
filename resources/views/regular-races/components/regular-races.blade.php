@@ -890,11 +890,66 @@
     line-height:16px;
   }
 
-  .rr3_map{
+.rr3_map{
     height: 230px;
     border-radius: 14px;
   }
 }
+
+.rr3_calendar_modal[hidden]{ display:none !important; }
+.rr3_calendar_modal{ position:fixed; inset:0; z-index:2147483647; }
+.rr3_calendar_modal_backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.45); }
+.rr3_calendar_modal_dialog{
+    position:relative;
+    width:min(360px, calc(100% - 24px));
+    margin:80px auto 0;
+    background:#fff;
+    border-radius:8px;
+    padding:14px 16px 16px;
+    box-shadow:0 20px 50px rgba(0,0,0,.2);
+}
+.rr3_calendar_modal_dialog h3{ margin:0 28px 4px 0; text-align:center; font-size:12px; line-height:1.35; font-weight:500; color:#6F7476; }
+.rr3_calendar_modal_close{
+    position:absolute;
+    right:10px;
+    top:8px;
+    border:none;
+    background:transparent;
+    font-size:30px;
+    line-height:1;
+    cursor:pointer;
+}
+.rr3_calendar_route{ color:#878D8F; margin-bottom:6px; text-align:center; font-size:12px; font-weight:500; min-height:18px; }
+.rr3_calendar_input{
+    position:absolute;
+    opacity:0;
+    pointer-events:none;
+    width:1px;
+    height:1px;
+    border-radius:10px;
+    border:1px solid #dce6f6;
+    padding:0 14px;
+    margin:0;
+    font-size:14px;
+}
+.rr3_calendar_actions{ display:flex; justify-content:space-between; gap:12px; }
+.rr3_calendar_save,
+.rr3_calendar_cancel{ min-width:0 !important; width:100%; border-radius:20px !important; height:34px !important; font-size:12px !important; }
+.rr3_calendar_cancel{ background:#E74444 !important; color:#fff !important; border:none !important; }
+
+.rr3_calendar_modal_dialog .flatpickr-calendar{ box-shadow:none; border:0; width:100%; margin:0 auto 14px; }
+.rr3_calendar_modal_dialog .flatpickr-current-month .flatpickr-monthDropdown-months,
+.rr3_calendar_modal_dialog .flatpickr-current-month input.cur-year{ font-size:24px; font-weight:700; color:#303233; }
+.rr3_calendar_modal_dialog .flatpickr-weekday{ font-size:11px; color:#303233; font-weight:600; }
+.rr3_calendar_modal_dialog .flatpickr-day{ border-radius:50%; max-width:34px; height:34px; line-height:34px; }
+.rr3_calendar_modal_dialog .flatpickr-day.today{ border-color:#35BAF0; color:#35BAF0; }
+.rr3_calendar_modal_dialog .flatpickr-day.selected{ background:#35BAF0; border-color:#35BAF0; color:#fff; }
+.rr3_calendar_modal_dialog .flatpickr-day.flatpickr-disabled{ color:#D5D7D8; }
+
+.rr3_calendar_modal_dialog .flatpickr-prev-month,
+.rr3_calendar_modal_dialog .flatpickr-next-month{ top:24px; }
+.rr3_calendar_modal_dialog .flatpickr-prev-month svg,
+.rr3_calendar_modal_dialog .flatpickr-next-month svg{ fill:#E74444; }
 
 
 </style>
@@ -1126,6 +1181,7 @@ document.addEventListener('click', function(e){
                                     data-days="{{ $race->days }}"
                                     data-arrival="{{ $toStop->stop_id }}"
                                     data-departure="{{ $fromStop->stop_id }}"
+                                    data-route="{{ trim(($fromStop->stopCity ?? '') . ' — ' . ($toStop->stopCity ?? '')) }}"
                                     data-redirect="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
                                     data-date="{{ $nearestDate }}"
                                     data-today="{{ $todayKyiv->toDateString() }}"
@@ -1140,6 +1196,7 @@ document.addEventListener('click', function(e){
                                     data-days="{{ $race->days }}"
                                     data-arrival="{{ $toStop->stop_id }}"
                                     data-departure="{{ $fromStop->stop_id }}"
+                                    data-route="{{ trim(($fromStop->stopCity ?? '') . ' — ' . ($toStop->stopCity ?? '')) }}"
                                     data-redirect="{{ \App\Helpers\LocaleHelper::localizedRoute('tickets.index') }}"
                                     data-date="{{ $nearestDate }}"
                                     data-today="{{ $todayKyiv->toDateString() }}"
@@ -1154,6 +1211,20 @@ document.addEventListener('click', function(e){
             @endforeach
         @endforeach
 
+</div>
+</div>
+
+<div class="rr3_calendar_modal" data-rr3-calendar-modal hidden>
+    <div class="rr3_calendar_modal_backdrop" data-rr3-calendar-close></div>
+    <div class="rr3_calendar_modal_dialog" role="dialog" aria-modal="true" aria-labelledby="rr3-calendar-modal-title">
+        <button class="rr3_calendar_modal_close" type="button" data-rr3-calendar-close aria-label="Close">×</button>
+        <h3 id="rr3-calendar-modal-title">Выберите удобную дату поездки<br>и нажмите «Сохранить»</h3>
+        <div class="rr3_calendar_route" data-rr3-calendar-route></div>
+        <input type="text" class="rr3_calendar_input" data-rr3-calendar-input readonly>
+        <div class="rr3_calendar_actions">
+            <button class="rr3_btn buy rr3_calendar_save" type="button" data-rr3-calendar-save>Сохранить</button>
+            <button class="rr3_btn rr3_calendar_cancel" type="button" data-rr3-calendar-close>Отмена</button>
+        </div>
     </div>
 </div>
 
@@ -1242,51 +1313,165 @@ document.addEventListener('click', function(e){
         return '';
     };
 
-    document.addEventListener('click', (event) => {
-        const button = event.target.closest('.buy-online-btn');
-        if (!button) {
+    const state = {
+        button: null,
+        date: null,
+        departure: null,
+        arrival: null,
+    };
+
+    const modal = document.querySelector('[data-rr3-calendar-modal]');
+    const routeLabel = modal?.querySelector('[data-rr3-calendar-route]');
+    const calendarInput = modal?.querySelector('[data-rr3-calendar-input]');
+    const saveButton = modal?.querySelector('[data-rr3-calendar-save]');
+    let modalDatePicker = null;
+
+    const parseAllowedDays = (button) => {
+        const daysRaw = button?.getAttribute('data-days') || '';
+        return daysRaw
+            .split(',')
+            .map((value) => Number(value))
+            .filter((value) => Number.isFinite(value) && value >= 1 && value <= 7);
+    };
+
+    const initModalCalendar = (button) => {
+        if (!window.flatpickr || !calendarInput) {
             return;
         }
 
-        event.preventDefault();
+        if (modalDatePicker) {
+            try { modalDatePicker.destroy(); } catch (error) {}
+        }
 
-        const arrivalId = button.getAttribute('data-arrival');
-        const departureId = button.getAttribute('data-departure');
-        const redirectRaw = button.getAttribute('data-redirect') || '';
+        const allowedDays = parseAllowedDays(button);
+        const fallbackDate = findNearestDate(button);
 
-        if (!arrivalId || !departureId) {
-            console.error('Buy online: missing arrival/departure', {
-                arrivalId,
-                departureId,
-                button,
-            });
-            alert('Не удалось определить маршрут');
+        modalDatePicker = flatpickr(calendarInput, {
+            minDate: 'today',
+            dateFormat: 'Y-m-d',
+            altInput: true,
+            altFormat: 'F j, Y',
+            defaultDate: state.date || fallbackDate,
+            locale: @json($lang),
+            disableMobile: true,
+            appendTo: modal.querySelector('.rr3_calendar_modal_dialog'),
+            disable: [
+                function(date) {
+                    if (!allowedDays.length) return false;
+                    let dayOfWeek = date.getDay();
+                    if (dayOfWeek === 0) dayOfWeek = 7;
+                    return !allowedDays.includes(dayOfWeek);
+                }
+            ],
+            onReady: function(selectedDates, dateStr, instance) {
+                state.date = dateStr || fallbackDate;
+            },
+            onChange: function(selectedDates, dateStr) {
+                if (dateStr) {
+                    state.date = dateStr;
+                }
+            }
+        });
+    };
+
+    const openCalendarModal = (button) => {
+        if (!modal) {
             return;
         }
 
-        const date = findNearestDate(button);
-        if (!date) {
-            console.error('Buy online: missing date', { button });
-            alert('Не удалось определить маршрут');
+        state.button = button;
+        state.departure = button.getAttribute('data-departure');
+        state.arrival = button.getAttribute('data-arrival');
+        state.date = findNearestDate(button);
+
+        if (routeLabel) {
+            routeLabel.textContent = button.getAttribute('data-route') || '';
+        }
+
+        modal.hidden = false;
+        document.body.classList.add('overflow');
+        initModalCalendar(button);
+    };
+
+    const closeCalendarModal = () => {
+        if (!modal) {
             return;
         }
 
+        modal.hidden = true;
+        document.body.classList.remove('overflow');
+
+        if (modalDatePicker) {
+            try { modalDatePicker.close(); } catch (error) {}
+        }
+    };
+
+    const buildRedirectUrl = () => {
+        const redirectRaw = state.button?.getAttribute('data-redirect') || '';
         const langPrefix = getLangPrefix();
         const basePath = `${langPrefix}/bilety`;
         let redirectOrigin = window.location.origin;
+
         try {
             redirectOrigin = new URL(redirectRaw || basePath, window.location.origin).origin;
         } catch (error) {
             redirectOrigin = window.location.origin;
         }
+
         const url = new URL(basePath, redirectOrigin);
-        url.searchParams.set('from', departureId);
-        url.searchParams.set('to', arrivalId);
-        url.searchParams.set('date', date);
+        url.searchParams.set('from', state.departure || '');
+        url.searchParams.set('to', state.arrival || '');
+        url.searchParams.set('date', state.date || '');
         url.searchParams.set('adults', '1');
         url.searchParams.set('kids', '0');
 
-        window.location.href = url.toString();
+        return url.toString();
+    };
+
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('.buy-online-btn');
+        if (button) {
+            event.preventDefault();
+
+            const arrivalId = button.getAttribute('data-arrival');
+            const departureId = button.getAttribute('data-departure');
+
+            if (!arrivalId || !departureId) {
+                console.error('Buy online: missing arrival/departure', {
+                    arrivalId,
+                    departureId,
+                    button,
+                });
+                alert('Не удалось определить маршрут');
+                return;
+            }
+
+            openCalendarModal(button);
+            return;
+        }
+
+        if (event.target.closest('[data-rr3-calendar-close]')) {
+            event.preventDefault();
+            closeCalendarModal();
+            return;
+        }
+
+        if (event.target.closest('[data-rr3-calendar-save]')) {
+            event.preventDefault();
+
+            if (!state.departure || !state.arrival || !state.date) {
+                alert('Не удалось определить маршрут');
+                return;
+            }
+
+            window.location.href = buildRedirectUrl();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && modal && !modal.hidden) {
+            closeCalendarModal();
+        }
     });
 })();
 </script>
