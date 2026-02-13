@@ -1456,16 +1456,26 @@ if ($cleanPost['request'] === 'update_client_phone'){
     $phone = trim((string)($cleanPost['phone'] ?? ''));
     $formattedPhone = preg_replace('/\s+/', ' ', $phone);
     $digitsOnlyPhone = preg_replace('/[^0-9]/', '', $formattedPhone);
+    $clientId = (int)($User->id ?? 0);
 
-    \Illuminate\Support\Facades\Log::info('[CABINET_CONTACTS] update_client_phone request', [
-        'client_id' => $User->id ?? null,
+    if ($clientId <= 0) {
+        $clientId = (int)($_SESSION['user']['id'] ?? 0);
+    }
+    if ($clientId <= 0) {
+        $clientId = (int)($_COOKIE['mt_client_id'] ?? 0);
+    }
+
+    \Illuminate\Support\Facades\Log::channel('cabinet')->info('[CABINET_CONTACTS] update_client_phone request', [
+        'client_id' => $clientId,
+        'user_id' => (int)($User->id ?? 0),
+        'session_user_id' => (int)($_SESSION['user']['id'] ?? 0),
         'phone_code' => $phoneCode,
         'phone' => $formattedPhone,
     ]);
 
-    if ($phoneCode <= 0 || $formattedPhone === '' || mb_strlen($digitsOnlyPhone) < 7) {
-        \Illuminate\Support\Facades\Log::warning('[CABINET_CONTACTS] update_client_phone validation failed', [
-            'client_id' => $User->id ?? null,
+    if ($clientId <= 0 || $phoneCode <= 0 || $formattedPhone === '' || mb_strlen($digitsOnlyPhone) < 7) {
+        \Illuminate\Support\Facades\Log::channel('cabinet')->warning('[CABINET_CONTACTS] update_client_phone validation failed', [
+            'client_id' => $clientId,
             'phone_code' => $phoneCode,
             'phone' => $formattedPhone,
         ]);
@@ -1474,15 +1484,20 @@ if ($cleanPost['request'] === 'update_client_phone'){
         ]);
     }
 
-    $upd = $Db->query("UPDATE `".DB_PREFIX."_clients` SET `phone_code` = '".$phoneCode."',`phone` = '".$formattedPhone."' WHERE id = '".$User->id."' ");
+    $upd = $Db->query("UPDATE `".DB_PREFIX."_clients` SET `phone_code` = '".$phoneCode."',`phone` = '".$formattedPhone."' WHERE id = '".$clientId."' ");
+    $dbError = isset($Db->db) && $Db->db instanceof \mysqli ? mysqli_error($Db->db) : null;
+    $affectedRows = isset($Db->db) && $Db->db instanceof \mysqli ? mysqli_affected_rows($Db->db) : null;
 
-    \Illuminate\Support\Facades\Log::info('[CABINET_CONTACTS] update_client_phone result', [
-        'client_id' => $User->id ?? null,
+    \Illuminate\Support\Facades\Log::channel('cabinet')->info('[CABINET_CONTACTS] update_client_phone result', [
+        'client_id' => $clientId,
         'success' => (bool)$upd,
+        'affected_rows' => $affectedRows,
+        'db_error' => $dbError,
         'phone' => $formattedPhone,
+        'phone_code' => $phoneCode,
     ]);
 
-    if ($upd){
+    if ($upd && $dbError === ''){
         ajax_json([
             'data' => 'ok',
             'phone_code' => $phoneCode,
