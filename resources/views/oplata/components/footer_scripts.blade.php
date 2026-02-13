@@ -728,7 +728,7 @@
         }
 
         // Назначаем переходы по шагам (включая «перейти к оплате»)
-        document.querySelectorAll(".step-btn-ticketing, .trip-price-btn[data-step]").forEach(button => {
+        document.querySelectorAll(".step-btn-ticketing, .trip-price-btn[data-step], .ticket-step-back[data-step]").forEach(button => {
             button.addEventListener("click", () => {
                 const step = parseInt(button.dataset.step, 10);
                 if (!isNaN(step)) {

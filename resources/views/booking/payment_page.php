@@ -80,6 +80,22 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
             color:#fff;
         }
 
+
+        .payment_v2 .payment_v2__back{
+            display:inline-flex;
+            align-items:center;
+            gap:8px;
+            margin: 0 0 20px;
+            color:#D85AF4;
+            font-family: Montserrat,system-ui;
+            font-weight:700;
+            font-size:16px;
+            text-decoration:none;
+        }
+        .payment_v2 .payment_v2__back:hover{
+            opacity:.85;
+        }
+
         /* Карточка как на макете */
         .payment_v2 .payment_v2__card.shadow_block{
             box-sizing: border-box;
@@ -782,6 +798,11 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
                     $payableAfterBonusCents = max(0, $payableCents - $bonusRedeemCents);
                     $displayTotalPrice = $bonusUseRequested ? ($payableAfterBonusCents / 100) : $totalPrice;
                     ?>
+
+                    <a class="payment_v2__back" href="<?php echo $Router->writelink(85); ?>" aria-label="Шаг назад">
+                        <span aria-hidden="true">←</span>
+                        <span>Шаг назад</span>
+                    </a>
 
                     <div class="payment_v2__card shadow_block">
                         <div class="payment_v2__title">
