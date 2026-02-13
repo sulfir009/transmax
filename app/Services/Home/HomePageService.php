@@ -85,7 +85,7 @@ class HomePageService
     /**
      * Получить фиксированный список стран для блока на главной странице.
      */
-    private function getFixedCountriesForHome(string $lang): array
+    public function getFixedCountriesForHome(string $lang): array
     {
         $countriesConfig = [
             ['en' => 'Ukraine', 'key' => 'MSG_ALL_COUNTRY_UKRAINE'],

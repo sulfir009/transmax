@@ -199,12 +199,18 @@ class ScheduleRepository
     {
         $lang = Site::lang();
         $dbPrefix = env('DB_PREFIX', 'mt');
-        
+        $ukraineCountryId = $this->getUkraineCountryId($dbPrefix);
+
+        if ($ukraineCountryId === null) {
+            return collect();
+        }
+
         return DB::table("{$dbPrefix}_tours as t")
             ->join("{$dbPrefix}_cities as departure_city", 't.departure', '=', 'departure_city.id')
             ->join("{$dbPrefix}_cities as arrival_city", 't.arrival', '=', 'arrival_city.id')
-            ->where('departure_city.section_id', '13')
-            ->where('arrival_city.section_id', '13')
+            ->where('t.active', 1)
+            ->where('departure_city.section_id', $ukraineCountryId)
+            ->where('arrival_city.section_id', $ukraineCountryId)
             ->select([
                 't.id',
                 't.departure',
@@ -218,6 +224,16 @@ class ScheduleRepository
             ])
             ->distinct()
             ->get();
+    }
+
+    private function getUkraineCountryId(string $dbPrefix): ?int
+    {
+        $countryId = DB::table("{$dbPrefix}_cities")
+            ->where('section_id', 0)
+            ->where('title_en', 'Ukraine')
+            ->value('id');
+
+        return $countryId !== null ? (int) $countryId : null;
     }
     
     public function getMinPriceForRoute(int $departureId, int $arrivalId): ?float
