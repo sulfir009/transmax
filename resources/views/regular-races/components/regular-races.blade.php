@@ -938,7 +938,14 @@
 .rr3_calendar_cancel{ background:#E74444 !important; color:#fff !important; border:none !important; }
 
 .rr3_calendar_modal_dialog .flatpickr-calendar{ box-shadow:none; border:0; width:100%; margin:0 auto 14px; }
-.rr3_calendar_modal_dialog .flatpickr-calendar.inline{ display:block; }
+.rr3_calendar_modal_dialog .flatpickr-calendar.inline{ display:block; position:relative !important; top:0 !important; left:0 !important; right:auto !important; transform:none !important; }
+.rr3_calendar_modal_dialog .flatpickr-wrapper{ width:100%; }
+
+@media (max-width: 480px){
+    .rr3_calendar_modal_dialog{ width:min(360px, calc(100% - 16px)); margin:62px auto 0; padding:12px 10px 14px; }
+    .rr3_calendar_modal_dialog .flatpickr-calendar,
+    .rr3_calendar_modal_dialog .flatpickr-calendar.inline{ max-width:100%; }
+}
 .rr3_calendar_modal_dialog .flatpickr-current-month .flatpickr-monthDropdown-months,
 .rr3_calendar_modal_dialog .flatpickr-current-month input.cur-year{ font-size:24px; font-weight:700; color:#303233; }
 .rr3_calendar_modal_dialog .flatpickr-weekday{ font-size:11px; color:#303233; font-weight:600; }
